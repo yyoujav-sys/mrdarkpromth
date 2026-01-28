@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: mr_darkpromth_postgres
+    environment:
+      POSTGRES_DB: mr_darkpromth
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    networks:
+      - mr_darkpromth_network
+
+  # Redis for Event Bus
+  redis:
+    image: redis:7-alpine
+    container_name: mr_darkpromth_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - mr_darkpromth_network
+
+  # MR.DarkPromth Backend Service
+  mr_darkpromth:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: mr_darkpromth_backend
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/mr_darkpromth
+      REDIS_URL: redis://redis:6379
+      RUST_LOG: info
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 8080
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+    ports:
+      - "8081:8080"
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./memory:/app/memory
+    networks:
+      - mr_darkpromth_network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  mr_darkpromth_network:
+    driver: bridge

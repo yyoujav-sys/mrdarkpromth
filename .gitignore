@@ -1,0 +1,32 @@
+# Environment variables / secrets
+.env
+.env.*
+!.env.example
+
+# Rust
+target/
+mr_darkpromth/**/target/
+**/*.rs.bk
+
+# Node / Frontend
+node_modules/
+dist/
+build/
+coverage/
+.vite/
+
+# VS Code Extension
+*.vsix
+out/
+.vscode-test/
+
+# IDE / Editors
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Agent memory logs
+/memory/*.log

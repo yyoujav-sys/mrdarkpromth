@@ -3,20 +3,24 @@
 // Phase 3: Ultra Tier Logic Implementation
 
 use crate::{
-    JailbreakSystem, RedisCoordinator, CoordinationEvent, EventType, 
-    SafetyFilter, Sandbox, Language, UltraTierLogic, UserIntegration,
-    UltraTierRequest, UltraTierResponse, UserTier
+    JailbreakSystem, RedisCoordinator, CoordinationEvent, EventType,
+    SafetyFilter, Sandbox, UltraTierLogic, UserIntegration,
+    UltraTierRequest, UltraTierResponse
 };
+use cerebras_client::CerebrasClient;
+use serde_json::json;
+use std::collections::HashMap;
+use std::io::Write;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
 pub struct Agent4 {
-    jailbreak_system: JailbreakSystem,
-    safety_filter: SafetyFilter,
-    sandbox: Sandbox,
-    ultra_tier_logic: UltraTierLogic,
-    user_integration: UserIntegration,
+    jailbreak_system: Arc<JailbreakSystem>,
+    safety_filter: Arc<SafetyFilter>,
+    sandbox: Arc<Sandbox>,
+    ultra_tier_logic: Arc<UltraTierLogic>,
+    user_integration: Arc<UserIntegration>,
     redis_coordinator: Arc<Mutex<RedisCoordinator>>,
     running: Arc<Mutex<bool>>,
 }
@@ -30,11 +34,12 @@ impl Agent4 {
         redis_coordinator.subscribe_to_events(&EventType::QueryEvent)?;
         redis_coordinator.subscribe_to_events(&EventType::ResponseEvent)?;
         
-        let jailbreak_system = JailbreakSystem::new();
-        let safety_filter = SafetyFilter::new();
-        let sandbox = Sandbox::ultra_tier_config();
-        let ultra_tier_logic = UltraTierLogic::new();
-        let user_integration = UserIntegration::new(redis_coordinator.clone());
+        let jailbreak_system = Arc::new(JailbreakSystem::new());
+        let safety_filter = Arc::new(SafetyFilter::new());
+        let sandbox = Arc::new(Sandbox::ultra_tier_config());
+        let cerebras_client = Arc::new(crate::cerebras_integration::CerebrasClient::new());
+        let ultra_tier_logic = Arc::new(UltraTierLogic::new(cerebras_client));
+        let user_integration = Arc::new(UserIntegration::new(redis_coordinator.clone()));
         
         Ok(Self {
             jailbreak_system,
@@ -95,27 +100,31 @@ impl Agent4 {
     fn start_event_loop(&self) {
         let coordinator = Arc::clone(&self.redis_coordinator);
         let running = Arc::clone(&self.running);
-        let jailbreak_system = Arc::new(&self.jailbreak_system);
-        let safety_filter = Arc::new(&self.safety_filter);
-        let sandbox = Arc::new(&self.sandbox);
-        let ultra_tier_logic = Arc::new(&self.ultra_tier_logic);
-        let user_integration = Arc::new(&self.user_integration);
+        let jailbreak_system = Arc::clone(&self.jailbreak_system);
+        let safety_filter = Arc::clone(&self.safety_filter);
+        let sandbox = Arc::clone(&self.sandbox);
+        let ultra_tier_logic = Arc::clone(&self.ultra_tier_logic);
+        let user_integration = Arc::clone(&self.user_integration);
         
         thread::spawn(move || {
             while *running.lock().unwrap() {
                 if let Ok(mut coord) = coordinator.try_lock() {
                     if let Ok(events) = coord.read_events(&EventType::QueryEvent, Some(1000)) {
-                        for event in events {
+                        for stream_event in events {
                             let response = Self::handle_query(
-                                &event, 
-                                jailbreak_system, 
-                                safety_filter, 
-                                sandbox,
-                                ultra_tier_logic,
-                                user_integration
+                                &stream_event.event,
+                                &jailbreak_system,
+                                &safety_filter,
+                                &sandbox,
+                                &ultra_tier_logic,
+                                &user_integration
                             );
-                            let _ = coord.publish_response_event(&event.correlation_id.unwrap_or_default(), &response);
-                            let _ = coord.acknowledge_event(&EventType::QueryEvent, &event.event_id);
+                            let _ = coord.publish_response_event(
+                                &stream_event.event.correlation_id.clone().unwrap_or_default(),
+                                &response,
+                                &stream_event.event.agent_id,
+                            );
+                            let _ = coord.acknowledge_event(&EventType::QueryEvent, &stream_event.stream_id);
                         }
                     }
                 }
@@ -141,8 +150,8 @@ impl Agent4 {
     fn handle_query(
         event: &CoordinationEvent,
         _jailbreak_system: &JailbreakSystem,
-        safety_filter: &SafetyFilter,
-        sandbox: &Sandbox,
+        _safety_filter: &SafetyFilter,
+        _sandbox: &Sandbox,
         ultra_tier_logic: &UltraTierLogic,
         user_integration: &UserIntegration,
     ) -> String {
@@ -220,13 +229,13 @@ impl Agent4 {
     }
 
     /// Process an Ultra Tier request (main entry point)
-    pub async fn process_ultra_tier_request(&mut self, user_id: String, api_key: Option<String>, original_prompt: String, ai_model: String, metadata: HashMap<String, serde_json::Value>) -> Result<UltraTierResponse, Box<dyn std::error::Error>> {
+    pub async fn process_ultra_tier_request(&self, user_id: String, api_key: Option<String>, original_prompt: String, ai_model: String, metadata: HashMap<String, serde_json::Value>) -> Result<UltraTierResponse, Box<dyn std::error::Error>> {
         // Verify user tier
         let user_tier = self.user_integration.verify_user_tier(Some(user_id.clone()), api_key, None).await?;
-        
+
         // Update user activity
         self.user_integration.update_user_activity(&user_id);
-        
+
         // Create Ultra Tier request
         let request = UltraTierRequest {
             request_id: uuid::Uuid::new_v4().to_string(),
@@ -238,20 +247,20 @@ impl Agent4 {
             timestamp: chrono::Utc::now(),
             metadata,
         };
-        
+
         // Process request through Ultra Tier logic
-        let response = self.ultra_tier_logic.process_request(request)?;
-        
+        let response = self.ultra_tier_logic.process_request(request).await?;
+
         Ok(response)
     }
 
     /// Get user audit logs
-    pub fn get_user_audit_logs(&self, user_id: &str) -> Vec<&crate::AuditLogEntry> {
+    pub fn get_user_audit_logs(&self, user_id: &str) -> Vec<crate::AuditLogEntry> {
         self.ultra_tier_logic.get_user_audit_logs(user_id)
     }
 
     /// Get security violations
-    pub fn get_security_violations(&self) -> Vec<&crate::AuditLogEntry> {
+    pub fn get_security_violations(&self) -> Vec<crate::AuditLogEntry> {
         self.ultra_tier_logic.get_security_violations()
     }
 
@@ -261,23 +270,23 @@ impl Agent4 {
     }
 
     pub fn get_jailbreak_system(&self) -> &JailbreakSystem {
-        &self.jailbreak_system
+        self.jailbreak_system.as_ref()
     }
 
     pub fn get_safety_filter(&self) -> &SafetyFilter {
-        &self.safety_filter
+        self.safety_filter.as_ref()
     }
 
     pub fn get_sandbox(&self) -> &Sandbox {
-        &self.sandbox
+        self.sandbox.as_ref()
     }
 
     pub fn get_ultra_tier_logic(&self) -> &UltraTierLogic {
-        &self.ultra_tier_logic
+        self.ultra_tier_logic.as_ref()
     }
 
     pub fn get_user_integration(&self) -> &UserIntegration {
-        &self.user_integration
+        self.user_integration.as_ref()
     }
 
     fn log_memory(&self, action: &str, details: &str, status: &str, metadata: Option<serde_json::Value>) {

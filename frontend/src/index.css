@@ -1,0 +1,36 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+* {
+  border-color: rgb(31 41 55);
+}
+
+body {
+  background-color: rgb(10 10 10);
+  color: rgb(243 244 246);
+  font-family: 'Inter', system-ui, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+.neon-border {
+  border: 1px solid rgb(139 92 246 / 0.3);
+  box-shadow: 0 10px 15px -3px rgb(139 92 246 / 0.2);
+}
+
+.glass-effect {
+  background-color: rgb(42 42 42 / 0.8);
+  backdrop-filter: blur(12px);
+}
+
+.gradient-text {
+  background-image: linear-gradient(to right, rgb(139 92 246), rgb(59 130 246));
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}

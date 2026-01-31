@@ -1,8 +1,5 @@
-# Use Rust nightly to avoid edition2024 issues
+# Use stable Rust for production builds
 FROM rust:1.77-slim as builder
-
-# Install rustup and switch to nightly
-RUN rustup update nightly && rustup default nightly
 
 WORKDIR /app
 
@@ -39,9 +36,10 @@ RUN touch src/main.rs && cargo build --release
 # Runtime stage
 FROM debian:bookworm-slim
 
-# Install runtime dependencies
+# Install runtime dependencies including curl for health checks
 RUN apt-get update && apt-get install -y \
     ca-certificates \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Create app user

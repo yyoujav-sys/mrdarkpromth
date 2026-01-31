@@ -9,6 +9,7 @@ use std::collections::HashSet;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SafetyFilter {
     server_protection_rules: Vec<ProtectionRule>,
+    #[serde(skip)]
     dangerous_patterns: Vec<Regex>,
     blocked_commands: HashSet<String>,
     allowed_file_extensions: HashSet<String>,

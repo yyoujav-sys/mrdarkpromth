@@ -6,7 +6,9 @@ use crate::{
     DependencyMonitor, UltraTierLogic, UserIntegration, RedisCoordinator,
     CoordinationEvent, EventType, UltraTierRequest, UltraTierResponse, UserTier
 };
+use cerebras_client::CerebrasClient;
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Duration;
 use uuid::Uuid;
 use serde_json::json;
@@ -31,7 +33,8 @@ pub struct TestResult {
 impl IntegrationCoordinator {
     pub fn new(redis_coordinator: RedisCoordinator) -> Result<Self, Box<dyn std::error::Error>> {
         let dependency_monitor = DependencyMonitor::new(redis_coordinator.clone());
-        let ultra_tier_logic = UltraTierLogic::new();
+        let cerebras_client = Arc::new(crate::cerebras_integration::CerebrasClient::new());
+        let ultra_tier_logic = UltraTierLogic::new(cerebras_client);
         let user_integration = UserIntegration::new(redis_coordinator.clone());
         
         Ok(Self {
@@ -169,7 +172,7 @@ impl IntegrationCoordinator {
         };
         
         // Process request through Ultra Tier logic
-        match self.ultra_tier_logic.process_request(request) {
+        match self.ultra_tier_logic.process_request(request).await {
             Ok(response) => {
                 let passed = response.jailbreak_applied && !response.ai_response.is_empty();
                 
@@ -180,7 +183,7 @@ impl IntegrationCoordinator {
                         "Jailbreak applied: {}, Response length: {}, Security violations: {}",
                         response.jailbreak_applied,
                         response.ai_response.len(),
-                        response.security_violations.len()
+                        response.safety_violations.len()
                     ),
                     timestamp: chrono::Utc::now(),
                 });
@@ -298,7 +301,7 @@ impl IntegrationCoordinator {
         };
         
         // Process request through Ultra Tier logic
-        let response = self.ultra_tier_logic.process_request(request)?;
+        let response = self.ultra_tier_logic.process_request(request).await?;
         
         Ok(response)
     }
@@ -367,7 +370,7 @@ mod tests {
     fn test_integration_coordinator_initialization() {
         // This test would require Redis instance
         // For now, test the structure
-        let test_results = Vec::new();
+        let test_results: Vec<TestResult> = Vec::new();
         assert!(test_results.is_empty());
     }
 }

@@ -6,6 +6,7 @@ use redis::{Client, Connection, Commands, RedisResult, RedisError};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
 
@@ -19,7 +20,13 @@ pub struct CoordinationEvent {
     pub payload: Value,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
+pub struct RedisStreamEvent {
+    pub stream_id: String,
+    pub event: CoordinationEvent,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum EventType {
     TaskCompletion,
     ResourceReady,
@@ -34,6 +41,7 @@ pub struct RedisCoordinator {
     client: Client,
     agent_id: String,
     subscriptions: HashMap<String, String>,
+    pubsub_channel: Arc<Mutex<Option<String>>>,
 }
 
 impl RedisCoordinator {
@@ -44,6 +52,7 @@ impl RedisCoordinator {
             client,
             agent_id,
             subscriptions: HashMap::new(),
+            pubsub_channel: Arc::new(Mutex::new(None)),
         })
     }
 
@@ -53,7 +62,7 @@ impl RedisCoordinator {
 
     pub fn publish_event(&mut self, event: CoordinationEvent) -> RedisResult<()> {
         let mut conn = self.get_connection()?;
-        let stream_name = self.get_stream_name(&event.event_type);
+        let stream_name = self.get_publish_stream_name(&event);
         let event_json = serde_json::to_string(&event).unwrap();
         
         // Use Redis Streams for guaranteed delivery
@@ -62,6 +71,48 @@ impl RedisCoordinator {
         ])?;
         
         Ok(())
+    }
+
+    pub async fn publish(&self, channel: &str, message: &str) -> RedisResult<()> {
+        let mut conn = self.get_connection()?;
+        let _: i64 = redis::cmd("RPUSH")
+            .arg(channel)
+            .arg(message)
+            .query(&mut conn)?;
+        Ok(())
+    }
+
+    pub async fn subscribe(&self, channel: &str) -> RedisResult<()> {
+        let mut guard = self
+            .pubsub_channel
+            .lock()
+            .map_err(|_| RedisError::from((redis::ErrorKind::IoError, "pubsub lock poisoned")))?;
+        *guard = Some(channel.to_string());
+        Ok(())
+    }
+
+    pub async fn get_message(&self) -> RedisResult<String> {
+        let channel = self
+            .pubsub_channel
+            .lock()
+            .map_err(|_| RedisError::from((redis::ErrorKind::IoError, "pubsub lock poisoned")))?
+            .clone();
+
+        let channel = channel.ok_or_else(|| {
+            RedisError::from((redis::ErrorKind::IoError, "No channel subscribed"))
+        })?;
+
+        let mut conn = self.get_connection()?;
+        let result: Option<(String, String)> = redis::cmd("BLPOP")
+            .arg(&channel)
+            .arg(1)
+            .query(&mut conn)?;
+
+        if let Some((_key, message)) = result {
+            Ok(message)
+        } else {
+            Err(RedisError::from((redis::ErrorKind::IoError, "No message")))
+        }
     }
 
     pub fn subscribe_to_events(&mut self, event_type: &EventType) -> RedisResult<String> {
@@ -79,39 +130,44 @@ impl RedisCoordinator {
         Ok(stream_name)
     }
 
-    pub fn read_events(&self, event_type: &EventType, block_ms: Option<i64>) -> RedisResult<Vec<CoordinationEvent>> {
+    pub fn read_events(&self, event_type: &EventType, block_ms: Option<i64>) -> RedisResult<Vec<RedisStreamEvent>> {
         let stream_name = self.get_stream_name(event_type);
         let consumer_group = format!("{}_group", self.agent_id);
         let consumer_name = self.agent_id.clone();
         
         let mut conn = self.get_connection()?;
-        
-        let result: Vec<(String, Vec<(String, Vec<(String, String)>)>)> = match block_ms {
-            Some(ms) => conn.xreadgroup(&consumer_group, &consumer_name, &[&stream_name], ">")?,
-            None => conn.xreadgroup(&consumer_group, &consumer_name, &[&stream_name], ">")?,
-        };
-        
+
+        let mut cmd = redis::cmd("XREADGROUP");
+        cmd.arg("GROUP").arg(&consumer_group).arg(&consumer_name);
+        if let Some(ms) = block_ms {
+            cmd.arg("BLOCK").arg(ms);
+        }
+        cmd.arg("STREAMS").arg(&stream_name).arg(">");
+
+        let result: Option<Vec<(String, Vec<(String, Vec<(String, String)>)>)>> = cmd.query(&mut conn)?;
+        let result = result.unwrap_or_default();
+
         let mut events = Vec::new();
-        
+
         for (_, messages) in result {
-            for (_, fields) in messages {
+            for (stream_id, fields) in messages {
                 if let Some(event_data) = fields.iter().find(|(k, _)| k == "event_data") {
                     if let Ok(event) = serde_json::from_str::<CoordinationEvent>(&event_data.1) {
-                        events.push(event);
+                        events.push(RedisStreamEvent { stream_id, event });
                     }
                 }
             }
         }
-        
+
         Ok(events)
     }
 
-    pub fn acknowledge_event(&self, event_type: &EventType, event_id: &str) -> RedisResult<()> {
+    pub fn acknowledge_event(&self, event_type: &EventType, stream_id: &str) -> RedisResult<()> {
         let stream_name = self.get_stream_name(event_type);
         let consumer_group = format!("{}_group", self.agent_id);
         
         let mut conn = self.get_connection()?;
-        let _: () = conn.xack(&stream_name, &consumer_group, &[event_id])?;
+        let _: () = conn.xack(&stream_name, &consumer_group, &[stream_id])?;
         
         Ok(())
     }
@@ -188,7 +244,7 @@ impl RedisCoordinator {
         Ok(correlation_id)
     }
 
-    pub fn publish_response_event(&mut self, correlation_id: &str, response: &str) -> RedisResult<()> {
+    pub fn publish_response_event(&mut self, correlation_id: &str, response: &str, target_agent: &str) -> RedisResult<()> {
         let event = CoordinationEvent {
             event_id: Uuid::new_v4().to_string(),
             agent_id: self.agent_id.clone(),
@@ -196,7 +252,8 @@ impl RedisCoordinator {
             timestamp: Utc::now(),
             correlation_id: Some(correlation_id.to_string()),
             payload: json!({
-                "response": response
+                "response": response,
+                "target_agent": target_agent
             }),
         };
         
@@ -222,19 +279,38 @@ impl RedisCoordinator {
 
     pub fn wait_for_response(&self, correlation_id: &str, timeout_ms: u64) -> Option<CoordinationEvent> {
         let start_time = std::time::Instant::now();
+        let correlation_id = correlation_id.to_string();
         
         while start_time.elapsed().as_millis() < timeout_ms as u128 {
             if let Ok(events) = self.read_events(&EventType::ResponseEvent, Some(1000)) {
-                for event in events {
-                    if event.correlation_id.as_ref() == Some(&correlation_id.to_string()) {
-                        let _ = self.acknowledge_event(&EventType::ResponseEvent, &event.event_id);
-                        return Some(event);
+                for stream_event in events {
+                    if stream_event.event.correlation_id.as_ref() == Some(&correlation_id) {
+                        let _ = self.acknowledge_event(&EventType::ResponseEvent, &stream_event.stream_id);
+                        return Some(stream_event.event);
                     }
                 }
             }
         }
         
         None
+    }
+
+    fn get_publish_stream_name(&self, event: &CoordinationEvent) -> String {
+        match &event.event_type {
+            EventType::QueryEvent => event
+                .payload
+                .get("target_agent")
+                .and_then(|agent| agent.as_str())
+                .map(|agent| format!("mr_darkpromth:{}:query_event", agent))
+                .unwrap_or_else(|| self.get_stream_name(&event.event_type)),
+            EventType::ResponseEvent => event
+                .payload
+                .get("target_agent")
+                .and_then(|agent| agent.as_str())
+                .map(|agent| format!("mr_darkpromth:{}:response_event", agent))
+                .unwrap_or_else(|| self.get_stream_name(&event.event_type)),
+            _ => self.get_stream_name(&event.event_type),
+        }
     }
 
     fn get_stream_name(&self, event_type: &EventType) -> String {
@@ -270,6 +346,7 @@ impl Clone for RedisCoordinator {
             client: self.client.clone(),
             agent_id: self.agent_id.clone(),
             subscriptions: self.subscriptions.clone(),
+            pubsub_channel: self.pubsub_channel.clone(),
         }
     }
 }

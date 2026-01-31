@@ -109,7 +109,7 @@ impl Sandbox {
         let mut warnings = Vec::new();
 
         // Prepare the code file
-        let code_file = self.prepare_code_file(code, language, &temp_dir)?;
+        let code_file = self.prepare_code_file(code, language.clone(), &temp_dir)?;
         
         // Build the execution command
         let mut command = self.build_execution_command(&code_file, language, &temp_dir)?;
@@ -135,8 +135,8 @@ impl Sandbox {
                     execution_time: start_time.elapsed(),
                     memory_used_mb: 0,
                     cpu_percent: 0.0,
-                    security_violations,
-                    warnings,
+                    security_violations: security_violations.clone(),
+                    warnings: warnings.clone(),
                 }
             }
         };
@@ -314,15 +314,24 @@ impl Sandbox {
         let execution_time = start_time.elapsed();
         
         // Capture output
-        let stdout = String::from_utf8_lossy(&child.stdout.as_mut().unwrap_or(&mut Vec::new())).to_string();
-        let stderr = String::from_utf8_lossy(&child.stderr.as_mut().unwrap_or(&mut Vec::new())).to_string();
+        let mut stdout_str = String::new();
+        if let Some(mut stdout) = child.stdout.take() {
+            use std::io::Read;
+            stdout.read_to_string(&mut stdout_str)?;
+        }
+
+        let mut stderr_str = String::new();
+        if let Some(mut stderr) = child.stderr.take() {
+            use std::io::Read;
+            stderr.read_to_string(&mut stderr_str)?;
+        }
 
         let exit_code = status.code();
 
         Ok(ExecutionResult {
             success: status.success(),
-            stdout,
-            stderr,
+            stdout: stdout_str,
+            stderr: stderr_str,
             exit_code,
             execution_time,
             memory_used_mb: 0, // Would need external monitoring
@@ -358,7 +367,7 @@ impl Sandbox {
     pub fn get_execution_stats(&self) -> HashMap<String, serde_json::Value> {
         let mut stats = HashMap::new();
         stats.insert("total_executions".to_string(), serde_json::Value::Number(self.execution_count.into()));
-        stats.insert("max_execution_time_ms".to_string(), serde_json::Value::Number(self.config.max_execution_time.as_millis().into()));
+        stats.insert("max_execution_time_ms".to_string(), serde_json::Value::Number((self.config.max_execution_time.as_millis() as u64).into()));
         stats.insert("max_memory_mb".to_string(), serde_json::Value::Number(self.config.max_memory_mb.into()));
         stats.insert("allow_network".to_string(), serde_json::Value::Bool(self.config.allow_network));
         stats.insert("allow_file_access".to_string(), serde_json::Value::Bool(self.config.allow_file_access));
@@ -376,12 +385,12 @@ impl Sandbox {
 
 // Extension trait for timeout support
 trait WaitTimeout {
-    fn wait_timeout(&self, timeout: Duration) -> Result<std::process::ExitStatus, std::io::Error>;
+    fn wait_timeout(&mut self, timeout: Duration) -> Result<std::process::ExitStatus, std::io::Error>;
 }
 
 #[cfg(unix)]
 impl WaitTimeout for std::process::Child {
-    fn wait_timeout(&self, timeout: Duration) -> Result<std::process::ExitStatus, std::io::Error> {
+    fn wait_timeout(&mut self, timeout: Duration) -> Result<std::process::ExitStatus, std::io::Error> {
         use std::os::unix::process::ExitStatusExt;
         
         let start = std::time::Instant::now();
@@ -406,7 +415,7 @@ impl WaitTimeout for std::process::Child {
 
 #[cfg(not(unix))]
 impl WaitTimeout for std::process::Child {
-    fn wait_timeout(&self, timeout: Duration) -> Result<std::process::ExitStatus, std::io::Error> {
+    fn wait_timeout(&mut self, timeout: Duration) -> Result<std::process::ExitStatus, std::io::Error> {
         // Fallback for non-Unix systems
         let start = std::time::Instant::now();
         

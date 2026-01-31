@@ -37,7 +37,7 @@ impl IntegrationTestSuite {
         }
     }
 
-    pub fn run_all_tests(&mut self) -> &Vec<TestResult> {
+    pub async fn run_all_tests(&mut self) -> &Vec<TestResult> {
         println!("🧪 Starting Agent 4 Integration Test Suite...");
         
         // Phase 1 Tests
@@ -53,14 +53,14 @@ impl IntegrationTestSuite {
         
         // Phase 3 Tests
         self.test_ultra_tier_logic();
-        self.test_tier_based_prompting();
+        self.test_tier_based_prompting().await;
         self.test_audit_logging();
         self.test_user_cache_management();
         
         // Integration Tests
-        self.test_end_to_end_ultra_request();
+        self.test_end_to_end_ultra_request().await;
         self.test_security_violation_handling();
-        self.test_performance_under_load();
+        self.test_performance_under_load().await;
         
         self.print_test_summary();
         &self.test_results
@@ -221,7 +221,7 @@ impl IntegrationTestSuite {
         });
     }
 
-    fn test_tier_based_prompting(&mut self) {
+    async fn test_tier_based_prompting(&mut self) {
         let start_time = std::time::Instant::now();
         
         let ultra_request = UltraTierRequest {
@@ -235,7 +235,7 @@ impl IntegrationTestSuite {
             metadata: HashMap::new(),
         };
         
-        let result = self.ultra_tier_logic.process_request(ultra_request);
+        let result = self.ultra_tier_logic.process_request(ultra_request).await;
         let passed = result.is_ok() && result.unwrap().jailbreak_applied;
         let duration = start_time.elapsed().as_millis() as u64;
         
@@ -292,7 +292,7 @@ impl IntegrationTestSuite {
         });
     }
 
-    fn test_end_to_end_ultra_request(&mut self) {
+    async fn test_end_to_end_ultra_request(&mut self) {
         let start_time = std::time::Instant::now();
         
         // Simulate complete Ultra Tier request flow
@@ -311,7 +311,7 @@ impl IntegrationTestSuite {
             },
         };
         
-        let result = self.ultra_tier_logic.process_request(request);
+        let result = self.ultra_tier_logic.process_request(request).await;
         let passed = result.is_ok();
         let duration = start_time.elapsed().as_millis() as u64;
         
@@ -341,7 +341,7 @@ impl IntegrationTestSuite {
         });
     }
 
-    fn test_performance_under_load(&mut self) {
+    async fn test_performance_under_load(&mut self) {
         let start_time = std::time::Instant::now();
         
         // Test multiple rapid requests
@@ -358,7 +358,7 @@ impl IntegrationTestSuite {
                 metadata: HashMap::new(),
             };
             
-            if self.ultra_tier_logic.process_request(request).is_ok() {
+            if self.ultra_tier_logic.process_request(request).await.is_ok() {
                 success_count += 1;
             }
         }
@@ -449,10 +449,10 @@ Test Results:
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_integration_test_suite() {
+    #[tokio::test]
+    async fn test_integration_test_suite() {
         let mut test_suite = IntegrationTestSuite::new();
-        let results = test_suite.run_all_tests();
+        let results = test_suite.run_all_tests().await;
         
         assert!(!results.is_empty(), "Test suite should run tests");
         

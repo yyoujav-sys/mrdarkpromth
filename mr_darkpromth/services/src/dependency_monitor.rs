@@ -5,6 +5,7 @@
 use crate::{RedisCoordinator, CoordinationEvent, EventType};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
+use std::io::Write;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -22,7 +23,7 @@ pub struct DependencyStatus {
     pub ready_for_integration: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum DependencyState {
     Unknown,
     Starting,
@@ -125,32 +126,38 @@ impl DependencyMonitor {
     }
 
     async fn check_for_events(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        let mut coordinator = self.redis_coordinator.lock().unwrap();
-        
-        // Check task completion events
-        if let Ok(events) = coordinator.read_events(&EventType::TaskCompletion, Some(1000)) {
-            for event in events {
-                self.handle_task_completion_event(&event);
-                let _ = coordinator.acknowledge_event(&EventType::TaskCompletion, &event.event_id);
+        let (task_events, resource_events, heartbeat_events) = {
+            let mut coordinator = self.redis_coordinator.lock().unwrap();
+            let task_events = coordinator.read_events(&EventType::TaskCompletion, Some(1000)).unwrap_or_default();
+            let resource_events = coordinator.read_events(&EventType::ResourceReady, Some(1000)).unwrap_or_default();
+            let heartbeat_events = coordinator.read_events(&EventType::Heartbeat, Some(1000)).unwrap_or_default();
+            (task_events, resource_events, heartbeat_events)
+        };
+
+        for stream_event in &task_events {
+            self.handle_task_completion_event(&stream_event.event);
+        }
+
+        for stream_event in &resource_events {
+            self.handle_resource_ready_event(&stream_event.event);
+        }
+
+        for stream_event in &heartbeat_events {
+            self.handle_heartbeat_event(&stream_event.event);
+        }
+
+        if let Ok(mut coordinator) = self.redis_coordinator.lock() {
+            for stream_event in task_events {
+                let _ = coordinator.acknowledge_event(&EventType::TaskCompletion, &stream_event.stream_id);
+            }
+            for stream_event in resource_events {
+                let _ = coordinator.acknowledge_event(&EventType::ResourceReady, &stream_event.stream_id);
+            }
+            for stream_event in heartbeat_events {
+                let _ = coordinator.acknowledge_event(&EventType::Heartbeat, &stream_event.stream_id);
             }
         }
-        
-        // Check resource ready events
-        if let Ok(events) = coordinator.read_events(&EventType::ResourceReady, Some(1000)) {
-            for event in events {
-                self.handle_resource_ready_event(&event);
-                let _ = coordinator.acknowledge_event(&EventType::ResourceReady, &event.event_id);
-            }
-        }
-        
-        // Check heartbeat events
-        if let Ok(events) = coordinator.read_events(&EventType::Heartbeat, Some(1000)) {
-            for event in events {
-                self.handle_heartbeat_event(&event);
-                let _ = coordinator.acknowledge_event(&EventType::Heartbeat, &event.event_id);
-            }
-        }
-        
+
         Ok(())
     }
 
@@ -210,20 +217,26 @@ impl DependencyMonitor {
     }
 
     async fn check_all_dependencies(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        for (agent_id, dependency) in self.dependencies.iter_mut() {
+        let agent_ids: Vec<String> = self.dependencies.keys().cloned().collect();
+
+        for agent_id in agent_ids {
             // Query agent status
-            let correlation_id = self.query_agent_status(agent_id).await?;
-            
+            let correlation_id = self.query_agent_status(&agent_id).await?;
+
             // Wait for response (with timeout)
-            if let Some(response) = self.wait_for_status_response(&correlation_id, 5000).await {
-                self.update_dependency_from_response(dependency, &response);
-            } else {
-                // No response, mark as unknown
-                dependency.status = DependencyState::Unknown;
-                dependency.last_check = Utc::now();
+            let response = self.wait_for_status_response(&correlation_id, 5000).await;
+
+            if let Some(dependency) = self.dependencies.get_mut(&agent_id) {
+                if let Some(response) = response {
+                    Self::update_dependency_from_response(dependency, &response);
+                } else {
+                    // No response, mark as unknown
+                    dependency.status = DependencyState::Unknown;
+                    dependency.last_check = Utc::now();
+                }
             }
         }
-        
+
         Ok(())
     }
 
@@ -246,11 +259,11 @@ impl DependencyMonitor {
         while start_time.elapsed().as_millis() < timeout_ms as u128 {
             if let Ok(mut coordinator) = self.redis_coordinator.try_lock() {
                 if let Ok(events) = coordinator.read_events(&EventType::ResponseEvent, Some(100)) {
-                    for event in events {
-                        if let Some(event_correlation_id) = &event.correlation_id {
+                    for stream_event in events {
+                        if let Some(event_correlation_id) = &stream_event.event.correlation_id {
                             if event_correlation_id == correlation_id {
-                                let _ = coordinator.acknowledge_event(&EventType::ResponseEvent, &event.event_id);
-                                return Some(event.payload);
+                                let _ = coordinator.acknowledge_event(&EventType::ResponseEvent, &stream_event.stream_id);
+                                return Some(stream_event.event.payload);
                             }
                         }
                     }
@@ -263,7 +276,7 @@ impl DependencyMonitor {
         None
     }
 
-    fn update_dependency_from_response(&mut self, dependency: &mut DependencyStatus, response: &serde_json::Value) {
+    fn update_dependency_from_response(dependency: &mut DependencyStatus, response: &serde_json::Value) {
         dependency.last_check = Utc::now();
         
         if let Some(status) = response.get("status").and_then(|s| s.as_str()) {
@@ -340,7 +353,7 @@ impl DependencyMonitor {
         println!("=====================================\n");
     }
 
-    fn all_dependencies_ready(&self) -> bool {
+    pub fn all_dependencies_ready(&self) -> bool {
         self.dependencies.values().all(|d| d.ready_for_integration)
     }
 
@@ -436,7 +449,7 @@ mod tests {
     fn test_dependency_monitor_initialization() {
         // This test would require Redis instance
         // For now, test the structure
-        let dependencies = HashMap::new();
+        let dependencies: HashMap<String, DependencyStatus> = HashMap::new();
         assert!(dependencies.is_empty());
     }
 }

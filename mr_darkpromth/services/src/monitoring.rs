@@ -7,6 +7,7 @@ use std::collections::{HashMap, VecDeque};
 use std::time::{Duration, Instant};
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
+use sysinfo::{CpuExt, System, SystemExt};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemMetrics {
@@ -20,6 +21,28 @@ pub struct SystemMetrics {
     pub average_response_time_ms: f64,
     pub security_violations: u64,
     pub jailbreak_success_rate: f64,
+}
+
+pub fn collect_system_metrics(agent_id: &str) -> SystemMetrics {
+    let mut system = System::new_all();
+    system.refresh_cpu();
+    system.refresh_memory();
+
+    let cpu_usage = system.global_cpu_info().cpu_usage();
+    let memory_used_mb = system.used_memory() / 1024; // sysinfo returns KB
+
+    SystemMetrics {
+        timestamp: Utc::now(),
+        agent_id: agent_id.to_string(),
+        cpu_usage_percent: cpu_usage,
+        memory_usage_mb: memory_used_mb,
+        active_requests: 0,
+        completed_requests: 0,
+        failed_requests: 0,
+        average_response_time_ms: 0.0,
+        security_violations: 0,
+        jailbreak_success_rate: 0.0,
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

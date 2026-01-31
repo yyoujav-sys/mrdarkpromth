@@ -4,13 +4,48 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+dotenv = "0.15.0"
 chrono = { version = "0.4", features = ["serde"] }
 redis = { version = "0.24", features = ["tokio-comp"] }
-reqwest = { version = "0.11", features = ["json", "rustls-tls", "stream"] }
+reqwest = { version = "0.11", features = ["json", "rustls-tls", "stream", "blocking"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "1.0"
 uuid = { version = "1.6", features = ["v4", "serde"] }
+regex = "1.0"
+tokio = { version = "1", features = ["full"] }
+log = "0.4"
+env_logger = "0.10"
+anyhow = "1.0"
+cerebras_client = { path = "../../services/cerebras_client" }
+async-trait = "0.1"
+# Security dependencies
+crypto-common = "0.1"
+sha2 = "0.10"
+hmac = "0.12"
+ring = "0.16"
+# Sandboxing dependencies
+nix = "0.27"
+# Rate limiting
+governor = "0.6"
+# Resource monitoring
+sysinfo = "0.29"
+tempfile = "3.0"
+md5 = "0.7"
+
+# Authentication dependencies
+argon2 = "0.4"
+jsonwebtoken = "8.3"
+mr_darkpromth_db = { path = "../db" }
+mr_darkpromth_core = { path = "../core" }
+sqlx = { version = "0.6", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono"], default-features = false }
+
+# Web framework dependencies for API
+axum = "0.6"
+actix-web = "4.4"
+actix-cors = "0.6"
+tower = "0.4"
+tower-http = { version = "0.4", features = ["cors", "trace"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
@@ -21,4 +56,3 @@ uuid = { version = "1.0", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
 regex = "1.0"
 tempfile = "3.0"
-tokio = { version = "1.0", features = ["full"] }

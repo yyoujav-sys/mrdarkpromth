@@ -1,0 +1,51 @@
+# MR.DarkPromth Production Configuration
+
+[server]
+host = "0.0.0.0"
+port = 8080
+max_connections = 10000
+timeout_seconds = 30
+
+[database]
+url = ""  # Set via DATABASE_URL environment variable
+max_connections = 20
+min_connections = 5
+connection_timeout = 10
+
+[redis]
+url = ""  # Set via REDIS_URL environment variable
+max_connections = 20
+connection_timeout = 5
+
+[logging]
+level = "info"
+format = "json"
+file = "/var/log/mr_darkpromth/app.log"
+max_file_size = "500MB"
+max_files = 14
+
+[security]
+jwt_secret = ""  # MUST be set via JWT_SECRET environment variable
+jwt_expiration_hours = 24
+session_timeout_minutes = 60
+rate_limit_requests = 100
+rate_limit_window_seconds = 60
+
+[cerebras]
+api_keys = []  # Set via CEREBRAS_API_KEYS environment variable
+default_model = "llama-3.3-70b"
+timeout_seconds = 30
+max_retries = 3
+
+[agents]
+coordination_enabled = true
+heartbeat_interval_seconds = 30
+event_bus_enabled = true
+memory_log_enabled = true
+
+[ultra_tier]
+consent_required = true
+activation_enabled = true
+audit_enabled = true
+sandbox_enabled = true
+debug_mode = false

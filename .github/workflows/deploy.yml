@@ -1,0 +1,52 @@
+name: Deploy
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Deploy to ECS
+        run: |
+          # Build and push Docker image
+          docker build -t mr-darkpromth/backend:${{ github.sha }} .
+          docker tag mr-darkpromth/backend:${{ github.sha }} mr-darkpromth/backend:latest
+          
+          # Push to ECR
+          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}
+          docker push ${{ secrets.ECR_REGISTRY }}/mr-darkpromth/backend:${{ github.sha }}
+          docker push ${{ secrets.ECR_REGISTRY }}/mr-darkpromth/backend:latest
+          
+          # Update ECS service
+          aws ecs update-service --cluster mr-darkpromth --service backend --force-new-deployment
+
+      - name: Run database migrations
+        run: |
+          # Execute migrations on the database
+          aws ecs run-task --cluster mr-darkpromth --task-definition migrations --launch-type FARGATE
+
+      - name: Notify deployment
+        uses: 8398a7/action-slack@v3
+        if: always()
+        with:
+          status: ${{ job.status }}
+          text: 'Deployment to production completed'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}

@@ -58,7 +58,7 @@ Returns consent and activation status.
 
 ## 🏗️ Architecture
 
-- **Backend**: Rust with Axum framework
+- **Backend**: Rust with Actix-web framework
 - **Database**: PostgreSQL with SQLx
 - **Event Bus**: Redis Streams
 - **Containerization**: Docker & Docker Compose
@@ -93,9 +93,17 @@ cargo test
 
 ### Database Migrations
 ```bash
-# Apply migrations
+# Apply migrations (run in order)
 docker-compose exec postgres psql -U postgres -d mr_darkpromth -f /docker-entrypoint-initdb.d/001_create_ultra_tier_tables.sql
+docker-compose exec postgres psql -U postgres -d mr_darkpromth -f /docker-entrypoint-initdb.d/002_create_users_table.sql
+docker-compose exec postgres psql -U postgres -d mr_darkpromth -f /docker-entrypoint-initdb.d/003_create_audit_tables.sql
+docker-compose exec postgres psql -U postgres -d mr_darkpromth -f /docker-entrypoint-initdb.d/003_create_jailbreak_prompt_library.sql
+docker-compose exec postgres psql -U postgres -d mr_darkpromth -f /docker-entrypoint-initdb.d/004_create_correction_history_table.sql
+docker-compose exec postgres psql -U postgres -d mr_darkpromth -f /docker-entrypoint-initdb.d/005_upgrade_user_tier_enum.sql
 ```
+
+### Sandbox Execution
+Set `SANDBOX_USE_DOCKER=true` in `.env` to run code execution inside Docker containers for production isolation.
 
 ## 🚨 Security Notes
 

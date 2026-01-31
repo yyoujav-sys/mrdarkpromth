@@ -10,14 +10,20 @@ use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Row};
 use std::env;
 use tower_http::cors::CorsLayer;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use uuid::Uuid;
+
+// Import jailbreak modules
+use mr_darkpromth_core::jailbreak_models::*;
+use mr_darkpromth_core::tier::{UserTier, PromptRequest, PromptResponse};
+use mr_darkpromth_services::jailbreak_service::JailbreakPromptService;
 
 #[derive(Clone)]
 struct AppState {
     db: PgPool,
     redis: Client,
+    jailbreak_service: JailbreakPromptService,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -270,7 +276,10 @@ async fn main() -> anyhow::Result<()> {
         .expect("REDIS_URL must be set");
     let redis = Client::open(redis_url)?;
 
-    let state = AppState { db, redis };
+    // Initialize jailbreak service
+    let jailbreak_service = JailbreakPromptService::new(db.clone());
+
+    let state = AppState { db, redis, jailbreak_service };
 
     // Build our application with routes
     let app = Router::new()
@@ -278,18 +287,199 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/ultra/consent", post(post_consent))
         .route("/api/ultra/activate", post(post_activate))
         .route("/api/ultra/status/:user_id", get(get_status))
+        // Jailbreak API endpoints
+        .route("/api/jailbreak/prompts", get(get_jailbreak_prompts))
+        .route("/api/jailbreak/prompts/:id", get(get_jailbreak_prompt_by_id))
+        .route("/api/jailbreak/apply", post(apply_jailbreak_prompt))
+        .route("/api/jailbreak/tier/:user_id", get(get_user_tier))
         .layer(CorsLayer::permissive())
         .with_state(state);
 
     // Run our app
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await?;
-    info!("Server running on http://0.0.0.0:8080");
+    let server_host = env::var("SERVER_HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
+    let server_port = env::var("SERVER_PORT").unwrap_or_else(|_| "8080".to_string());
+    let bind_addr = format!("{}:{}", server_host, server_port);
     
-    axum::Server::bind(&"0.0.0.0:8080".parse().unwrap())
+    let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
+    info!("Server running on http://{}", bind_addr);
+    
+    axum::Server::bind(&bind_addr.parse().unwrap())
         .serve(app.into_make_service())
         .await?;
 
     Ok(())
+}
+
+// Jailbreak prompt endpoints
+async fn get_jailbreak_prompts(
+    State(state): State<AppState>,
+    axum::extract::Query(params): axum::extract::Query<GetPromptsParams>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let limit = params.limit.unwrap_or(50).min(100);
+    let offset = params.offset.unwrap_or(0);
+    
+    match state.jailbreak_service
+        .search_prompts(PromptSearchRequest {
+            query: None,
+            category: None,
+            technique: None,
+            effectiveness: None,
+            risk_level: None,
+            target_models: None,
+            tags: None,
+            requires_ultra_tier: None,
+            limit: Some(limit),
+            offset: Some(offset),
+            sort_by: Some(PromptSortBy::CreatedAt),
+            sort_order: Some(SortOrder::Desc),
+        })
+        .await
+    {
+        Ok(prompts) => Ok(Json(serde_json::json!(prompts))),
+        Err(e) => {
+            error!("Failed to get jailbreak prompts: {:?}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+async fn get_jailbreak_prompt_by_id(
+    State(state): State<AppState>,
+    axum::extract::Path(id): axum::extract::Path<Uuid>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    match state.jailbreak_service.get_prompt_by_id(id).await {
+        Ok(Some(prompt)) => Ok(Json(serde_json::json!(prompt))),
+        Ok(None) => Err(StatusCode::NOT_FOUND),
+        Err(e) => {
+            error!("Failed to get jailbreak prompt: {:?}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
+}
+
+async fn get_user_tier(
+    State(state): State<AppState>,
+    axum::extract::Path(user_id): axum::extract::Path<Uuid>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    // Check if user has activated Ultra Tier
+    let activation = sqlx::query(
+        "SELECT * FROM ultra_tier_activations WHERE user_id = $1"
+    )
+    .bind(user_id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| {
+        error!("Failed to check user tier: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    let tier = if activation.is_some() {
+        UserTier::Ultra
+    } else {
+        UserTier::Free
+    };
+
+    Ok(Json(serde_json::json!({
+        "user_id": user_id,
+        "tier": tier.as_str(),
+        "limits": TierLimits::from(tier.clone())
+    })))
+}
+
+async fn apply_jailbreak_prompt(
+    State(state): State<AppState>,
+    Json(payload): Json<ApplyJailbreakRequest>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    // Verify user has Ultra Tier access
+    let activation = sqlx::query(
+        "SELECT * FROM ultra_tier_activations WHERE user_id = $1"
+    )
+    .bind(payload.user_id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| {
+        error!("Failed to verify user tier: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    if activation.is_none() {
+        warn!("Non-Ultra tier user attempted to apply jailbreak prompt: {}", payload.user_id);
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    // Get the prompt
+    let prompt = state.jailbreak_service
+        .get_prompt_by_id(payload.prompt_id)
+        .await
+        .map_err(|e| {
+            error!("Failed to get prompt: {:?}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    // Apply jailbreak to user's request
+    let jailbroken_request = format!(
+        "{}\n\nUSER REQUEST:\n{}",
+        prompt.content,
+        payload.user_request
+    );
+
+    // Record usage
+    let _ = state.jailbreak_service
+        .record_usage(
+            prompt.id,
+            payload.user_id,
+            payload.target_model.clone(),
+            true,
+            0
+        )
+        .await;
+
+    // Publish to Redis event bus
+    let mut conn = state.redis.get_async_connection().await
+        .map_err(|e| {
+            error!("Redis connection failed: {:?}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    let event = serde_json::json!({
+        "type": "jailbreak_applied",
+        "user_id": payload.user_id,
+        "prompt_id": prompt.id,
+        "target_model": payload.target_model,
+        "timestamp": chrono::Utc::now()
+    });
+
+    let _ = redis::cmd("XADD")
+        .arg("jailbreak_events")
+        .arg("*")
+        .arg("event")
+        .arg(serde_json::to_string(&event).unwrap())
+        .query_async::<_, String>(&mut conn)
+        .await;
+
+    info!("Jailbreak prompt applied for user: {}", payload.user_id);
+
+    Ok(Json(serde_json::json!({
+        "status": "success",
+        "jailbroken_request": jailbroken_request,
+        "prompt_used": prompt.title,
+        "tier_applied": "ultra"
+    })))
+}
+
+#[derive(Debug, Deserialize)]
+struct GetPromptsParams {
+    limit: Option<i64>,
+    offset: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ApplyJailbreakRequest {
+    user_id: Uuid,
+    prompt_id: Uuid,
+    user_request: String,
+    target_model: String,
 }
 
 async fn health_check() -> &'static str {

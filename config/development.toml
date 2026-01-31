@@ -1,0 +1,51 @@
+# MR.DarkPromth Development Configuration
+
+[server]
+host = "127.0.0.1"
+port = 8080
+max_connections = 100
+timeout_seconds = 60
+
+[database]
+url = "postgres://postgres:postgres@localhost:5432/mr_darkpromth_dev"
+max_connections = 5
+min_connections = 1
+connection_timeout = 10
+
+[redis]
+url = "redis://localhost:6379"
+max_connections = 5
+connection_timeout = 2
+
+[logging]
+level = "debug"
+format = "pretty"
+file = "logs/app.log"
+max_file_size = "50MB"
+max_files = 5
+
+[security]
+jwt_secret = "dev-secret-key-change-in-production"
+jwt_expiration_hours = 168
+session_timeout_minutes = 120
+rate_limit_requests = 1000
+rate_limit_window_seconds = 60
+
+[cerebras]
+api_keys = []
+default_model = "llama-3.3-70b"
+timeout_seconds = 60
+max_retries = 5
+
+[agents]
+coordination_enabled = true
+heartbeat_interval_seconds = 15
+event_bus_enabled = true
+memory_log_enabled = true
+
+[ultra_tier]
+consent_required = true
+activation_enabled = true
+audit_enabled = true
+sandbox_enabled = true
+debug_mode = true

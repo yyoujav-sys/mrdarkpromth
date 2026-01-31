@@ -15,6 +15,7 @@ pub mod jailbreak_safety;
 pub mod error_handling;
 pub mod session_manager;
 pub mod logging;
+pub mod github_oauth;
 
 pub use agent::*;
 pub use state_machine::*;
@@ -34,3 +35,4 @@ pub use jailbreak_safety::*;
 pub use error_handling::*;
 pub use session_manager::*;
 pub use logging::*;
+pub use github_oauth::*;

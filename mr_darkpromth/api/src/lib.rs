@@ -14,6 +14,7 @@ pub mod user_routes;
 pub mod openapi;
 pub mod terminal_routes;
 pub mod tool_routes;
+pub mod github_routes;
 
 pub use middleware::*;
 pub use rate_limiter::*;
@@ -28,3 +29,4 @@ pub use user_routes::*;
 pub use openapi::*;
 pub use tool_routes::*;
 pub use terminal_routes::*;
+pub use github_routes::*;

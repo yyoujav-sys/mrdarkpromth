@@ -283,3 +283,14 @@ pub async fn not_found() -> impl Responder {
         message: "The requested resource was not found".to_string(),
     })
 }
+
+pub fn configure_github_routes(cfg: &mut web::ServiceConfig) {
+    cfg.service(
+        web::scope("/api/auth/github")
+            .route("/url", web::get().to(crate::github_routes::get_github_auth_url))
+            .route("/callback", web::post().to(crate::github_routes::github_auth_callback))
+            .route("/link", web::post().to(crate::github_routes::link_github_account))
+            .route("/unlink", web::delete().to(crate::github_routes::unlink_github_account))
+            .route("/profile", web::get().to(crate::github_routes::get_github_profile))
+    );
+}

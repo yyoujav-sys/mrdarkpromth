@@ -164,6 +164,7 @@ impl Server {
                 .app_data(web::Data::new(ultra_tier_logic.clone()))
                 .app_data(web::Data::new(sandbox_executor.clone()))
                 .configure(configure_swagger_ui)
+                .configure(crate::routes::configure_github_routes)
                 // Health check
                 .route("/health", web::get().to(get_health))
                 // User info (public, for backward compatibility)

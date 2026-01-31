@@ -11,7 +11,8 @@ import {
   EyeOff,
   Zap,
   Shield,
-  Bot
+  Bot,
+  Github
 } from 'lucide-react'
 
 export const Login: React.FC = () => {
@@ -165,6 +166,17 @@ export const Login: React.FC = () => {
             <Shield className="h-3 w-3" />
             <span>Secured with enterprise-grade encryption</span>
           </div>
+        </div>
+
+        {/* GitHub Login Button */}
+        <div className="mt-4">
+          <Button
+            className="w-full border-gray-600 hover:bg-gray-800 text-gray-300"
+            onClick={() => navigate('/login/github')}
+          >
+            <Github className="w-4 h-4 mr-2" />
+            Continue with GitHub
+          </Button>
         </div>
 
         {/* Sign Up Link */}

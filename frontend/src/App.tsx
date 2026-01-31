@@ -6,6 +6,7 @@ import { Sandbox } from '@/pages/Sandbox'
 import { Tools } from '@/pages/Tools'
 import { Admin } from '@/pages/Admin'
 import { Login } from '@/pages/Login'
+import { GitHubLogin } from '@/pages/GitHubLogin'
 import { Profile } from '@/pages/Profile'
 import { HackerDashboard } from '@/pages/HackerDashboard'
 
@@ -14,6 +15,7 @@ function App() {
     <Router>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/login/github" element={<GitHubLogin />} />
         <Route path="/" element={
           <ProtectedRoute>
             <Layout />

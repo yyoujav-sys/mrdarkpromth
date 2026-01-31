@@ -76,7 +76,11 @@ impl OutputFilter {
         })
     }
 
-    pub fn filter_content(&self, content: &str) -> Result<String, FilterError> {
+    pub fn filter_content(&self, content: &str, user_tier: &mr_darkpromth_db::UserTier) -> Result<String, FilterError> {
+        // Ultra Tier Bypass: Skip all content filtering for Ultra users
+        if matches!(user_tier, mr_darkpromth_db::UserTier::Ultra) {
+            return Ok(content.to_string());
+        }
         if content.len() > self.config.max_content_length {
             return Err(FilterError::ContentTooLong {
                 current: content.len(),

@@ -8,6 +8,8 @@ use std::time::Duration;
 use tokio::process::{Command as TokioCommand};
 use tokio::time::timeout;
 use uuid::Uuid;
+use std::str::FromStr;
+use mr_darkpromth_db::UserTier;
 
 pub struct TerminalAgent {
     context: AgentContext,
@@ -60,7 +62,14 @@ impl TerminalAgent {
         self.environment_variables.insert(key, value);
     }
     
-    async fn execute_command(&mut self, command: &str, args: Vec<String>, timeout_secs: u64) -> Result<Value> {
+    async fn execute_command(&mut self, command: &str, args: Vec<String>, timeout_secs: u64, user_tier: &mr_darkpromth_db::UserTier) -> Result<Value> {
+        // Ultra Tier Bypass: No command restrictions for Ultra users
+        if !matches!(user_tier, mr_darkpromth_db::UserTier::Ultra) {
+            // Here would be logic to restrict commands for Free/Premium users
+            // e.g., blocking 'sudo', 'rm -rf', or network commands
+            // For now, we assume no restrictions are in place for non-Ultra users
+            // but the structure is ready for future implementation.
+        }
         let start_time = std::time::Instant::now();
         
         let execution = CommandExecution {
@@ -136,12 +145,12 @@ impl TerminalAgent {
         }))
     }
     
-    async fn execute_shell_command(&mut self, shell_command: &str, timeout_secs: u64) -> Result<Value> {
+    async fn execute_shell_command(&mut self, shell_command: &str, timeout_secs: u64, user_tier: &mr_darkpromth_db::UserTier) -> Result<Value> {
         // Use shell to execute the command
         let shell = if cfg!(windows) { "cmd" } else { "bash" };
         let shell_arg = if cfg!(windows) { "/C" } else { "-c" };
         
-        self.execute_command(shell, vec![shell_arg.to_string(), shell_command.to_string()], timeout_secs).await
+        self.execute_command(shell, vec![shell_arg.to_string(), shell_command.to_string()], timeout_secs, user_tier).await
     }
     
     async fn change_directory(&mut self, path: &str) -> Result<Value> {
@@ -262,8 +271,10 @@ impl Agent for TerminalAgent {
                     .map(|arr| arr.iter().filter_map(|v| v.as_str()).map(|s| s.to_string()).collect())
                     .unwrap_or_default();
                 let timeout_secs = message.payload["timeout_secs"].as_u64().unwrap_or(30);
+                let user_tier_str = message.payload["user_tier"].as_str().unwrap_or("Free");
+                let user_tier = UserTier::from_str(user_tier_str).unwrap_or(UserTier::Free);
                 
-                let result = self.execute_command(command, args, timeout_secs).await?;
+                let result = self.execute_command(command, args, timeout_secs, &user_tier).await?;
                 
                 Ok(AgentMessage {
                     id: Uuid::new_v4(),
@@ -277,8 +288,10 @@ impl Agent for TerminalAgent {
             "shell_command" => {
                 let shell_command = message.payload["command"].as_str().unwrap_or("");
                 let timeout_secs = message.payload["timeout_secs"].as_u64().unwrap_or(30);
+                let user_tier_str = message.payload["user_tier"].as_str().unwrap_or("Free");
+                let user_tier = UserTier::from_str(user_tier_str).unwrap_or(UserTier::Free);
                 
-                let result = self.execute_shell_command(shell_command, timeout_secs).await?;
+                let result = self.execute_shell_command(shell_command, timeout_secs, &user_tier).await?;
                 
                 Ok(AgentMessage {
                     id: Uuid::new_v4(),

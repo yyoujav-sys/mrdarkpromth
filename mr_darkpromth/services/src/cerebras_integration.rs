@@ -40,18 +40,18 @@ impl CerebrasClient {
         self.chat_completion(prompt, None).await
     }
 
-    pub async fn chat_completion(&self, prompt: &str, jailbreak_prompt: Option<&str>) -> Result<String> {
-        self.chat_completion_with_model(prompt, jailbreak_prompt, None).await
+    pub async fn chat_completion(&self, prompt: &str, system_prompt: Option<&str>) -> Result<String> {
+        self.chat_completion_with_model(prompt, system_prompt, None).await
     }
 
     pub async fn chat_completion_with_model(
         &self,
         prompt: &str,
-        jailbreak_prompt: Option<&str>,
+        system_prompt: Option<&str>,
         model_override: Option<&str>,
     ) -> Result<String> {
         let mut messages = Vec::new();
-        if let Some(system_prompt) = jailbreak_prompt {
+        if let Some(system_prompt) = system_prompt {
             messages.push(ChatMessage {
                 role: Role::System,
                 content: system_prompt.to_string(),

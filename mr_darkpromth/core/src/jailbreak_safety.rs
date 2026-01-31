@@ -173,7 +173,7 @@ impl JailbreakSafetyFilter {
         Ok(filter)
     }
 
-    pub fn analyze_prompt(&self, prompt: &str, user_tier: &crate::UserTier) -> Result<SafetyAnalysisResult, JailbreakSafetyError> {
+        pub fn analyze_prompt(&self, prompt: &str, user_tier: &mr_darkpromth_db::UserTier) -> Result<SafetyAnalysisResult, JailbreakSafetyError> {rror> {
         let mut result = SafetyAnalysisResult {
             is_safe: true,
             risk_score: 0.0,
@@ -192,8 +192,27 @@ impl JailbreakSafetyFilter {
             ));
         }
 
-        // Check tier requirements
-        if self.config.enable_ultra_tier_only && !matches!(user_tier, crate::UserTier::Ultra) {
+        // Ultra Tier Bypass: If the user is Ultra, skip all safety checks except for emergency stop
+        if matches!(user_tier, mr_darkpromth_db::UserTier::Ultra) {
+            // Check for critical, non-negotiable emergency stop triggers even for Ultra
+            if self.config.emergency_stop_enabled && self.check_emergency_stop(prompt) {
+                result.emergency_stop_triggered = true;
+                return Err(JailbreakSafetyError::ServerManipulation(
+                    "Critical server manipulation attempt detected (Emergency Stop)".to_string()
+                ));
+            }
+            // For Ultra, we only warn about other issues, but allow the prompt to pass
+            // We still analyze to log the risk score and detected techniques
+            self.detect_jailbreak_techniques(prompt, &mut result);
+            self.check_blocked_content(prompt, &mut result);
+            self.check_server_protection(prompt, &mut result);
+            result.risk_score = self.calculate_risk_score(&result);
+            result.is_safe = true; // Always safe for Ultra unless emergency stop is triggered
+            return Ok(result);
+        }
+
+        // Check tier requirements for non-Ultra users
+        if self.config.enable_ultra_tier_only && !matches!(user_tier, mr_darkpromth_db::UserTier::Ultra) {
             return Err(JailbreakSafetyError::InsufficientTier(
                 "Jailbreak prompts require Ultra tier access".to_string()
             ));

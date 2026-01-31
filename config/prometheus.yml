@@ -1,0 +1,36 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'mr-darkpromth-monitor'
+
+scrape_configs:
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # MR.DarkPromth API
+  - job_name: 'mr-darkpromth-api'
+    static_configs:
+      - targets: ['mr_darkpromth:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 5s
+
+  # Redis
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+
+  # PostgreSQL (if exporter is available)
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres:5432']
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+rule_files:
+  - '/etc/prometheus/rules/*.yml'

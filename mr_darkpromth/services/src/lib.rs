@@ -40,6 +40,9 @@ pub mod user_event_coordinator;
 pub mod user_integration;
 pub mod key_pool;
 pub mod host_protection;
+pub mod billing_service;
+pub mod email_service;
+pub mod cache_service;
 
 // Agent 6: Tool System modules
 pub mod tool_system;
@@ -116,3 +119,6 @@ pub use auth_middleware::{AuthState, AuthenticatedUser};
 pub use audit_analytics::*;
 pub use key_pool::{KeyPool, Provider};
 pub use host_protection::{HostProtectionPolicy};
+pub use billing_service::{BillingService, Plan, Payment, Subscription, PaymentStatus, PaymentMethod};
+pub use email_service::{EmailService, EmailVerificationToken, PasswordResetToken, EmailConfig};
+pub use cache_service::CacheService;

@@ -101,13 +101,13 @@ impl GitHubOAuthClient {
     /// Exchange authorization code for access token
     pub async fn exchange_code_for_token(&self, code: &str, state: &str) -> Result<GitHubAuthResponse> {
         let mut params = HashMap::new();
-        params.insert("client_id", &self.config.client_id);
-        params.insert("client_secret", &self.config.client_secret);
+        params.insert("client_id", self.config.client_id.as_str());
+        params.insert("client_secret", self.config.client_secret.as_str());
         params.insert("code", code);
-        params.insert("redirect_uri", &self.config.redirect_uri);
+        params.insert("redirect_uri", self.config.redirect_uri.as_str());
         params.insert("state", state);
 
-        let response = self.client
+        let response: reqwest::Response = self.client
             .post("https://github.com/login/oauth/access_token")
             .header("Accept", "application/json")
             .form(&params)
@@ -124,7 +124,7 @@ impl GitHubOAuthClient {
 
     /// Get user information from GitHub API
     pub async fn get_user_info(&self, access_token: &str) -> Result<GitHubUser> {
-        let response = self.client
+        let response: reqwest::Response = self.client
             .get("https://api.github.com/user")
             .header("Authorization", format!("Bearer {}", access_token))
             .header("User-Agent", "MR.DarkPromth")
@@ -141,7 +141,7 @@ impl GitHubOAuthClient {
 
     /// Get user emails from GitHub API
     pub async fn get_user_emails(&self, access_token: &str) -> Result<Vec<GitHubEmail>> {
-        let response = self.client
+        let response: reqwest::Response = self.client
             .get("https://api.github.com/user/emails")
             .header("Authorization", format!("Bearer {}", access_token))
             .header("User-Agent", "MR.DarkPromth")

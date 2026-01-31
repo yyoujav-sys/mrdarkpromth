@@ -130,6 +130,74 @@ class ApiClient {
     return response.data
   }
 
+  // Email verification endpoints
+  async verifyEmail(token: string, email: string) {
+    const response = await this.client.post('/api/auth/verify-email', {
+      token,
+      email,
+    })
+    return response.data
+  }
+
+  async resendVerificationEmail(email: string) {
+    const response = await this.client.post('/api/auth/resend-verification', {
+      email,
+    })
+    return response.data
+  }
+
+  // Password reset endpoints
+  async requestPasswordReset(email: string) {
+    const response = await this.client.post('/api/auth/request-password-reset', {
+      email,
+    })
+    return response.data
+  }
+
+  async resetPassword(token: string, password: string) {
+    const response = await this.client.post('/api/auth/reset-password', {
+      token,
+      password,
+    })
+    return response.data
+  }
+
+  async changePassword(currentPassword: string, newPassword: string) {
+    const response = await this.client.post('/api/auth/change-password', {
+      current_password: currentPassword,
+      new_password: newPassword,
+    })
+    return response.data
+  }
+
+  // Billing endpoints
+  async generateQRCode(planId: string, amount: number) {
+    const response = await this.client.post('/api/billing/generate-qr', {
+      plan_id: planId,
+      amount,
+    })
+    return response.data
+  }
+
+  async verifyPaymentSlip(formData: FormData) {
+    const response = await this.client.post('/api/billing/verify-slip', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+    return response.data
+  }
+
+  async getSubscriptionStatus() {
+    const response = await this.client.get('/api/billing/subscription')
+    return response.data
+  }
+
+  async getPaymentHistory() {
+    const response = await this.client.get('/api/billing/history')
+    return response.data
+  }
+
   // Tooling endpoints
   async listTools() {
     const response = await this.client.get('/api/tools')
@@ -165,6 +233,11 @@ class ApiClient {
   async request<T = any>(config: AxiosRequestConfig): Promise<T> {
     const response = await this.client.request<T>(config)
     return response.data
+  }
+
+  // Get axios client instance for advanced usage
+  getClient(): AxiosInstance {
+    return this.client
   }
 }
 

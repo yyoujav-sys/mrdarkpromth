@@ -1,5 +1,5 @@
 # Use stable Rust for production builds
-FROM rust:1.65-slim as builder
+FROM rust:1.75-slim as builder
 
 WORKDIR /app
 
@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y \
 # Copy mr_darkpromth workspace
 COPY mr_darkpromth ./mr_darkpromth
 COPY migrations ./migrations
+COPY Cargo.toml ./Cargo.toml
 
 # Build directly from workspace without lock file
 RUN cd mr_darkpromth && \

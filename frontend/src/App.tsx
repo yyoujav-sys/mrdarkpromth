@@ -9,6 +9,11 @@ import { Login } from '@/pages/Login'
 import { GitHubLogin } from '@/pages/GitHubLogin'
 import { Profile } from '@/pages/Profile'
 import { HackerDashboard } from '@/pages/HackerDashboard'
+import { EmailVerification } from '@/pages/EmailVerification'
+import { PasswordReset } from '@/pages/PasswordReset'
+import { AdminDashboard } from '@/pages/AdminDashboard'
+import { ProfileSettings } from '@/pages/ProfileSettings'
+import { Billing } from '@/pages/Billing'
 
 function App() {
   return (
@@ -16,6 +21,8 @@ function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/login/github" element={<GitHubLogin />} />
+        <Route path="/auth/verify-email" element={<EmailVerification />} />
+        <Route path="/auth/password-reset" element={<PasswordReset />} />
         <Route path="/" element={
           <ProtectedRoute>
             <Layout />
@@ -30,7 +37,14 @@ function App() {
               <Admin />
             </ProtectedRoute>
           } />
+          <Route path="admin-dashboard" element={
+            <ProtectedRoute requiredTier="Premium">
+              <AdminDashboard />
+            </ProtectedRoute>
+          } />
           <Route path="profile" element={<Profile />} />
+          <Route path="settings" element={<ProfileSettings />} />
+          <Route path="billing" element={<Billing />} />
         </Route>
       </Routes>
     </Router>

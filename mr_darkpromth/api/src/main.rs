@@ -20,9 +20,13 @@ async fn main() -> std::io::Result<()> {
     let jwt_secret = env::var("JWT_SECRET")
         .unwrap_or_else(|_| "your-secret-key-change-in-production".to_string());
 
-    // Create database connection pool
+    // Create database connection pool with optimized settings
     let pool = PgPoolOptions::new()
-        .max_connections(10)
+        .max_connections(50) // Increased for scalability
+        .min_connections(5)
+        .acquire_timeout(std::time::Duration::from_secs(30))
+        .idle_timeout(std::time::Duration::from_secs(600))
+        .max_lifetime(std::time::Duration::from_secs(1800))
         .connect(&database_url)
         .await
         .expect("Failed to create database pool");

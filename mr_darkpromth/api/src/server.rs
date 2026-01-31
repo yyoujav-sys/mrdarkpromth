@@ -119,6 +119,10 @@ impl Server {
         log::info!("🔓 Jailbreak API: http://{}/api/jailbreak/*", bind_address);
         log::info!("👤 Auth API: http://{}/api/auth/*", bind_address);
         log::info!("📋 User API: http://{}/api/users/*", bind_address);
+        log::info!("📊 Metrics API: http://{}/metrics", bind_address);
+
+        // Register Prometheus metrics
+        crate::metrics_exporter::register_metrics();
         log::info!("🧠 Cerebras.ai chat integration enabled");
         log::info!("🔑 Key System: Initialized with {} key(s)", key_pool.get_status().await.len());
 
@@ -155,6 +159,7 @@ impl Server {
 
             App::new()
                 .wrap(cors)
+                .wrap(crate::security_middleware::SecurityHeaders)
                 .wrap(optional_auth_middleware)
                 .app_data(web::Data::new(user_service.clone()))
                 .app_data(cerebras_client.clone())
@@ -167,6 +172,8 @@ impl Server {
                 .configure(crate::routes::configure_github_routes)
                 // Health check
                 .route("/health", web::get().to(get_health))
+                // Prometheus metrics
+                .route("/metrics", web::get().to(crate::metrics_exporter::metrics_handler))
                 // User info (public, for backward compatibility)
                 .route("/api/users/{id}", web::get().to(get_user_info))
                 // Auth endpoints
@@ -194,6 +201,19 @@ impl Server {
                 .route("/api/terminal/execute", web::post().to(execute_terminal))
                 // WebSocket (authenticated)
                 .route("/ws/chat", web::get().to(ws_chat_route))
+                // Billing endpoints (authenticated)
+                .route("/api/billing/plans", web::get().to(list_plans))
+                .route("/api/billing/plans/{id}", web::get().to(get_plan))
+                .route("/api/billing/generate-qr", web::post().to(generate_qr_code))
+                .route("/api/billing/verify-slip", web::post().to(verify_payment_slip))
+                .route("/api/billing/subscription", web::get().to(get_subscription))
+                .route("/api/billing/history", web::get().to(get_payment_history))
+                // Email verification endpoints
+                .route("/api/auth/verify-email", web::post().to(verify_email))
+                .route("/api/auth/resend-verification", web::post().to(resend_verification))
+                .route("/api/auth/request-password-reset", web::post().to(request_password_reset))
+                .route("/api/auth/reset-password", web::post().to(reset_password))
+                .route("/api/auth/change-password", web::post().to(change_password))
                 // Jailbreak API (authenticated)
                 .route("/api/jailbreak/prompts", web::get().to(get_prompts))
                 .route("/api/jailbreak/prompts", web::post().to(create_prompt))

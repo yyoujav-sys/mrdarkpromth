@@ -15,6 +15,10 @@ pub mod openapi;
 pub mod terminal_routes;
 pub mod tool_routes;
 pub mod github_routes;
+pub mod billing_routes;
+pub mod email_routes;
+pub mod metrics_exporter;
+pub mod security_middleware;
 
 pub use middleware::*;
 pub use rate_limiter::*;
@@ -30,3 +34,7 @@ pub use openapi::*;
 pub use tool_routes::*;
 pub use terminal_routes::*;
 pub use github_routes::*;
+pub use billing_routes::*;
+pub use email_routes::*;
+pub use metrics_exporter::*;
+pub use security_middleware::*;

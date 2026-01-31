@@ -20,6 +20,8 @@ pub enum AuditEventType {
     PromptResponse,
     UnauthorizedAccess,
     TierChanged,
+    ToolExecuted,
+    TerminalExecuted,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -8,7 +8,6 @@ use std::time::{Duration, Instant};
 use std::io::Write;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DependencyStatus {
@@ -127,7 +126,7 @@ impl DependencyMonitor {
 
     async fn check_for_events(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         let (task_events, resource_events, heartbeat_events) = {
-            let mut coordinator = self.redis_coordinator.lock().unwrap();
+            let coordinator = self.redis_coordinator.lock().unwrap();
             let task_events = coordinator.read_events(&EventType::TaskCompletion, Some(1000)).unwrap_or_default();
             let resource_events = coordinator.read_events(&EventType::ResourceReady, Some(1000)).unwrap_or_default();
             let heartbeat_events = coordinator.read_events(&EventType::Heartbeat, Some(1000)).unwrap_or_default();
@@ -146,7 +145,7 @@ impl DependencyMonitor {
             self.handle_heartbeat_event(&stream_event.event);
         }
 
-        if let Ok(mut coordinator) = self.redis_coordinator.lock() {
+        if let Ok(coordinator) = self.redis_coordinator.lock() {
             for stream_event in task_events {
                 let _ = coordinator.acknowledge_event(&EventType::TaskCompletion, &stream_event.stream_id);
             }
@@ -257,7 +256,7 @@ impl DependencyMonitor {
         let start_time = std::time::Instant::now();
         
         while start_time.elapsed().as_millis() < timeout_ms as u128 {
-            if let Ok(mut coordinator) = self.redis_coordinator.try_lock() {
+            if let Ok(coordinator) = self.redis_coordinator.try_lock() {
                 if let Ok(events) = coordinator.read_events(&EventType::ResponseEvent, Some(100)) {
                     for stream_event in events {
                         if let Some(event_correlation_id) = &stream_event.event.correlation_id {
@@ -418,7 +417,7 @@ impl DependencyMonitor {
             if let Ok(mut file) = std::fs::OpenOptions::new()
                 .create(true)
                 .append(true)
-                .open("d:/MR.Darkpromth/memory/agent4_jailbreak_ultra.log") {
+                .open("./memory/agent4_jailbreak_ultra.log") {
                 let _ = writeln!(file, "{}", full_entry);
             }
         } else {
@@ -426,7 +425,7 @@ impl DependencyMonitor {
             if let Ok(mut file) = std::fs::OpenOptions::new()
                 .create(true)
                 .append(true)
-                .open("d:/MR.Darkpromth/memory/agent4_jailbreak_ultra.log") {
+                .open("./memory/agent4_jailbreak_ultra.log") {
                 let _ = writeln!(file, "{}", log_entry);
             }
         }

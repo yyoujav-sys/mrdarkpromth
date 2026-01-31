@@ -1,5 +1,5 @@
 # Use stable Rust for production builds
-FROM rust:1.77-slim as builder
+FROM rust:1.65-slim as builder
 
 WORKDIR /app
 
@@ -9,29 +9,14 @@ RUN apt-get update && apt-get install -y \
     libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy Cargo files
-COPY Cargo.toml ./
-
-# Create dummy src directory for cargo update
-RUN mkdir src && echo "fn main() {}" > src/main.rs
-
-# Generate Cargo.lock if not exists
-RUN if [ ! -f Cargo.lock ]; then cargo update; fi
-
-# Remove dummy src
-RUN rm -rf src
-
-# Create dummy main.rs to cache dependencies
-RUN mkdir src && echo "fn main() {}" > src/main.rs
-RUN cargo build --release
-RUN rm -rf src
-
-# Copy source code
-COPY src ./src
+# Copy mr_darkpromth workspace
+COPY mr_darkpromth ./mr_darkpromth
 COPY migrations ./migrations
 
-# Build the application
-RUN touch src/main.rs && cargo build --release
+# Build directly from workspace without lock file
+RUN cd mr_darkpromth && \
+    rm -f Cargo.lock && \
+    cargo build --release --bin mr_darkpromth_api
 
 # Runtime stage
 FROM debian:bookworm-slim
@@ -48,7 +33,7 @@ RUN useradd -m -u 1000 appuser
 WORKDIR /app
 
 # Copy binary from builder stage
-COPY --from=builder /app/target/release/mr_darkpromth /usr/local/bin/mr_darkpromth
+COPY --from=builder /app/mr_darkpromth/target/release/mr_darkpromth_api /usr/local/bin/mr_darkpromth
 
 # Create memory directory
 RUN mkdir -p /app/memory && chown appuser:appuser /app/memory

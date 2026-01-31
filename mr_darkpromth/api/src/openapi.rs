@@ -1,14 +1,15 @@
-use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 use actix_web::web;
+use crate::routes::ErrorResponse as RoutesErrorResponse;
+use crate::auth_routes::{AuthErrorResponse, AuthUserResponse};
+use crate::user_routes::ErrorResponse as UserErrorResponse;
+use crate::tool_routes::ErrorResponse as ToolErrorResponse;
 
-#[derive(OpenApi)]
+#[derive(utoipa::OpenApi)]
 #[openapi(
     paths(
         crate::routes::get_health,
         crate::routes::get_user_info,
-        crate::routes::post_chat,
-        crate::routes::not_found,
         crate::auth_routes::register,
         crate::auth_routes::login,
         crate::auth_routes::logout,
@@ -29,20 +30,20 @@ use actix_web::web;
     components(schemas(
         crate::routes::HealthResponse,
         crate::routes::UserResponse,
-        crate::routes::ErrorResponse,
+        RoutesErrorResponse,
         crate::routes::ChatRequest,
         crate::routes::ChatResponse,
         crate::auth_routes::RegisterRequestDto,
         crate::auth_routes::LoginRequestDto,
-        crate::auth_routes::UserResponseDto,
+        AuthUserResponse,
         crate::auth_routes::RegisterResponse,
         crate::auth_routes::LoginResponse,
         crate::auth_routes::LogoutResponse,
-        crate::auth_routes::ErrorResponse as AuthErrorResponse,
+        AuthErrorResponse,
         crate::user_routes::UserResponseDto,
         crate::user_routes::UpdateProfileRequest,
         crate::user_routes::ChangePasswordRequest,
-        crate::user_routes::ErrorResponse as UserErrorResponse,
+        UserErrorResponse,
         crate::user_routes::UserListQuery,
         crate::user_routes::AdminMetricsResponse,
         crate::user_routes::UpdateUserStatusRequest,
@@ -54,7 +55,7 @@ use actix_web::web;
         crate::tool_routes::ToolExecuteResponse,
         crate::tool_routes::SandboxExecuteRequest,
         crate::tool_routes::SandboxExecuteResponse,
-        crate::tool_routes::ErrorResponse as ToolErrorResponse,
+        ToolErrorResponse,
     )),
     tags(
         (name = "health", description = "Health check endpoints"),
@@ -84,6 +85,6 @@ pub struct ApiDoc;
 pub fn configure_swagger_ui(cfg: &mut web::ServiceConfig) {
     cfg.service(
         SwaggerUi::new("/swagger-ui/{_:.*}")
-            .url("/api-docs/openapi.json", ApiDoc::openapi()),
+            .url("/api-docs/openapi.json", <ApiDoc as utoipa::OpenApi>::openapi())
     );
 }

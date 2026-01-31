@@ -1,10 +1,6 @@
 use crate::agent_framework::{Agent, AgentState, AgentError, AgentResult};
-use crate::coordinator_agent::{CoordinatorAgent, Task, TaskStatus};
-use crate::editor_agent::EditorAgent;
-use crate::terminal_agent::TerminalAgent;
-use serde_json::json;
+use crate::coordinator_agent::Task;
 use std::sync::Arc;
-use uuid::Uuid;
 use reqwest::Client;
 
 pub struct DecisionEngine {
@@ -195,7 +191,9 @@ pub enum Decision {
 }
 
 pub struct CollaborationPattern {
+    #[allow(dead_code)]
     pattern_type: PatternType,
+    #[allow(dead_code)]
     description: String,
 }
 

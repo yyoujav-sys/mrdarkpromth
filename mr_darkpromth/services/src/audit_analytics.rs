@@ -5,7 +5,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use chrono::{DateTime, Utc, Duration, Timelike};
-use uuid::Uuid;
 use mr_darkpromth_core::{UserTier, audit::{AuditAction, AuditSeverity}};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -649,6 +648,7 @@ pub struct SecuritySummary {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use uuid::Uuid;
 
     #[test]
     fn test_audit_analytics_initialization() {

@@ -2,7 +2,6 @@ use crate::agent_framework::{Agent, AgentError, AgentResult, AgentMessage, Agent
 use crate::redis_coordination::RedisCoordinator;
 use std::sync::{Arc, Mutex};
 use std::process::{Command, Stdio};
-use std::io::BufReader;
 use uuid::Uuid;
 use chrono::Utc;
 

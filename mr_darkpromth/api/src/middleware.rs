@@ -1,4 +1,4 @@
-use actix_web::{dev::{forward_ready, Service, ServiceRequest, Transform, ServiceResponse}, Error, HttpMessage};
+use actix_web::{body::{BoxBody, MessageBody}, dev::{Service, ServiceRequest, ServiceResponse, Transform}, Error, HttpMessage, HttpResponse};
 use futures::future::{ready, Ready};
 use std::future::Future;
 use std::pin::Pin;
@@ -27,9 +27,9 @@ impl<S, B> Transform<S, ServiceRequest> for JwtAuth
 where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
     S::Future: 'static,
-    B: 'static,
+    B: MessageBody + 'static,
 {
-    type Response = ServiceResponse<B>;
+    type Response = ServiceResponse<BoxBody>;
     type Error = Error;
     type Transform = JwtAuthMiddleware<S>;
     type InitError = ();
@@ -52,9 +52,9 @@ impl<S, B> Service<ServiceRequest> for JwtAuthMiddleware<S>
 where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
     S::Future: 'static,
-    B: 'static,
+    B: MessageBody + 'static,
 {
-    type Response = ServiceResponse<B>;
+    type Response = ServiceResponse<BoxBody>;
     type Error = Error;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
 
@@ -75,7 +75,7 @@ where
                         warn!("Invalid Authorization header format: {}", e);
                         return Box::pin(async move {
                             Ok(req.into_response(
-                                actix_web::HttpResponse::Unauthorized().json(serde_json::json!({
+                                HttpResponse::Unauthorized().json(serde_json::json!({
                                     "error": "Invalid token format"
                                 }))
                             ))
@@ -104,7 +104,7 @@ where
                     
                     let fut = self.service.call(req);
                     Box::pin(async move {
-                        let res = fut.await?;
+                        let res = fut.await?.map_into_boxed_body();
                         Ok(res)
                     })
                 }
@@ -112,7 +112,7 @@ where
                     warn!("JWT validation failed: {}", e);
                     Box::pin(async move {
                         Ok(req.into_response(
-                            actix_web::HttpResponse::Unauthorized().json(serde_json::json!({
+                            HttpResponse::Unauthorized().json(serde_json::json!({
                                 "error": "Invalid or expired token"
                             }))
                         ))
@@ -122,7 +122,7 @@ where
         } else {
             Box::pin(async move {
                 Ok(req.into_response(
-                    actix_web::HttpResponse::Unauthorized().json(serde_json::json!({
+                    HttpResponse::Unauthorized().json(serde_json::json!({
                         "error": "Missing authorization token"
                     }))
                 ))

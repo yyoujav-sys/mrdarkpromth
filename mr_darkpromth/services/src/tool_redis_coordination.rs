@@ -1,9 +1,9 @@
 // MR.DarkPromth Tool Redis Coordination - Agent 6: MasterToolExecutor & Tool System Engineer
 // Multi-agent coordination using Redis event bus
 
-use crate::tool_system::{ToolResult, ToolError, ToolExecutionContext};
+use crate::tool_system::{ToolError, ToolExecutionContext};
 use crate::master_tool_executor::{ExecutionRequest, ExecutionResponse, ExecutionPriority};
-use redis::{Client, Connection, Commands};
+use redis::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tokio::sync::broadcast;
@@ -116,7 +116,7 @@ impl ToolRedisCoordinator {
     }
 
     async fn subscribe_to_channels(&self) -> Result<(), ToolError> {
-        let mut conn = self.redis_client.get_connection()
+        let _conn = self.redis_client.get_connection()
             .map_err(|e| ToolError::ExecutionFailed(format!("Failed to get Redis connection: {}", e)))?;
 
         for channel in &self.config.subscription_channels {
@@ -165,9 +165,9 @@ impl ToolRedisCoordinator {
     }
 
     async fn start_message_processor(&self) {
-        let event_sender = self.event_sender.clone();
+        let _event_sender = self.event_sender.clone();
         let redis_client = self.redis_client.clone();
-        let config = self.config.clone();
+        let _config = self.config.clone();
 
         tokio::spawn(async move {
             // In a real implementation, this would be a proper Redis subscription loop
@@ -177,7 +177,7 @@ impl ToolRedisCoordinator {
                 interval.tick().await;
 
                 // Simulate receiving messages (replace with actual Redis subscription)
-                if let Ok(mut conn) = redis_client.get_connection() {
+                if let Ok(_conn) = redis_client.get_connection() {
                     // This would be replaced with actual message receiving logic
                 }
             }
@@ -307,10 +307,10 @@ impl ToolRedisCoordinator {
     }
 
     pub async fn cleanup_expired_requests(&mut self, timeout_seconds: u64) {
-        let now = chrono::Utc::now();
-        let timeout_duration = chrono::Duration::seconds(timeout_seconds as i64);
+        let _now = chrono::Utc::now();
+        let _timeout_duration = chrono::Duration::seconds(timeout_seconds as i64);
 
-        self.active_requests.retain(|_, request| {
+        self.active_requests.retain(|_, _request| {
             // In a real implementation, we would track request creation time
             true // For now, keep all requests
         });

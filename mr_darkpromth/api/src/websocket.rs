@@ -1,10 +1,12 @@
-use actix::{Actor, StreamHandler};
-use actix_web::{web, HttpRequest, HttpResponse};
+use actix::{Actor, StreamHandler, ActorContext, AsyncContext};
+use actix_web::{web, HttpRequest, HttpResponse, Error};
 use actix_web_actors::ws;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use std::time::{Duration, Instant};
 use uuid::Uuid;
 use log::info;
+use chrono;
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct ChatMessage {
@@ -26,23 +28,6 @@ impl Actor for WebSocketChat {
     }
 }
 
-impl Handler for WebSocketChat {
-    fn handle(&mut self, msg: String, ctx: &mut Self::Context) {
-        info!("Received message: {}", msg);
-        
-        let response = ChatMessage {
-            id: Uuid::new_v4(),
-            content: msg,
-            sender: "user".to_string(),
-            timestamp: chrono::Utc::now().to_rfc3339(),
-        };
-        
-        if let Ok(json) = serde_json::to_string(&response) {
-            ctx.text(json);
-        }
-    }
-}
-
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebSocketChat {
     fn handle(&mut self, item: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         match item {
@@ -54,7 +39,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebSocketChat {
                 self.hb = Instant::now();
             }
             Ok(ws::Message::Text(text)) => {
-                self.handle(text, ctx);
+                self.handle_text(text.to_string(), ctx);
             }
             Ok(ws::Message::Close(reason)) => {
                 ctx.close(reason);
@@ -66,8 +51,23 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WebSocketChat {
 }
 
 impl WebSocketChat {
+    fn handle_text(&mut self, msg: String, ctx: &mut ws::WebsocketContext<Self>) {
+        info!("Received message: {}", msg);
+
+        let response = ChatMessage {
+            id: Uuid::new_v4(),
+            content: msg,
+            sender: "user".to_string(),
+            timestamp: chrono::Utc::now().to_rfc3339(),
+        };
+
+        if let Ok(json) = serde_json::to_string(&response) {
+            ctx.text(json);
+        }
+    }
+
     fn hb(&self, ctx: &mut <Self as Actor>::Context) {
-        ctx.run_interval(Duration::from_secs(5), |act, ctx| {
+        ctx.run_interval(Duration::from_secs(5), |act: &mut WebSocketChat, ctx| {
             if Instant::now().duration_since(act.hb) > Duration::from_secs(10) {
                 info!("Websocket client disconnected due to heartbeat failure");
                 ctx.stop();

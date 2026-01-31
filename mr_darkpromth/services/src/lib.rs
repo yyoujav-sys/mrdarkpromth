@@ -5,7 +5,7 @@
 
 pub mod jailbreak_system;
 pub mod redis_coordination;
-pub mod agent4_main;
+// pub mod agent4_main; // Deprecated
 pub mod safety_filter;
 pub mod sandbox;
 pub mod ultra_tier_logic;
@@ -28,15 +28,18 @@ pub mod server_protection;
 pub mod sandboxed_execution;
 pub mod security_integration_test;
 pub mod jailbreak_service;
+pub mod response_analyzer;
 pub mod jailbreak_models;
 pub mod user_service;
 pub mod auth_middleware;
 pub mod tier_management;
 pub mod user_profile;
 pub mod cerebras_integration;
-pub mod main_integrated;
+// pub mod main_integrated; // Deprecated
 pub mod user_event_coordinator;
 pub mod user_integration;
+pub mod key_pool;
+pub mod host_protection;
 
 // Agent 6: Tool System modules
 pub mod tool_system;
@@ -65,24 +68,17 @@ pub mod learning_system;
 pub mod self_correction_agent;
 
 // Re-export main types for easier access
-pub use jailbreak_system::*;
 pub use redis_coordination::*;
-pub use agent4_main::*;
 pub use safety_filter::*;
-pub use sandbox::*;
 pub use ultra_tier_logic::*;
 #[cfg(test)]
 pub use integration_tests::*;
 pub use monitoring::*;
-pub use dependency_monitor::*;
-pub use integration_coordinator::*;
 pub use audit::*;
 pub use database_audit::*;
 pub use tier_validation::*;
 pub use server_protection::*;
 pub use sandboxed_execution::*;
-pub use jailbreak_service::*;
-pub use jailbreak_models::*;
 pub use user_service::*;
 pub use auth_middleware::*;
 pub use tier_management::*;
@@ -118,3 +114,5 @@ pub use user_service::{UserService, CreateUserRequest, UpdateUserRequest, UserRe
 pub use auth_middleware::{AuthState, AuthenticatedUser};
 
 pub use audit_analytics::*;
+pub use key_pool::{KeyPool, Provider};
+pub use host_protection::{HostProtectionPolicy};

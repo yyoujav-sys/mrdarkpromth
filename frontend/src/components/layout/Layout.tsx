@@ -1,12 +1,12 @@
 import React from 'react'
 import { Outlet, Link, useLocation } from 'react-router-dom'
-import { 
-  Home, 
-  MessageSquare, 
-  Box, 
-  Wrench, 
-  Shield, 
-  User, 
+import {
+  Home,
+  MessageSquare,
+  Box,
+  Wrench,
+  Shield,
+  User,
   Menu,
   X
 } from 'lucide-react'
@@ -17,7 +17,7 @@ export const Layout: React.FC = () => {
   const location = useLocation()
 
   const navigation = [
-    { name: 'Dashboard', href: '/', icon: Home },
+    { name: 'Terminal', href: '/', icon: Home },
     { name: 'Chat', href: '/chat', icon: MessageSquare },
     { name: 'Sandbox', href: '/sandbox', icon: Box },
     { name: 'Tools', href: '/tools', icon: Wrench },
@@ -36,7 +36,7 @@ export const Layout: React.FC = () => {
     <div className="min-h-screen bg-dark-primary">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-40 bg-black/50 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
@@ -109,7 +109,7 @@ export const Layout: React.FC = () => {
             >
               <Menu className="h-5 w-5" />
             </button>
-            
+
             <div className="flex items-center space-x-4">
               <span className="text-sm text-gray-400">Agent 9 Frontend</span>
             </div>

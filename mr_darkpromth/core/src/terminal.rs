@@ -3,7 +3,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::time::Duration;
 use tokio::process::{Command as TokioCommand};
 use tokio::time::timeout;
@@ -351,7 +351,7 @@ impl Agent for TerminalAgent {
         }
     }
     
-    async fn make_decision(&self, context: &HashMap<String, Value>) -> Result<Value> {
+    async fn make_decision(&self, _context: &HashMap<String, Value>) -> Result<Value> {
         let recent_failures = self.command_history.iter()
             .rev()
             .take(5)

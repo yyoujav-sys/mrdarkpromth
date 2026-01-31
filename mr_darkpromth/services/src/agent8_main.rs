@@ -4,12 +4,10 @@
 
 use crate::self_correction_engine::{ErrorDetector, ErrorSource, ErrorEvent};
 use crate::redis_coordination::{RedisCoordinator, EventType};
-use chrono::Utc;
 use log::{info, warn, error};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::time::interval;
-use uuid::Uuid;
 
 pub struct Agent8SelfCorrection {
     error_detector: ErrorDetector,
@@ -18,7 +16,7 @@ pub struct Agent8SelfCorrection {
 }
 
 impl Agent8SelfCorrection {
-    pub fn new(redis_url: Option<&str>) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new(redis_url: Option<&str>) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let agent_id = "agent8".to_string();
         let mut error_detector = ErrorDetector::new(agent_id.clone());
         
@@ -38,7 +36,7 @@ impl Agent8SelfCorrection {
         })
     }
 
-    pub async fn start(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn start(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         info!("Starting Agent 8 Self-Correction Engine");
         
         // Initialize logging
@@ -59,7 +57,7 @@ impl Agent8SelfCorrection {
         Ok(())
     }
 
-    async fn start_monitoring_loop(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    async fn start_monitoring_loop(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let mut interval_timer = interval(Duration::from_secs(5));
         
         loop {
@@ -70,10 +68,10 @@ impl Agent8SelfCorrection {
                 
                 // Process Redis events if available
                 _ = async {
-                    if let Some(ref coordinator) = self.redis_coordinator {
+                    if let Some(ref _coordinator) = self.redis_coordinator {
                         self.process_redis_events().await
                     } else {
-                        std::future::pending::<Result<(), Box<dyn std::error::Error>>>().await
+                        std::future::pending::<Result<(), Box<dyn std::error::Error + Send + Sync>>>().await
                     }
                 } => {
                     // Redis events processed
@@ -82,14 +80,14 @@ impl Agent8SelfCorrection {
         }
     }
 
-    async fn process_periodic_checks(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        // Simulate checking application logs
+    async fn process_periodic_checks(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        // Monitor application logs
         self.check_application_logs().await?;
         
-        // Simulate checking tool execution results
+        // Monitor tool execution results
         self.check_tool_results().await?;
         
-        // Simulate checking agent feedback
+        // Monitor agent feedback
         self.check_agent_feedback().await?;
         
         // Publish heartbeat
@@ -98,79 +96,63 @@ impl Agent8SelfCorrection {
         Ok(())
     }
 
-    async fn check_application_logs(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        // Simulate log entries (in real implementation, would read from log files)
-        let sample_logs = vec![
-            "error[E0277]: cannot multiply f64 by f32",
-            "warning: unused variable: `x`",
-            "info: Processing request completed successfully",
-            "panic! at 'assertion failed: x > 0'",
-        ];
+    async fn check_application_logs(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        // REAL IMPLEMENTATION: Read from actual log file
+        let log_path = std::env::var("AGENT_LOG_PATH").unwrap_or_else(|_| "./memory/agent4_audit.log".to_string());
         
-        for log_line in sample_logs {
-            if let Ok(errors) = self.error_detector.detect_from_log(log_line, ErrorSource::ApplicationLog) {
-                for error in errors {
-                    self.handle_detected_error(error).await?;
+        match tokio::fs::read_to_string(&log_path).await {
+            Ok(content) => {
+                // simple tail implementation - in production use a proper log watcher
+                // For now, valid "De-muck" is to read the file.
+                for line in content.lines().rev().take(50) {
+                     if let Ok(errors) = self.error_detector.detect_from_log(line, ErrorSource::ApplicationLog) {
+                        for error in errors {
+                            self.handle_detected_error(error).await?;
+                        }
+                    }
                 }
             }
-        }
-        
-        Ok(())
-    }
-
-    async fn check_tool_results(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        // Simulate tool execution results
-        let sample_tools = vec![
-            ("cargo", "error: cannot find Cargo.toml", 101),
-            ("python", "SyntaxError: invalid syntax", 1),
-            ("redis-cli", "Connection refused", 1),
-            ("git", "fatal: not a git repository", 128),
-        ];
-        
-        for (tool_name, result, exit_code) in sample_tools {
-            if let Ok(Some(error)) = self.error_detector.detect_from_tool_result(tool_name, result, exit_code) {
-                self.handle_detected_error(error).await?;
+            Err(e) => {
+                warn!("Could not read log file {}: {}", log_path, e);
             }
         }
         
         Ok(())
     }
 
-    async fn check_agent_feedback(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        // Simulate agent feedback
-        let sample_feedback = vec![
-            ("agent3", "Failed to process request due to timeout"),
-            ("agent4", "Jailbreak system encountered an error"),
-            ("agent5", "User authentication failed for user123"),
-        ];
-        
-        for (agent_id, feedback) in sample_feedback {
-            if let Ok(errors) = self.error_detector.detect_from_agent_feedback(agent_id, feedback) {
-                for error in errors {
-                    self.handle_detected_error(error).await?;
-                }
-            }
-        }
-        
+    async fn check_tool_results(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        // Tool results are now strictly handled via Redis events in `process_redis_events`
+        // We do not poll hardcoded tool results anymore.
         Ok(())
     }
 
-    async fn process_redis_events(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        if let Some(ref coordinator) = self.redis_coordinator {
-            let mut coord = coordinator.lock().unwrap();
+    async fn check_agent_feedback(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        // Agent feedback comes via Redis Pub/Sub "agent_feedback" channel
+        // This method is now a placeholder for specific direct-feedback logic if needed in future.
+        Ok(())
+    }
+
+    async fn process_redis_events(&mut self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let events = if let Some(ref coordinator) = self.redis_coordinator {
+            let coord = coordinator.lock().unwrap();
+            coord.read_events(&EventType::ErrorEvent, Some(1000)).unwrap_or_default()
+        } else {
+            Vec::new()
+        };
+
+        for stream_event in events {
+            self.error_detector.process_redis_error_event(&stream_event.event).await?;
             
-            if let Ok(events) = coord.read_events(&EventType::ErrorEvent, Some(1000)) {
-                for stream_event in events {
-                    self.error_detector.process_redis_error_event(&stream_event.event).await?;
-                    let _ = coord.acknowledge_event(&EventType::ErrorEvent, &stream_event.stream_id);
-                }
+            if let Some(ref coordinator) = self.redis_coordinator {
+                let coord = coordinator.lock().unwrap();
+                let _ = coord.acknowledge_event(&EventType::ErrorEvent, &stream_event.stream_id);
             }
         }
         
         Ok(())
     }
 
-    async fn handle_detected_error(&mut self, error: ErrorEvent) -> Result<(), Box<dyn std::error::Error>> {
+    async fn handle_detected_error(&mut self, error: ErrorEvent) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         info!("🚨 Agent 8 detected error: {:?} - {}", error.error_type, error.message);
         
         // Log error details
@@ -199,13 +181,13 @@ impl Agent8SelfCorrection {
         Ok(())
     }
 
-    async fn store_error(&self, error: &ErrorEvent) -> Result<(), Box<dyn std::error::Error>> {
+    async fn store_error(&self, error: &ErrorEvent) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // TODO: Implement persistent storage in Phase 4
         info!("Storing error {} for analysis", error.id);
         Ok(())
     }
 
-    async fn publish_error_to_agents(&self, error: &ErrorEvent) -> Result<(), Box<dyn std::error::Error>> {
+    async fn publish_error_to_agents(&self, error: &ErrorEvent) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         if let Some(ref coordinator) = self.redis_coordinator {
             let mut coord = coordinator.lock().unwrap();
             
@@ -222,7 +204,7 @@ impl Agent8SelfCorrection {
         Ok(())
     }
 
-    async fn publish_heartbeat(&self) -> Result<(), Box<dyn std::error::Error>> {
+    async fn publish_heartbeat(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         if let Some(ref coordinator) = self.redis_coordinator {
             let mut coord = coordinator.lock().unwrap();
             
@@ -246,7 +228,7 @@ impl Agent8SelfCorrection {
 }
 
 #[tokio::main]
-pub async fn main() -> Result<(), Box<dyn std::error::Error>> {
+pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Get Redis URL from environment or use default
     let redis_url = std::env::var("REDIS_URL").ok();
     

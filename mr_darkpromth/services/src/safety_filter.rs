@@ -68,6 +68,26 @@ impl SafetyFilter {
     }
 
     fn initialize_protection_rules(&mut self) {
+        // Host/Domain protection - BLOCK internal targets
+        self.server_protection_rules.push(ProtectionRule {
+            id: "host_protection".to_string(),
+            name: "Internal Host Protection".to_string(),
+            pattern: r"(?i)(https?://)?(localhost|127\.0\.0\.1|::1|0\.0\.0\.0|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|169\.254\.\d+\.\d+)(:\d+)?".to_string(),
+            severity: Severity::Critical,
+            action: FilterAction::Block,
+            description: "Blocks access to internal network hosts and localhost".to_string(),
+        });
+
+        // Cloud metadata endpoint protection
+        self.server_protection_rules.push(ProtectionRule {
+            id: "metadata_protection".to_string(),
+            name: "Cloud Metadata Protection".to_string(),
+            pattern: r"(?i)(169\.254\.169\.254|metadata\.google\.internal|metadata\.amazonaws\.com/latest/meta-data)".to_string(),
+            severity: Severity::Critical,
+            action: FilterAction::Block,
+            description: "Blocks cloud metadata endpoint access".to_string(),
+        });
+
         // System file protection
         self.server_protection_rules.push(ProtectionRule {
             id: "sys_file_protect".to_string(),

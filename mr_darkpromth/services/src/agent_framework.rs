@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use std::fmt;
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -61,7 +60,7 @@ pub trait Agent: Send + Sync {
             (AgentState::Acting, AgentState::Thinking) => Ok(()),
             (AgentState::Thinking, AgentState::Idle) => Ok(()),
             (current, new) if current == new => Ok(()),
-            (current, new) => Err(AgentError::InvalidState(current.clone())),
+            (current, _new) => Err(AgentError::InvalidState(current.clone())),
         }
     }
     

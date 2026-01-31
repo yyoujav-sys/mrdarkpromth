@@ -1,4 +1,4 @@
-use crate::agent::{Agent, AgentState, AgentMessage, Task, TaskStatus};
+use crate::agent::{Agent, AgentState};
 use anyhow::Result;
 use std::collections::HashMap;
 use std::time::Duration;
@@ -107,7 +107,7 @@ impl StateMachine {
         Ok(())
     }
     
-    async fn has_pending_work<A: Agent>(agent: &A) -> bool {
+    async fn has_pending_work<A: Agent>(_agent: &A) -> bool {
         // This would be implemented based on agent's current state
         // For now, return false to be implemented by concrete agents
         false
@@ -127,7 +127,7 @@ impl StateMachine {
             .unwrap_or(false)
     }
     
-    async fn extract_actions<A: Agent>(agent: &A) -> Result<Vec<(String, HashMap<String, serde_json::Value>)>> {
+    async fn extract_actions<A: Agent>(_agent: &A) -> Result<Vec<(String, HashMap<String, serde_json::Value>)>> {
         // This would be implemented based on agent's decision
         // For now, return empty vector
         Ok(Vec::new())

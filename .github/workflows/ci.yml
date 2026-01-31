@@ -77,6 +77,15 @@ jobs:
         run: |
           cargo test --verbose --workspace
 
+      - name: Ultra Tier Integration Test
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/mr_darkpromth_test
+          REDIS_URL: redis://localhost:6379
+          CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          cargo test --package mr_darkpromth_services ultra_tier_integration_tests -- --nocapture
+
       - name: Run clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
 

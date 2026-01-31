@@ -3,6 +3,10 @@ name = "mr_darkpromth_services"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "mr_darkpromth_services"
+path = "src/main_unified.rs"
+
 [dependencies]
 dotenv = "0.15.0"
 chrono = { version = "0.4", features = ["serde"] }
@@ -17,10 +21,11 @@ tokio = { version = "1", features = ["full"] }
 log = "0.4"
 env_logger = "0.10"
 anyhow = "1.0"
-cerebras_client = { path = "../../services/cerebras_client" }
+cerebras_client = { path = "./cerebras_client" }
 async-trait = "0.1"
 # Security dependencies
 crypto-common = "0.1"
+url = "2.4"
 sha2 = "0.10"
 hmac = "0.12"
 ring = "0.16"

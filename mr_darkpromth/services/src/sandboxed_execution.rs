@@ -1,9 +1,8 @@
-use log::{debug, error, info, warn};
+use log::info;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::env;
-use std::fs::{self, File};
-use std::io::Read;
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::Arc;
@@ -11,7 +10,7 @@ use std::time::{Duration, Instant};
 use sysinfo::{ProcessExt, System, SystemExt};
 use tempfile::TempDir;
 use thiserror::Error;
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::RwLock;
 use tokio::time::timeout;
 
 #[derive(Error, Debug)]
@@ -345,7 +344,7 @@ impl SandboxedExecutor {
         Ok(())
     }
 
-    fn apply_sandbox_restrictions(&self, cmd: &mut Command, work_dir: &Path) -> Result<(), SandboxError> {
+    fn apply_sandbox_restrictions(&self, cmd: &mut Command, _work_dir: &Path) -> Result<(), SandboxError> {
         if !self.config.allow_network {
             cmd.env("NETWORK_ACCESS", "disabled");
         }

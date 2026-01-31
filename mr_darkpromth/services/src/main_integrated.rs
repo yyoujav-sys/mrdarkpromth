@@ -21,6 +21,7 @@ use crate::{
     jailbreak_models::{CreatePromptRequest, PromptSearchRequest, JailbreakPrompt, PromptCategory},
     user_service::{CreateUserRequest, RegisterRequest, UserResponse},
     audit::{AuditLogger, AuditEvent, AuditEventType},
+    key_pool::KeyPool,
 };
 use mr_darkpromth_core::UserTier as CoreUserTier;
 use mr_darkpromth_db::{UserRepository, UserTier as DbUserTier};
@@ -451,20 +452,20 @@ async fn main() -> Result<()> {
     let tier_repository = UserRepository::new(db_pool.clone());
     let tier_management = Arc::new(TierManagementService::new(tier_repository));
     
-    // Initialize Cerebras client
-    let cerebras_client = Arc::new(crate::cerebras_integration::CerebrasClient::new());
+    // Initialize Key Pool
+    let key_pool = Arc::new(KeyPool::new());
     
     // Initialize Ultra Tier Logic with audit logging
     let ultra_tier_logic = Arc::new(RwLock::new(UltraTierLogic::with_config(
-        "d:/MR.Darkpromth/memory/agent4_audit.log",
-        cerebras_client.clone()
+        "./memory/agent4_audit.log",
+        key_pool
     )));
     
     // Initialize sandboxed executor
     let sandbox_executor = Arc::new(SandboxedExecutor::new(SandboxConfig::default())?);
     
     // Initialize audit logger
-    let audit_logger = Arc::new(RwLock::new(AuditLogger::new_file("d:/MR.Darkpromth/memory/agent4_audit.log")));
+    let audit_logger = Arc::new(RwLock::new(AuditLogger::new_file("./memory/agent4_audit.log")));
     
     info!("✅ All services initialized successfully");
     

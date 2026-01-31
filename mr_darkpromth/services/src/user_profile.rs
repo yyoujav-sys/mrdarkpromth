@@ -3,12 +3,12 @@ use axum::{
     http::StatusCode,
     response::Json,
 };
-use mr_darkpromth_db::{UserRepository, UpdateUserRequest, UserResponse};
+use mr_darkpromth_db::{UpdateUserRequest, UserResponse};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use std::sync::Arc;
 
-use crate::{UserService, AuthenticatedUser, extract_auth_user, TierManagementService, TierStats};
+use crate::{UserService, TierManagementService, TierStats};
 
 #[derive(Debug, Deserialize)]
 pub struct ProfileUpdateRequest {
@@ -126,7 +126,7 @@ impl UserProfileService {
         }
 
         // Get current user to verify current password
-        let user = self.user_service.get_user_by_id(user_id)
+        let _user = self.user_service.get_user_by_id(user_id)
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
             .ok_or(StatusCode::NOT_FOUND)?;

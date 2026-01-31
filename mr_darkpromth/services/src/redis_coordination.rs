@@ -118,7 +118,7 @@ impl RedisCoordinator {
     pub fn subscribe_to_events(&mut self, event_type: &EventType) -> RedisResult<String> {
         let stream_name = self.get_stream_name(event_type);
         let consumer_group = format!("{}_group", self.agent_id);
-        let consumer_name = self.agent_id.clone();
+        let _consumer_name = self.agent_id.clone();
         
         let mut conn = self.get_connection()?;
         
@@ -326,7 +326,7 @@ impl RedisCoordinator {
     }
 
     pub fn start_heartbeat_loop(&mut self, interval_seconds: u64) -> std::thread::JoinHandle<()> {
-        let agent_id = self.agent_id.clone();
+        let _agent_id = self.agent_id.clone();
         let mut coordinator = self.clone();
         
         std::thread::spawn(move || {

@@ -7,11 +7,10 @@ use chrono::{DateTime, Utc};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::collections::HashMap;
 use std::path::PathBuf;
 use thiserror::Error;
 use uuid::Uuid;
-use log::{info, warn, error, debug};
+use log::info;
 use anyhow::Result;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -23,12 +23,14 @@ pub use editor::*;
 pub use terminal::*;
 pub use communication::*;
 pub use tier::*;
-pub use audit::*;
+#[allow(ambiguous_glob_reexports)]
+pub use audit::{AuditFilter as AuditLogFilter, *};
 pub use output_filter::*;
 pub use input_validation::*;
 pub use rate_limiter::*;
 pub use api_key_manager::*;
-pub use security_audit::*;
+pub use security_audit::{AuditFilter as SecurityAuditFilter, *};
 pub use jailbreak_safety::*;
 pub use error_handling::*;
 pub use session_manager::*;
+pub use logging::*;

@@ -1,6 +1,6 @@
 use governor::{Quota, RateLimiter};
 use governor::state::direct::NotKeyed;
-use log::{error, info, warn};
+use log::{error, warn};
 #[cfg(unix)]
 use nix::unistd::Pid;
 use regex::Regex;

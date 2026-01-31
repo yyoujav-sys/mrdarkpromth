@@ -378,7 +378,7 @@ impl Agent for EditorAgent {
         }
     }
     
-    async fn make_decision(&self, context: &HashMap<String, Value>) -> Result<Value> {
+    async fn make_decision(&self, _context: &HashMap<String, Value>) -> Result<Value> {
         let has_pending_operations = self.file_operations.iter()
             .any(|op| op.status == OperationStatus::Pending);
         
@@ -390,7 +390,7 @@ impl Agent for EditorAgent {
         }))
     }
     
-    async fn execute_action(&mut self, action: &str, params: &HashMap<String, Value>) -> Result<Value> {
+    async fn execute_action(&mut self, action: &str, _params: &HashMap<String, Value>) -> Result<Value> {
         match action {
             "process_file_operations" => {
                 let mut results = Vec::new();

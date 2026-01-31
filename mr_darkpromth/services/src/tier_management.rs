@@ -1,6 +1,6 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
-use mr_darkpromth_db::{User, UserRepository, UserTier, UpdateUserRequest};
+use mr_darkpromth_db::{UserRepository, UserTier, UpdateUserRequest};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -125,7 +125,7 @@ impl TierManagementService {
             is_active: None,
         };
 
-        let updated_user = self.repository.update_user(request.user_id, update_request)
+        let _updated_user = self.repository.update_user(request.user_id, update_request)
             .await
             .map_err(|e| TierManagementError::GenericError(e.to_string()))?
             .ok_or(TierManagementError::UserNotFound)?;
@@ -160,7 +160,7 @@ impl TierManagementService {
             is_active: None,
         };
 
-        let updated_user = self.repository.update_user(user_id, update_request)
+        let _updated_user = self.repository.update_user(user_id, update_request)
             .await
             .map_err(|e| TierManagementError::GenericError(e.to_string()))?
             .ok_or(TierManagementError::UserNotFound)?;

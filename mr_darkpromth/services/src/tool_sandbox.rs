@@ -1,7 +1,7 @@
 // MR.DarkPromth Tool Sandbox Environment - Agent 6: MasterToolExecutor & Tool System Engineer
 // Phase 2: Sandboxed Tool Execution
 
-use crate::tool_system::{Tool, ToolError, ToolExecutionContext, ToolResult};
+use crate::tool_system::{Tool, ToolError, ToolExecutionContext};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -85,8 +85,11 @@ pub struct ToolSandbox {
 
 #[derive(Debug)]
 struct SandboxSession {
+    #[allow(dead_code)]
     id: Uuid,
+    #[allow(dead_code)]
     temp_dir: Option<TempDir>,
+    #[allow(dead_code)]
     created_at: Instant,
     last_activity: Instant,
     execution_count: u32,
@@ -268,6 +271,7 @@ impl ToolSandbox {
         Ok(())
     }
 
+    #[allow(dead_code)]
     fn create_sandbox_command(
         &self,
         _tool: &dyn Tool,
@@ -378,7 +382,7 @@ impl ToolSandbox {
         }
     }
 
-    fn monitor_resource_usage(&self, result: &ExecutionResult) -> Result<ResourceUsage, ToolError> {
+    fn monitor_resource_usage(&self, _result: &ExecutionResult) -> Result<ResourceUsage, ToolError> {
         // In a real implementation, this would use system calls or external monitoring
         // For now, return placeholder values
         Ok(ResourceUsage {
@@ -423,13 +427,18 @@ impl ToolSandbox {
 
 #[derive(Debug, Clone)]
 struct ExecutionResult {
+    #[allow(dead_code)]
     success: bool,
     stdout: String,
     stderr: String,
     exit_code: Option<i32>,
+    #[allow(dead_code)]
     execution_time: Duration,
+    #[allow(dead_code)]
     memory_used_mb: u64,
+    #[allow(dead_code)]
     cpu_percent: f32,
+    #[allow(dead_code)]
     security_violations: Vec<String>,
     warnings: Vec<String>,
 }

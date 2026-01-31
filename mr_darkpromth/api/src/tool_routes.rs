@@ -7,8 +7,9 @@ use uuid::Uuid;
 
 use crate::auth_middleware::AuthenticatedUser;
 use mr_darkpromth_services::{
-    ExecutorConfig, MasterToolExecutor, SandboxedExecutor, SandboxConfig, ToolExecutionContext, ToolRegistry, ToolResult,
+    ExecutorConfig, MasterToolExecutor, ToolExecutionContext, ToolRegistry, ToolResult,
 };
+use mr_darkpromth_services::sandboxed_execution::{SandboxedExecutor, SandboxConfig};
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct ToolSummary {

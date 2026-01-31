@@ -60,7 +60,9 @@ pub struct PermissionCheckResult {
 pub struct ToolPermissionManager {
     permissions: HashMap<String, Permission>,
     rules: HashMap<String, PermissionRule>,
+    #[allow(dead_code)]
     user_permissions: HashMap<String, HashSet<String>>,
+    #[allow(dead_code)]
     role_permissions: HashMap<String, HashSet<String>>,
     approval_queue: Arc<RwLock<Vec<ApprovalRequest>>>,
 }

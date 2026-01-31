@@ -5,7 +5,7 @@
 use crate::{
     JailbreakSystem, RedisCoordinator, CoordinationEvent, EventType,
     SafetyFilter, Sandbox, UltraTierLogic, UserIntegration,
-    UltraTierRequest, UltraTierResponse
+    UltraTierRequest, UltraTierResponse, KeyPool
 };
 use cerebras_client::CerebrasClient;
 use serde_json::json;
@@ -37,8 +37,8 @@ impl Agent4 {
         let jailbreak_system = Arc::new(JailbreakSystem::new());
         let safety_filter = Arc::new(SafetyFilter::new());
         let sandbox = Arc::new(Sandbox::ultra_tier_config());
-        let cerebras_client = Arc::new(crate::cerebras_integration::CerebrasClient::new());
-        let ultra_tier_logic = Arc::new(UltraTierLogic::new(cerebras_client));
+        let key_pool = Arc::new(KeyPool::new());
+        let ultra_tier_logic = Arc::new(UltraTierLogic::new(key_pool));
         let user_integration = Arc::new(UserIntegration::new(redis_coordinator.clone()));
         
         Ok(Self {
@@ -343,7 +343,8 @@ mod tests {
     fn test_agent4_phase3_initialization() {
         // Test would require Redis instance
         // For now, test individual components
-        let ultra_tier_logic = UltraTierLogic::new();
+        let key_pool = Arc::new(KeyPool::new());
+        let ultra_tier_logic = UltraTierLogic::new(key_pool);
         let stats = ultra_tier_logic.get_ultra_tier_usage_stats();
         assert!(stats.contains_key("total_ultra_requests"));
     }

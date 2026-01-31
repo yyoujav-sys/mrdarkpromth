@@ -4,7 +4,7 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
-use sqlx::{Type, Encode, Decode, Postgres, FromRow};
+use sqlx::{Type, FromRow};
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct JailbreakPrompt {

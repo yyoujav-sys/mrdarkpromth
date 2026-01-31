@@ -1,9 +1,10 @@
-use actix_web::{dev::{forward_ready, Service, ServiceRequest, ServiceResponse, Transform, Error}, HttpMessage};
+use actix_web::{dev::{Service, ServiceRequest, ServiceResponse, Transform}, HttpMessage};
+use actix_web::Error;
 use futures::future::{ready, Ready};
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use log::{info, warn};
+use log::info;
 use uuid::Uuid;
 use serde::{Deserialize, Serialize};
 
@@ -30,43 +31,7 @@ impl TierDetection {
         Self { secret }
     }
 
-    fn extract_user_tier(&self, token: &str) -> Option<UserContext> {
-        use jsonwebtoken::{decode, Validation, DecodingKey};
-        
-        let validation = Validation::new(jsonwebtoken::Algorithm::HS256);
-        let decoding_key = DecodingKey::from_secret(self.secret.as_ref());
-
-        #[derive(Debug, Serialize, Deserialize)]
-        struct Claims {
-            sub: String,
-            exp: usize,
-            tier: String,
-            username: String,
-        }
-
-        match decode::<Claims>(&token, &decoding_key, &validation) {
-            Ok(token_data) => {
-                let tier = match token_data.claims.tier.as_str() {
-                    "free" | "basic" => UserTier::Free,
-                    "premium" => UserTier::Premium,
-                    "ultra" => UserTier::Ultra,
-                    _ => UserTier::Free,
-                };
-
-                let user_id = Uuid::parse_str(&token_data.claims.sub).unwrap_or_else(|_| Uuid::new_v4());
-
-                Some(UserContext {
-                    user_id,
-                    tier,
-                    username: token_data.claims.username,
-                })
-            }
-            Err(e) => {
-                warn!("Failed to decode JWT for tier detection: {}", e);
-                None
-            }
-        }
-    }
+    
 }
 
 impl<S, B> Transform<S, ServiceRequest> for TierDetection
@@ -108,7 +73,7 @@ where
         self.service.poll_ready(cx)
     }
 
-    fn call(&self, mut req: ServiceRequest) -> Self::Future {
+    fn call(&self, req: ServiceRequest) -> Self::Future {
         let secret = self.secret.clone();
         
         let auth_header = req.headers().get("Authorization");
@@ -134,7 +99,7 @@ where
     }
 }
 
-impl TierDetectionMiddleware<S> {
+impl<S> TierDetectionMiddleware<S> {
     fn extract_user_tier_from_token(token: &str, secret: &str) -> Option<UserContext> {
         use jsonwebtoken::{decode, Validation, DecodingKey};
         

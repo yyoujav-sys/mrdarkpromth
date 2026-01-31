@@ -124,16 +124,21 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
         await this.saveChatHistory();
 
         try {
-            const response = await this.apiClient.post('/api/chat', {
-                message: content,
-                user_tier: this.authManager.getUserTier(),
-                jailbreak_prompt: jailbreakPrompt
+            const response = await this.apiClient.post('/api/jailbreak/execute', {
+                user_id: this.authManager.getUserInfo()?.id || 'anonymous',
+                prompt: content,
+                tier: this.authManager.getUserTier(),
+                ai_model: 'llama3-70b', // Default model
+                metadata: {
+                    source: 'vscode_extension',
+                    jailbreak_prompt: jailbreakPrompt
+                }
             });
 
             const assistantMessage: ChatMessage = {
                 id: this.generateId(),
                 role: 'assistant',
-                content: response.data.response || response.data.message || 'No response received',
+                content: response.data.ai_response || response.data.response || response.data.message || 'No response received',
                 timestamp: Date.now(),
                 jailbreakApplied: response.data.jailbreak_applied || false
             };
@@ -427,11 +432,11 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
     private async saveChatHistory(): Promise<void> {
         const config = vscode.workspace.getConfiguration('mr-darkpromth');
         const maxHistoryLength = config.get<number>('maxHistoryLength', 50);
-        
+
         if (this.chatHistory.length > maxHistoryLength) {
             this.chatHistory = this.chatHistory.slice(-maxHistoryLength);
         }
-        
+
         await this.context.globalState.update('chatHistory', this.chatHistory);
     }
 

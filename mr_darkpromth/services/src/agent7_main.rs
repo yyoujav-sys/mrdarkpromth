@@ -1,21 +1,23 @@
-use crate::agent_framework::{Agent, AgentState, AgentType, AgentMessage, AgentError, AgentResult};
+use crate::agent_framework::{Agent, AgentError, AgentResult};
 use crate::coordinator_agent::CoordinatorAgent;
 use crate::editor_agent::EditorAgent;
 use crate::terminal_agent::TerminalAgent;
 use crate::agent_communication::{AgentCommunicationManager, CollaborationProtocol};
-use crate::agent_decision_engine::{DecisionEngine, CollaborationPattern, PatternType, DecisionContext};
+use crate::agent_decision_engine::DecisionEngine;
 use crate::redis_coordination::RedisCoordinator;
 use std::sync::{Arc, Mutex};
-use tokio::signal;
-use uuid::Uuid;
+use log;
 
 pub struct MultiAgentSystem {
     coordinator: Arc<Mutex<CoordinatorAgent>>,
     editor: Arc<Mutex<EditorAgent>>,
     terminal: Arc<Mutex<TerminalAgent>>,
     communication_manager: Arc<AgentCommunicationManager>,
+    #[allow(dead_code)]
     collaboration_protocol: Arc<CollaborationProtocol>,
+    #[allow(dead_code)]
     decision_engine: Arc<DecisionEngine>,
+    #[allow(dead_code)]
     redis_coordinator: Arc<RedisCoordinator>,
 }
 
@@ -162,6 +164,7 @@ impl MultiAgentSystem {
     }
 }
 
+#[allow(dead_code)]
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
@@ -169,7 +172,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     log::info!("=== Agent 7: Multi-Agent System Engineer ===");
     log::info!("Starting Multi-Agent System implementation");
     
-    let mut system = MultiAgentSystem::new("redis://127.0.0.1:6379", "d:/MR.Darkpromth".to_string()).await?;
+    let mut system = MultiAgentSystem::new("redis://127.0.0.1:6379", ".".to_string()).await?;
     
     system.run_demo().await?;
     

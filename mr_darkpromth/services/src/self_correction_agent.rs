@@ -19,6 +19,7 @@ pub struct SelfCorrectionAgent {
     correction_validator: CorrectionValidator,
     learning_system: Arc<Mutex<LearningSystem>>,
     project_root: String,
+    #[allow(dead_code)]
     confidence_threshold: f64,
 }
 

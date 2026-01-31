@@ -1,7 +1,6 @@
 use std::str::FromStr;
 use async_trait::async_trait;
 use anyhow::Result;
-use uuid::Uuid;
 use chrono::{DateTime, Utc};
 use mr_darkpromth_core::{
     audit::{AuditLog, AuditFilter, AuditStats, AuditAction, AuditSeverity},
@@ -90,12 +89,12 @@ impl crate::audit::AuditService for DatabaseAuditService {
 
         query.push_str(" ORDER BY timestamp DESC");
 
-        if let Some(limit) = filter.limit {
+        if filter.limit.is_some() {
             bind_count += 1;
             query.push_str(&format!(" LIMIT ${}", bind_count));
         }
 
-        if let Some(offset) = filter.offset {
+        if filter.offset.is_some() {
             bind_count += 1;
             query.push_str(&format!(" OFFSET ${}", bind_count));
         }

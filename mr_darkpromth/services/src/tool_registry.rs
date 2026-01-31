@@ -34,6 +34,7 @@ pub struct ToolRegistry {
     config: ToolRegistryConfig,
     execution_stats: Arc<RwLock<HashMap<String, ExecutionStats>>>,
     event_sender: broadcast::Sender<RegistryEvent>,
+    db_pool: Option<sqlx::PgPool>,
 }
 
 #[derive(Debug, Clone)]
@@ -64,13 +65,22 @@ impl ToolRegistry {
             config,
             execution_stats: Arc::new(RwLock::new(HashMap::new())),
             event_sender,
+            db_pool: None,
         }
+    }
+
+    pub fn set_db_pool(&mut self, pool: sqlx::PgPool) {
+        self.db_pool = Some(pool);
     }
 
     pub async fn initialize(&mut self) -> Result<(), ToolError> {
         // Load built-in tools if enabled
         if self.config.enable_builtin_tools {
-            let builtin_plugin = BuiltinFilePlugin::new();
+            let mut builtin_plugin = BuiltinFilePlugin::new();
+            if let Some(pool) = &self.db_pool {
+                builtin_plugin = builtin_plugin.with_db(pool.clone());
+            }
+            
             self.plugin_manager.register_plugin(Box::new(builtin_plugin))?;
             
             let _ = self.event_sender.send(RegistryEvent::PluginLoaded {
@@ -123,7 +133,7 @@ impl ToolRegistry {
         tool.validate_input(&input)?;
 
         // Check permissions
-        let required_permissions = tool.requires_permissions();
+        let _required_permissions = tool.requires_permissions();
         // TODO: Implement proper permission checking based on agent role and user tier
         // For now, we'll assume all permissions are granted
 
@@ -257,6 +267,7 @@ static mut GLOBAL_REGISTRY: Option<Arc<ToolRegistry>> = None;
 static REGISTRY_INIT: std::sync::Once = std::sync::Once::new();
 
 pub fn get_global_registry() -> Option<Arc<ToolRegistry>> {
+    #[allow(dead_code)]
     unsafe {
         REGISTRY_INIT.call_once(|| {
             GLOBAL_REGISTRY = Some(Arc::new(ToolRegistry::default()));

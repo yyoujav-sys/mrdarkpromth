@@ -1,4 +1,4 @@
-use actix_web::{web, HttpResponse, Responder, Result};
+use actix_web::{web, HttpResponse, Responder};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use utoipa::ToSchema;
@@ -193,8 +193,8 @@ pub async fn update_profile(
     )
 )]
 pub async fn change_password(
-    user_service: web::Data<Arc<UserService>>,
-    auth_user: AuthenticatedUser,
+    _user_service: web::Data<Arc<UserService>>,
+    _auth_user: AuthenticatedUser,
     request: web::Json<ChangePasswordRequest>,
 ) -> impl Responder {
     // Validate new password
@@ -282,7 +282,7 @@ pub async fn list_users(
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct UserListQuery {
     pub limit: Option<i64>,
     pub offset: Option<i64>,

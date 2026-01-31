@@ -1,9 +1,9 @@
 use crate::error_detector::ErrorDetection;
 use crate::fix_generator::{CodeChange, GeneratedFix, RiskLevel};
+use md5;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
-use tempfile::TempDir;
 use thiserror::Error;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -65,6 +65,7 @@ pub enum ValidationError {
 
 pub struct CorrectionValidator {
     project_root: String,
+    #[allow(dead_code)]
     test_timeout_seconds: u64,
 }
 
@@ -318,6 +319,7 @@ impl CorrectionValidator {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::TempDir;
 
     #[test]
     fn test_validation_score_calculation() {

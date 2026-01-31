@@ -1,4 +1,4 @@
-use actix_web::{web, HttpResponse, Responder, FromRequest};
+use actix_web::{web, HttpResponse, Responder};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use uuid::Uuid;

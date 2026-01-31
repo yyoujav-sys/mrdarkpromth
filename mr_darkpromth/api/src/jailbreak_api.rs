@@ -1,10 +1,10 @@
 use actix_web::{web, HttpResponse, Responder};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use uuid::Uuid;
 use std::sync::Arc;
-use log::{info, error, warn};
+use log::error;
 
-use mr_darkpromth_core::jailbreak_models::*;
+use mr_darkpromth_services::jailbreak_models::*;
 use mr_darkpromth_services::jailbreak_service::JailbreakPromptService;
 
 pub struct JailbreakApiState {
@@ -25,8 +25,9 @@ pub async fn get_prompts(
             technique: None,
             effectiveness: None,
             risk_level: None,
-            target_models: None,
+            target_model: None,
             tags: None,
+            author: None,
             requires_ultra_tier: None,
             limit: Some(limit),
             offset: Some(offset),

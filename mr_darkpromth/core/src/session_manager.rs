@@ -3,7 +3,6 @@
 
 use chrono::{DateTime, Duration, Utc};
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
-use rand::{distributions::Alphanumeric, Rng};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use thiserror::Error;
@@ -327,7 +326,7 @@ impl SessionManager {
 
     pub fn refresh_session(&mut self, refresh_token: &str, ip_address: &str, user_agent: &str) -> Result<(String, Session), SessionError> {
         // Validate refresh token
-        let mut result = self.validate_session(refresh_token, ip_address, user_agent)?;
+        let result = self.validate_session(refresh_token, ip_address, user_agent)?;
         
         if !result.claims.as_ref().unwrap().is_refresh_token {
             return Err(SessionError::InvalidToken("Not a refresh token".to_string()));

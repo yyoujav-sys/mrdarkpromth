@@ -166,13 +166,20 @@ impl Default for PluginManager {
 #[derive(Debug)]
 pub struct BuiltinFilePlugin {
     initialized: bool,
+    db: Option<sqlx::PgPool>,
 }
 
 impl BuiltinFilePlugin {
     pub fn new() -> Self {
         Self {
             initialized: false,
+            db: None,
         }
+    }
+
+    pub fn with_db(mut self, pool: sqlx::PgPool) -> Self {
+        self.db = Some(pool);
+        self
     }
 }
 
@@ -192,7 +199,7 @@ impl ToolPlugin for BuiltinFilePlugin {
             Box::new(crate::tool_system::builtin::FileListTool),
             Box::new(crate::tool_system::builtin::WebScrapeTool),
             Box::new(crate::tool_system::builtin::CodeExecuteTool),
-            Box::new(crate::tool_system::builtin::DatabaseQueryTool),
+            Box::new(crate::tool_system::builtin::DatabaseQueryTool { db: self.db.clone() }),
         ]
     }
 

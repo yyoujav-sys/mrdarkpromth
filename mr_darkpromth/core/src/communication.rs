@@ -1,6 +1,6 @@
 use crate::agent::AgentMessage;
 use anyhow::Result;
-use redis::{Client, Commands, Connection, PubSub};
+use redis::{Client, Commands};
 use serde_json;
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
@@ -9,6 +9,7 @@ use uuid::Uuid;
 #[derive(Clone)]
 pub struct RedisEventBus {
     client: Client,
+    #[allow(dead_code)]
     agent_id: String,
     message_handlers: Arc<RwLock<std::collections::HashMap<String, mpsc::UnboundedSender<AgentMessage>>>>,
 }
@@ -36,7 +37,7 @@ impl RedisEventBus {
     pub async fn subscribe_to_channel(
         &self,
         channel: String,
-        mut sender: mpsc::UnboundedSender<AgentMessage>,
+        sender: mpsc::UnboundedSender<AgentMessage>,
     ) -> Result<()> {
         let channel_clone = channel.clone();
         let client_clone = self.client.clone();
@@ -103,7 +104,7 @@ pub struct MessageRouter {
 
 impl MessageRouter {
     pub fn new(event_bus: RedisEventBus) -> (Self, mpsc::UnboundedReceiver<AgentMessage>) {
-        let (incoming_tx, incoming_rx) = mpsc::unbounded_channel();
+        let (_incoming_tx, incoming_rx) = mpsc::unbounded_channel();
         let (outgoing_tx, outgoing_rx) = mpsc::unbounded_channel();
         
         let router = Self {

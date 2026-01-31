@@ -1,8 +1,9 @@
-use actix_web::{web, HttpResponse, Responder, Result};
+use actix_web::{web, HttpResponse, Responder};
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 use uuid::Uuid;
 use std::sync::Arc;
-use mr_darkpromth_services::{UserService, RegisterRequest, LoginRequest, AuthResponse, Claims};
+use mr_darkpromth_services::{UserService, RegisterRequest, LoginRequest};
 use crate::auth_middleware::AuthenticatedUser;
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -19,7 +20,7 @@ pub struct LoginRequestDto {
 }
 
 #[derive(Debug, Serialize, ToSchema)]
-pub struct UserResponseDto {
+pub struct AuthUserResponse {
     pub id: Uuid,
     pub username: String,
     pub email: String,
@@ -30,7 +31,7 @@ pub struct UserResponseDto {
     pub created_at: String,
 }
 
-impl From<mr_darkpromth_db::UserResponse> for UserResponseDto {
+impl From<mr_darkpromth_db::UserResponse> for AuthUserResponse {
     fn from(user: mr_darkpromth_db::UserResponse) -> Self {
         Self {
             id: user.id,
@@ -47,14 +48,14 @@ impl From<mr_darkpromth_db::UserResponse> for UserResponseDto {
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct RegisterResponse {
-    pub user: UserResponseDto,
+    pub user: AuthUserResponse,
     pub token: String,
     pub expires_in: i64,
 }
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct LoginResponse {
-    pub user: UserResponseDto,
+    pub user: AuthUserResponse,
     pub token: String,
     pub expires_in: i64,
 }
@@ -65,7 +66,7 @@ pub struct LogoutResponse {
 }
 
 #[derive(Debug, Serialize, ToSchema)]
-pub struct ErrorResponse {
+pub struct AuthErrorResponse {
     pub error: String,
     pub message: String,
 }
@@ -76,7 +77,7 @@ pub struct ErrorResponse {
     request_body = RegisterRequestDto,
     responses(
         (status = 201, description = "User registered successfully", body = RegisterResponse),
-        (status = 400, description = "Registration failed", body = ErrorResponse)
+        (status = 400, description = "Registration failed", body = AuthErrorResponse)
     ),
     tag = "auth"
 )]
@@ -92,7 +93,7 @@ pub async fn register(
 
     match user_service.register(register_req).await {
         Ok(auth_response) => {
-            let user_dto = UserResponseDto::from(auth_response.user);
+            let user_dto = AuthUserResponse::from(auth_response.user);
             HttpResponse::Created().json(RegisterResponse {
                 user: user_dto,
                 token: auth_response.token,
@@ -105,7 +106,7 @@ pub async fn register(
                 mr_darkpromth_services::AuthError::InvalidCredentials => "Invalid credentials",
                 _ => "Registration failed",
             };
-            HttpResponse::BadRequest().json(ErrorResponse {
+            HttpResponse::BadRequest().json(AuthErrorResponse {
                 error: "Registration Error".to_string(),
                 message: error_msg.to_string(),
             })
@@ -119,8 +120,8 @@ pub async fn register(
     request_body = LoginRequestDto,
     responses(
         (status = 200, description = "Login successful", body = LoginResponse),
-        (status = 401, description = "Invalid credentials", body = ErrorResponse),
-        (status = 404, description = "User not found", body = ErrorResponse)
+        (status = 401, description = "Invalid credentials", body = AuthErrorResponse),
+        (status = 404, description = "User not found", body = AuthErrorResponse)
     ),
     tag = "auth"
 )]
@@ -135,7 +136,7 @@ pub async fn login(
 
     match user_service.login(login_req).await {
         Ok(auth_response) => {
-            let user_dto = UserResponseDto::from(auth_response.user);
+            let user_dto = AuthUserResponse::from(auth_response.user);
             HttpResponse::Ok().json(LoginResponse {
                 user: user_dto,
                 token: auth_response.token,
@@ -148,7 +149,7 @@ pub async fn login(
                 mr_darkpromth_services::AuthError::UserNotFound => actix_web::http::StatusCode::NOT_FOUND,
                 _ => actix_web::http::StatusCode::INTERNAL_SERVER_ERROR,
             };
-            HttpResponse::build(status).json(ErrorResponse {
+            HttpResponse::build(status).json(AuthErrorResponse {
                 error: "Login Error".to_string(),
                 message: "Invalid credentials".to_string(),
             })
@@ -181,9 +182,9 @@ pub async fn logout(
     get,
     path = "/api/auth/me",
     responses(
-        (status = 200, description = "Current user info", body = UserResponseDto),
-        (status = 404, description = "User not found", body = ErrorResponse),
-        (status = 500, description = "Internal server error", body = ErrorResponse)
+        (status = 200, description = "Current user info", body = AuthUserResponse),
+        (status = 404, description = "User not found", body = AuthErrorResponse),
+        (status = 500, description = "Internal server error", body = AuthErrorResponse)
     ),
     tag = "auth",
     security(
@@ -196,14 +197,14 @@ pub async fn get_me(
 ) -> impl Responder {
     match user_service.get_user_by_id(auth_user.user_id).await {
         Ok(Some(user)) => {
-            let user_dto = UserResponseDto::from(user);
+            let user_dto = AuthUserResponse::from(user);
             HttpResponse::Ok().json(user_dto)
         }
-        Ok(None) => HttpResponse::NotFound().json(ErrorResponse {
+        Ok(None) => HttpResponse::NotFound().json(AuthErrorResponse {
             error: "Not Found".to_string(),
             message: "User not found".to_string(),
         }),
-        Err(_) => HttpResponse::InternalServerError().json(ErrorResponse {
+        Err(_) => HttpResponse::InternalServerError().json(AuthErrorResponse {
             error: "Internal Server Error".to_string(),
             message: "Failed to fetch user".to_string(),
         }),

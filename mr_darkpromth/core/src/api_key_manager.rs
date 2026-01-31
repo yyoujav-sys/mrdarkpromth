@@ -12,10 +12,10 @@ use argon2::{
 use chrono::{DateTime, Duration, Utc};
 use rand::{distributions::Alphanumeric, Rng};
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use thiserror::Error;
 use uuid::Uuid;
+use base64::{Engine as _, engine::general_purpose};
 
 #[derive(Error, Debug)]
 pub enum ApiKeyError {
@@ -379,7 +379,7 @@ impl ApiKeyManager {
             .map(|encrypted| {
                 let mut result = nonce.to_vec();
                 result.extend_from_slice(&encrypted);
-                base64::encode(&result)
+                general_purpose::STANDARD.encode(&result)
             })
             .map_err(|e| ApiKeyError::EncryptionFailed(e.to_string()))
     }
@@ -389,7 +389,7 @@ impl ApiKeyManager {
             return Ok(encrypted_data.to_string());
         }
 
-        let decoded = base64::decode(encrypted_data)
+        let decoded = general_purpose::STANDARD.decode(encrypted_data)
             .map_err(|e| ApiKeyError::DecryptionFailed(e.to_string()))?;
         
         if decoded.len() < 12 {

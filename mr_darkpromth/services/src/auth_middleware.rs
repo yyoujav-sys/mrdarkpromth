@@ -5,11 +5,11 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use mr_darkpromth_db::{User, UserTier};
+use mr_darkpromth_db::UserTier;
 use serde_json::json;
 use std::sync::Arc;
 
-use crate::{UserService, Claims, AuthError};
+use crate::{UserService, AuthError};
 
 #[derive(Clone)]
 pub struct AuthState {

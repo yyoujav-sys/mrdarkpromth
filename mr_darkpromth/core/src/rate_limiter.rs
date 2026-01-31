@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use chrono::{DateTime, Utc, Duration};
-use uuid::Uuid;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -280,7 +279,7 @@ impl RateLimiter {
     }
 
     pub fn get_ddos_metrics(&self) -> DDoSMetrics {
-        let now = Utc::now();
+        let _now = Utc::now();
         let rps = self.global_metrics.requests_last_minute.len() as f64 / 60.0;
         
         let mut top_ips: Vec<_> = self.global_metrics.top_ips.iter()

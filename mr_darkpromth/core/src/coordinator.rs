@@ -9,6 +9,7 @@ pub struct CoordinatorAgent {
     context: AgentContext,
     available_agents: Vec<String>,
     task_queue: Vec<Task>,
+    #[allow(dead_code)]
     completed_tasks: Vec<Task>,
 }
 
@@ -227,7 +228,7 @@ impl Agent for CoordinatorAgent {
         Ok(TaskStatus::InProgress)
     }
     
-    async fn make_decision(&self, context: &HashMap<String, Value>) -> Result<Value> {
+    async fn make_decision(&self, _context: &HashMap<String, Value>) -> Result<Value> {
         let pending_tasks = self.task_queue.len();
         let should_act = pending_tasks > 0;
         
@@ -239,7 +240,7 @@ impl Agent for CoordinatorAgent {
         }))
     }
     
-    async fn execute_action(&mut self, action: &str, params: &HashMap<String, Value>) -> Result<Value> {
+    async fn execute_action(&mut self, action: &str, _params: &HashMap<String, Value>) -> Result<Value> {
         match action {
             "assign_tasks" => {
                 let mut assigned_tasks = Vec::new();

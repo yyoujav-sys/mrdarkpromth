@@ -3,7 +3,6 @@ use anyhow::Result;
 use uuid::Uuid;
 use mr_darkpromth_core::{
     tier::{UserTier, TierLimits, PromptRequest},
-    audit::{AuditAction, AuditSeverity},
 };
 use crate::audit::AuditLogger;
 
@@ -65,6 +64,7 @@ impl DefaultTierValidator {
         Ok(())
     }
 
+    #[allow(dead_code)]
     fn validate_advanced_tools(&self, requires_advanced_tools: bool, tier_limits: &TierLimits) -> Result<(), TierValidationError> {
         if requires_advanced_tools && !tier_limits.advanced_tools {
             return Err(TierValidationError {
@@ -130,7 +130,7 @@ impl TierValidator for DefaultTierValidator {
         Ok(())
     }
 
-    async fn validate_concurrent_requests(&self, user_id: Uuid, user_tier: UserTier) -> Result<(), TierValidationError> {
+    async fn validate_concurrent_requests(&self, _user_id: Uuid, user_tier: UserTier) -> Result<(), TierValidationError> {
         let tier_limits: TierLimits = user_tier.clone().into();
 
         // In a real implementation, you would check the current number of concurrent requests
@@ -153,7 +153,7 @@ impl TierValidator for DefaultTierValidator {
         Ok(())
     }
 
-    async fn get_user_tier(&self, user_id: Uuid) -> Result<UserTier, Box<dyn std::error::Error + Send + Sync>> {
+    async fn get_user_tier(&self, _user_id: Uuid) -> Result<UserTier, Box<dyn std::error::Error + Send + Sync>> {
         // This would typically fetch from a database
         // For now, return Free as default
         Ok(UserTier::Free)
@@ -205,7 +205,7 @@ impl Default for TierConfig {
     }
 }
 
-pub fn create_tier_middleware(audit_logger: AuditLogger, config: TierConfig) -> TierMiddleware {
+pub fn create_tier_middleware(audit_logger: AuditLogger, _config: TierConfig) -> TierMiddleware {
     let validator = Box::new(DefaultTierValidator::new(audit_logger));
     TierMiddleware::new(validator)
 }

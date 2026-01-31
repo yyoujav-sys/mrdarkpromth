@@ -6,3 +6,22 @@ members = [
     "db",
 ]
 resolver = "2"
+
+[workspace.dependencies]
+# Pin versions to avoid edition2024 issues
+actix-web = "4.4"
+actix-cors = "0.6"
+tokio = "1.35"
+serde = "1.0"
+serde_json = "1.0"
+sqlx = "0.7"
+redis = "0.24"
+uuid = "1.6"
+chrono = "0.4"
+anyhow = "1.0"
+log = "0.4"
+env_logger = "0.10"
+reqwest = "0.11"
+jsonwebtoken = "9.2"
+bcrypt = "0.15"
+dotenvy = "0.15"

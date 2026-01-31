@@ -1,8 +1,6 @@
 use crate::error_detector::{ErrorCategory, ErrorDetection};
 use cerebras_client::CerebrasClient;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
-use std::collections::HashMap;
 use thiserror::Error;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -314,6 +312,8 @@ impl FixGenerator {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
+    use std::collections::HashMap;
 
     #[test]
     fn test_json_extraction() {

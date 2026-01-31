@@ -19,6 +19,8 @@ pub struct SandboxConfig {
     pub allow_file_access: bool,
     pub allowed_directories: Vec<PathBuf>,
     pub environment_variables: HashMap<String, String>,
+    pub blocked_hosts: Vec<String>,
+    pub allowed_hosts: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,6 +51,7 @@ pub enum Language {
 
 pub struct Sandbox {
     config: SandboxConfig,
+    #[allow(dead_code)]
     temp_dir: Option<TempDir>,
     execution_count: u64,
 }
@@ -71,6 +74,16 @@ impl Sandbox {
             allow_file_access: false,
             allowed_directories: vec![],
             environment_variables: HashMap::new(),
+            blocked_hosts: vec![
+                "localhost".to_string(),
+                "127.0.0.1".to_string(),
+                "::1".to_string(),
+                "0.0.0.0".to_string(),
+                "10.0.0.0".to_string(),
+                "192.168.0.0".to_string(),
+                "169.254.169.254".to_string(),
+            ],
+            allowed_hosts: vec![],
         };
         Self::new(config)
     }
@@ -93,6 +106,18 @@ impl Sandbox {
                 env.insert("TMPDIR".to_string(), "/tmp".to_string());
                 env
             },
+            blocked_hosts: vec![
+                "localhost".to_string(),
+                "127.0.0.1".to_string(),
+                "::1".to_string(),
+                "0.0.0.0".to_string(),
+                "10.0.0.0".to_string(),
+                "192.168.0.0".to_string(),
+                "169.254.169.254".to_string(),
+                "metadata.google.internal".to_string(),
+                "metadata.amazonaws.com".to_string(),
+            ],
+            allowed_hosts: vec![],
         };
         Self::new(config)
     }
@@ -102,7 +127,7 @@ impl Sandbox {
         
         // Create temporary directory for this execution
         let temp_dir = TempDir::new()?;
-        let execution_id = Uuid::new_v4().to_string();
+        let _execution_id = Uuid::new_v4().to_string();
         
         let start_time = Instant::now();
         let mut security_violations = Vec::new();
@@ -253,7 +278,7 @@ impl Sandbox {
         Ok(command)
     }
 
-    fn apply_resource_limits(&self, command: &mut Command) -> Result<(), Box<dyn std::error::Error>> {
+    fn apply_resource_limits(&self, _command: &mut Command) -> Result<(), Box<dyn std::error::Error>> {
         #[cfg(unix)]
         {
             use std::os::unix::process::CommandExt;

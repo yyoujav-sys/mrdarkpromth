@@ -1,14 +1,20 @@
-[package]
-name = "mr_darkpromth"
-version = "0.1.0"
-edition = "2021"
+[workspace]
+members = [
+    "mr_darkpromth/api",
+    "mr_darkpromth/core", 
+    "mr_darkpromth/db",
+    "mr_darkpromth/services",
+    "mr_darkpromth/services/cerebras_client"
+]
 
-[dependencies]
+[workspace.dependencies]
 # Web Framework - Use older compatible versions
 axum = "0.6"
 tokio = { version = "1.0", features = ["full"] }
 tower = "0.4"
 tower-http = { version = "0.4", features = ["cors", "trace"] }
+actix-web = "4.4"
+actix-cors = "0.6"
 
 # Database & Redis - Disable macros for Docker build
 sqlx = { version = "0.6", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono"], default-features = false }
@@ -27,13 +33,26 @@ chrono = { version = "0.4", features = ["serde"] }
 # Logging & Tracing
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+log = "0.4"
 
 # Environment
 dotenv = "0.15"
 
 # HTTP Client (for Cerebras)
 reqwest = { version = "0.11", features = ["json", "stream"] }
+futures-util = "0.3"
 
 # Error Handling
 anyhow = "1.0"
 thiserror = "1.0"
+
+# Other dependencies
+utoipa = { version = "4.0", features = ["actix_extras"] }
+futures = "0.3"
+bytes = "1.4"
+tempfile = "3.8"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1

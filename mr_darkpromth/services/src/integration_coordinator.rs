@@ -2,14 +2,13 @@
 // Agent 4: Jailbreak & Ultra Tier Engineer
 // Active Monitoring & Dependency Integration Phase
 
-use crate::{
-    DependencyMonitor, UltraTierLogic, UserIntegration, RedisCoordinator,
-    CoordinationEvent, EventType, UltraTierRequest, UltraTierResponse, UserTier
-};
-use cerebras_client::CerebrasClient;
+use crate::dependency_monitor::DependencyMonitor;
+use crate::ultra_tier_logic::{UltraTierLogic, UltraTierRequest, UltraTierResponse, UserTier};
+use crate::user_integration::UserIntegration;
+use crate::redis_coordination::RedisCoordinator;
+use crate::key_pool::KeyPool;
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
 use uuid::Uuid;
 use serde_json::json;
 
@@ -31,10 +30,11 @@ pub struct TestResult {
 }
 
 impl IntegrationCoordinator {
-    pub fn new(redis_coordinator: RedisCoordinator) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new(redis_coordinator: RedisCoordinator, db_pool: sqlx::PgPool) -> Result<Self, Box<dyn std::error::Error>> {
         let dependency_monitor = DependencyMonitor::new(redis_coordinator.clone());
-        let cerebras_client = Arc::new(crate::cerebras_integration::CerebrasClient::new());
-        let ultra_tier_logic = UltraTierLogic::new(cerebras_client);
+        let key_pool = Arc::new(KeyPool::new());
+        let jailbreak_service = Arc::new(crate::jailbreak_service::JailbreakPromptService::new(db_pool.clone()));
+        let ultra_tier_logic = UltraTierLogic::with_config("./memory/ultra_tier_audit.log", key_pool.clone(), jailbreak_service);
         let user_integration = UserIntegration::new(redis_coordinator.clone());
         
         Ok(Self {
@@ -129,7 +129,7 @@ impl IntegrationCoordinator {
         // In real implementation, this would call Agent 3's API
         
         let test_prompt = "Test prompt for Cerebras.ai integration";
-        let test_model = "gpt-4";
+        let _test_model = "gpt-4";
         
         // Simulate successful Cerebras.ai response
         let simulated_response = format!("CEREBRAS_RESPONSE: {}", test_prompt);

@@ -162,7 +162,7 @@ impl CoordinatorAgent {
             .all(|st| st.status == TaskStatus::Completed);
         
         if all_completed {
-            let mut task = self.tasks.get_mut(task_id).unwrap();
+            let task = self.tasks.get_mut(task_id).unwrap();
             task.status = TaskStatus::Completed;
         }
         

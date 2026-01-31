@@ -158,7 +158,7 @@ impl UserIntegration {
         let start_time = std::time::Instant::now();
         
         while start_time.elapsed().as_millis() < timeout_ms as u128 {
-            if let Ok(mut coordinator) = self.redis_coordinator.try_lock() {
+            if let Ok(coordinator) = self.redis_coordinator.try_lock() {
                 if let Ok(events) = coordinator.read_events(&EventType::ResponseEvent, Some(100)) {
                     for stream_event in events {
                         if let Some(event_correlation_id) = &stream_event.event.correlation_id {

@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::time::{Duration, Instant};
 use chrono::{DateTime, Utc};
-use uuid::Uuid;
 use sysinfo::{CpuExt, System, SystemExt};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -262,7 +261,7 @@ impl MonitoringSystem {
         }
     }
 
-    async fn test_redis_connection(&self, redis_url: &str) -> Result<(), Box<dyn std::error::Error>> {
+    async fn test_redis_connection(&self, _redis_url: &str) -> Result<(), Box<dyn std::error::Error>> {
         // Simulate Redis health check
         // In real implementation, this would use the Redis client
         

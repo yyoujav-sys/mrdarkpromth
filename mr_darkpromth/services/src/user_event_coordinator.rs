@@ -7,7 +7,6 @@ use std::sync::Arc;
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
 use tokio::sync::RwLock;
-use redis::AsyncCommands;
 use anyhow::Result;
 
 use crate::redis_coordination::{RedisCoordinator, CoordinationEvent, EventType};
@@ -60,6 +59,7 @@ pub struct UserRegistrationEvent {
 
 pub struct UserEventCoordinator {
     redis_coordinator: Arc<RwLock<RedisCoordinator>>,
+    #[allow(dead_code)]
     event_queue: Vec<UserEvent>,
 }
 

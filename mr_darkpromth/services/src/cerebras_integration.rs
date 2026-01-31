@@ -5,7 +5,7 @@ use anyhow::{Result, anyhow};
 use cerebras_client::{
     CerebrasClient as CoreClient, CerebrasConfig, ChatMessage, ChatRequest, Model, RequestIntent, Role,
 };
-use log::{info, warn};
+use log::{info, warn, error};
 use std::env;
 use std::sync::{Arc, Mutex};
 
@@ -158,9 +158,10 @@ impl CerebrasClient {
     fn from_env_or_default() -> Self {
         let keys = load_keys_from_env();
         if keys.is_empty() {
-            warn!("CEREBRAS_API_KEYS/CEREBRAS_API_KEY not set; using placeholder key");
+            error!("❌ CEREBRAS_API_KEYS/CEREBRAS_API_KEY not set or invalid. Ultra Tier will not work without valid API keys.");
+            panic!("Cerebras API keys are required for Ultra Tier functionality. Please set CEREBRAS_API_KEYS or CEREBRAS_API_KEY environment variable.");
         }
-        Self::from_keys(if keys.is_empty() { vec!["missing_key".to_string()] } else { keys })
+        Self::from_keys(keys)
     }
 
     fn from_keys(keys: Vec<String>) -> Self {
@@ -176,21 +177,30 @@ impl CerebrasClient {
 }
 
 fn load_keys_from_env() -> Vec<String> {
+    // ✅ ENV-based API key loading with proper validation
     if let Ok(keys) = env::var("CEREBRAS_API_KEYS") {
-        return keys
+        let api_keys: Vec<String> = keys
             .split(',')
             .map(|key| key.trim().to_string())
-            .filter(|key| !key.is_empty())
+            .filter(|key| !key.is_empty() && key.starts_with("csk-"))
             .collect();
+        
+        if !api_keys.is_empty() {
+            info!("✅ Loaded {} Cerebras API keys from CEREBRAS_API_KEYS", api_keys.len());
+            return api_keys;
+        }
     }
 
     if let Ok(key) = env::var("CEREBRAS_API_KEY") {
         let trimmed = key.trim().to_string();
-        if !trimmed.is_empty() {
+        if !trimmed.is_empty() && trimmed.starts_with("csk-") {
+            info!("✅ Loaded single Cerebras API key from CEREBRAS_API_KEY");
             return vec![trimmed];
         }
     }
 
+    // ❌ No valid API keys found
+    warn!("❌ No valid Cerebras API keys found in environment variables");
     Vec::new()
 }
 

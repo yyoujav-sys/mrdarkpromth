@@ -36,12 +36,52 @@ impl Default for Metrics {
     }
 }
 
+/// Validate critical environment variables before starting server
+fn validate_environment() {
+    use log::error;
+    
+    let mut missing = Vec::new();
+    
+    // Check JWT_SECRET
+    if std::env::var("JWT_SECRET").unwrap_or_default().is_empty() {
+        missing.push("JWT_SECRET");
+    }
+    
+    // Check Database URL
+    if std::env::var("DATABASE_URL").unwrap_or_default().is_empty() {
+        missing.push("DATABASE_URL");
+    }
+    
+    // Check Cerebras API Keys
+    let cerebras_keys = std::env::var("CEREBRAS_API_KEYS").unwrap_or_default();
+    let cerebras_key = std::env::var("CEREBRAS_API_KEY").unwrap_or_default();
+    if cerebras_keys.is_empty() && cerebras_key.is_empty() {
+        missing.push("CEREBRAS_API_KEYS or CEREBRAS_API_KEY");
+    }
+    
+    if !missing.is_empty() {
+        error!("❌ CRITICAL: Missing required environment variables:");
+        for var in &missing {
+            error!("   - {}", var);
+        }
+        error!("");
+        error!("Please set these environment variables before starting the server.");
+        error!("The system will now exit.");
+        std::process::exit(1);
+    }
+    
+    log::info!("✅ All required environment variables are set");
+}
+
 impl AppState {
     pub async fn new(pool: sqlx::PgPool) -> Self {
+        // Validate environment variables first
+        validate_environment();
+        
         let jwt_secret = std::env::var("JWT_SECRET").unwrap_or_default();
         let user_repo = UserRepository::new(pool.clone());
         let user_service = Arc::new(UserService::new(user_repo, jwt_secret));
-        let cerebras_client = CerebrasClient::new();
+        let cerebras_client = CerebrasClient::new(); // Reads from env internally
         let jailbreak_service = Arc::new(JailbreakPromptService::new(pool.clone()));
         let billing_service = Arc::new(BillingService::new(pool.clone()));
         let email_service = Arc::new(EmailService::new_from_env(pool.clone()).expect("EmailService failed"));

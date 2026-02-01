@@ -73,6 +73,7 @@ pub fn billing_routes(state: BillingState) -> Router {
         .route("/plans/:id", get(get_plan))
         .route("/generate-qr", post(generate_qr_code))
         .route("/verify-slip", post(verify_payment_slip))
+        .route("/credit-card-payment", post(process_credit_card_payment))
         .route("/subscription", get(get_subscription))
         .route("/history", get(get_payment_history))
         .with_state(state)
@@ -261,6 +262,63 @@ async fn get_payment_history(
         )
             .into_response(),
     }
+}
+
+async fn process_credit_card_payment(
+    State(state): State<BillingState>,
+    user: AuthenticatedUser,
+    Json(payload): Json<CreditCardPaymentRequest>,
+) -> impl IntoResponse {
+    // Validate plan exists
+    if let Err(_) = state.billing_service.get_plan(&payload.plan_id).await {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "Invalid plan ID" })),
+        )
+            .into_response();
+    }
+
+    // Validate amount
+    if payload.amount <= 0.0 {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "error": "Invalid amount" })),
+        )
+            .into_response();
+    }
+
+    // For demo purposes, simulate successful payment
+    // In production, integrate with a payment gateway like Stripe
+    let payment_id = Uuid::new_v4().to_string();
+    
+    // Create subscription for user
+    if let Ok(subscription) = state.billing_service.create_subscription(&user.id, &payload.plan_id).await {
+        let response = CreditCardPaymentResponse {
+            success: true,
+            payment_id: payment_id.clone(),
+            subscription: Some(SubscriptionResponse {
+                id: subscription.id.to_string(),
+                user_id: subscription.user_id.to_string(),
+                plan_id: subscription.plan_id.to_string(),
+                tier: subscription.tier.clone(),
+                status: subscription.status.clone(),
+                start_date: subscription.start_date.to_rfc3339(),
+                end_date: subscription.end_date.to_rfc3339(),
+                auto_renew: subscription.auto_renew,
+            }),
+            error: None,
+        };
+        return (StatusCode::OK, Json(json!(response))).into_response();
+    }
+
+    // If subscription creation failed
+    let response = CreditCardPaymentResponse {
+        success: true,
+        payment_id,
+        subscription: None,
+        error: Some("Payment successful but subscription creation failed".to_string()),
+    };
+    (StatusCode::OK, Json(json!(response))).into_response()
 }
 
 // Helper function to extract plan ID from payment ID

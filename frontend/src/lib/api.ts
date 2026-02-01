@@ -216,6 +216,15 @@ class ApiClient {
     return response.data
   }
 
+  async processCreditCardPayment(data: {
+    plan_id: string
+    amount: number
+    card_token: string
+  }) {
+    const response = await this.client.post('/api/billing/credit-card-payment', data)
+    return response.data
+  }
+
   async getSubscriptionStatus() {
     const response = await this.client.get('/api/billing/subscription')
     return response.data

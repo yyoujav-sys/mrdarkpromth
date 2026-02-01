@@ -32,7 +32,7 @@ export const EmailVerification: React.FC = () => {
   const verifyEmail = async (verificationToken: string, emailAddress: string) => {
     try {
       setStatus('loading')
-      await apiClient.request({
+      void apiClient.request({
         method: 'POST',
         url: '/api/auth/verify-email',
         data: {

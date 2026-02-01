@@ -19,7 +19,7 @@ export const PasswordReset: React.FC = () => {
   const [email, setEmail] = useState('')
 
   // Reset step
-  const [token, _setToken] = useState(searchParams.get('token') || '')
+  const [token] = useState(searchParams.get('token') || '')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [passwordStrength, setPasswordStrength] = useState(0)

@@ -156,11 +156,24 @@ services:
       dockerfile: Dockerfile
     container_name: mr_darkpromth_frontend
     restart: always
+    environment:
+      VITE_API_URL: http://api:8080
+    depends_on:
+      - api
+    networks:
+      - mr_darkpromth_network
+
+  # Nginx reverse proxy with SSL
+  nginx:
+    image: nginx:alpine
+    container_name: mr_darkpromth_nginx
+    restart: always
     ports:
       - "80:80"
       - "443:443"
-    environment:
-      VITE_API_URL: http://api:8080
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/etc/nginx/certs:ro
     depends_on:
       - api
     networks:

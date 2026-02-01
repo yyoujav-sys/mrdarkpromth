@@ -22,14 +22,6 @@ interface Message {
   jailbreak_applied?: boolean
 }
 
-interface ThinkingStep {
-  id: string
-  title: string
-  description: string
-  status: 'pending' | 'running' | 'completed'
-  duration?: number
-}
-
 export const Chat: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -42,8 +34,6 @@ export const Chat: React.FC = () => {
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [jailbreakEnabled, setJailbreakEnabled] = useState(false)
-  const [_showThinking, _setShowThinking] = useState(false)
-  const [_thinkingSteps, _setThinkingSteps] = useState<ThinkingStep[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const { user } = useAuthStore()
 

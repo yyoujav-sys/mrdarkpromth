@@ -108,14 +108,69 @@ pub async fn list_tools_handler(
 }
 
 pub async fn execute_tool_handler(
-    State(_state): State<Arc<AppState>>,
-    _headers: axum::http::HeaderMap,
-    Json(_req): Json<ExecuteToolRequest>,
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+    Json(req): Json<ExecuteToolRequest>,
 ) -> impl IntoResponse {
-    json_response(serde_json::json!({
-        "result": "Tool execution not yet implemented",
-        "success": false
-    })).into_response()
+    let token = match extract_token(&headers) {
+        Some(t) => t,
+        None => {
+            return error_response(
+                StatusCode::UNAUTHORIZED,
+                "MISSING_TOKEN",
+                "Authorization header required",
+            ).into_response();
+        }
+    };
+
+    let claims = match state.user_service.validate_token(&token).await {
+        Ok(c) => c,
+        Err(_) => {
+            return error_response(
+                StatusCode::UNAUTHORIZED,
+                "INVALID_TOKEN",
+                "Invalid or expired token",
+            ).into_response();
+        }
+    };
+
+    // Check tier requirements
+    if claims.tier != "premium" && claims.tier != "ultra" {
+        return error_response(
+            StatusCode::FORBIDDEN,
+            "PREMIUM_REQUIRED",
+            "Tool execution requires Premium tier or higher",
+        ).into_response();
+    }
+
+    // Execute tool based on tool_id
+    match req.tool_id.as_str() {
+        "file_reader" => {
+            let path = req.parameters.get("path").and_then(|p| p.as_str()).unwrap_or("");
+            match std::fs::read_to_string(path) {
+                Ok(content) => json_response(serde_json::json!({
+                    "result": content,
+                    "success": true
+                })).into_response(),
+                Err(e) => error_response(
+                    StatusCode::BAD_REQUEST,
+                    "FILE_READ_ERROR",
+                    &format!("Failed to read file: {}", e),
+                ).into_response(),
+            }
+        }
+        "web_search" => {
+            json_response(serde_json::json!({
+                "result": "Web search not yet implemented",
+                "success": false
+            })).into_response()
+        }
+        _ => error_response(
+            StatusCode::NOT_FOUND,
+            "TOOL_NOT_FOUND",
+            "Tool not found",
+        ).into_response(),
+    }
 }
 
 pub async fn execute_sandbox_handler(

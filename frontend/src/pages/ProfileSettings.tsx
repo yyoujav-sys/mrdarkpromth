@@ -25,7 +25,6 @@ export const ProfileSettings: React.FC = () => {
   // Profile form
   const [username, setUsername] = useState('')
   const [bio, setBio] = useState('')
-  const [_avatar, setAvatar] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState('')
 
   // Security form
@@ -74,7 +73,6 @@ export const ProfileSettings: React.FC = () => {
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      setAvatar(file)
       const reader = new FileReader()
       reader.onloadend = () => {
         setAvatarPreview(reader.result as string)

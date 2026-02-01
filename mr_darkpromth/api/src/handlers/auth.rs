@@ -188,11 +188,17 @@ pub async fn logout_handler() -> impl IntoResponse {
 }
 
 pub async fn verify_email_handler(
-    State(_state): State<Arc<AppState>>,
-    Json(_req): Json<VerifyEmailRequest>,
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<VerifyEmailRequest>,
 ) -> impl IntoResponse {
-    // TODO: Implement email verification
-    json_response(serde_json::json!({ "verified": true })).into_response()
+    match state.email_service.verify_email_token(&req.token).await {
+        Ok(_) => json_response(serde_json::json!({ "verified": true })).into_response(),
+        Err(e) => error_response(
+            StatusCode::BAD_REQUEST,
+            "VERIFICATION_FAILED",
+            &format!("Email verification failed: {}", e),
+        ).into_response(),
+    }
 }
 
 pub async fn resend_verification_handler(

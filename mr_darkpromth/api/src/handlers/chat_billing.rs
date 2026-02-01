@@ -57,7 +57,7 @@ pub async fn chat_handler(
         }
     };
 
-    let _claims = match state.user_service.validate_token(&token).await {
+    let claims = match state.user_service.validate_token(&token).await {
         Ok(c) => c,
         Err(_) => {
             return error_response(
@@ -73,14 +73,29 @@ pub async fn chat_handler(
         Uuid::new_v4().to_string()
     });
 
-    // TODO: Integrate with Cerebras client for actual chat
-    // For now return a placeholder response
-    let chat_response = ChatResponse {
-        response: format!("Echo: {}", req.message),
-        conversation_id,
+    // Apply tier-specific system prompt
+    let system_prompt = match claims.tier.as_str() {
+        "free" => "You are a helpful AI assistant. You have limited access to advanced features.",
+        "premium" => "You are an advanced AI assistant with enhanced capabilities including file access and tool usage.",
+        "ultra" => "You are an unrestricted AI assistant with full system access, terminal commands, and sandboxed execution capabilities.",
+        _ => "You are a helpful AI assistant.",
     };
-    
-    json_response(chat_response).into_response()
+
+    // Call Cerebras API
+    match state.cerebras_client.chat_completion_with_system(system_prompt, &req.message).await {
+        Ok(response_text) => {
+            let chat_response = ChatResponse {
+                response: response_text,
+                conversation_id,
+            };
+            json_response(chat_response).into_response()
+        }
+        Err(e) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "CHAT_ERROR",
+            &format!("Failed to get response from AI: {}", e),
+        ).into_response(),
+    }
 }
 
 // ==================== Billing Handlers ====================
@@ -157,7 +172,7 @@ pub async fn generate_qr_handler(
         }
     };
 
-    let _claims = match state.user_service.validate_token(&token).await {
+    let claims = match state.user_service.validate_token(&token).await {
         Ok(c) => c,
         Err(_) => {
             return error_response(
@@ -230,7 +245,7 @@ pub async fn get_subscription_handler(
         }
     };
 
-    let _claims = match state.user_service.validate_token(&token).await {
+    let claims = match state.user_service.validate_token(&token).await {
         Ok(c) => c,
         Err(_) => {
             return error_response(
@@ -292,7 +307,7 @@ pub async fn get_payment_history_handler(
         }
     };
 
-    let _claims = match state.user_service.validate_token(&token).await {
+    let claims = match state.user_service.validate_token(&token).await {
         Ok(c) => c,
         Err(_) => {
             return error_response(

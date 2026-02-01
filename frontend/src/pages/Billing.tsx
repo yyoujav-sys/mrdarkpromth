@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { CreditCard, QrCode, Upload, CheckCircle, AlertCircle, Loader, Copy } from 'lucide-react'
+import { CreditCard, QrCode, Upload, CheckCircle, AlertCircle, Loader } from 'lucide-react'
 import { apiClient } from '../lib/api'
 
 type BillingStep = 'select-plan' | 'payment-method' | 'qr-payment' | 'slip-verification' | 'success'
@@ -94,7 +94,6 @@ export const Billing: React.FC = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
-  const [_copied, setCopied] = useState(false)
 
   const handleSelectPlan = (plan: Plan) => {
     setSelectedPlan(plan)
@@ -178,12 +177,6 @@ export const Billing: React.FC = () => {
     } finally {
       setLoading(false)
     }
-  }
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
   }
 
   return (
@@ -365,15 +358,7 @@ export const Billing: React.FC = () => {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-400">Reference:</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-white font-mono text-sm">{qrData.reference}</span>
-                      <button
-                        onClick={() => copyToClipboard(qrData.reference)}
-                        className="p-1 hover:bg-dark-accent rounded transition-colors"
-                      >
-                        <Copy className="h-4 w-4 text-gray-400" />
-                      </button>
-                    </div>
+                    <span className="text-white font-mono text-sm">{qrData.reference}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-400">Expires:</span>

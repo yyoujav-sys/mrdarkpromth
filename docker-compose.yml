@@ -104,8 +104,11 @@ services:
     environment:
       GF_SECURITY_ADMIN_PASSWORD: admin
       GF_SECURITY_ADMIN_USER: admin
+      GF_INSTALL_PLUGINS: ""
     volumes:
       - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
     networks:
       - mr_darkpromth_network
     depends_on:

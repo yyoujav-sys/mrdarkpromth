@@ -1,0 +1,202 @@
+{
+  "dashboard": {
+    "title": "MR.DarkPromth Platform Monitoring",
+    "tags": ["mr-darkpromth", "monitoring", "production"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 1,
+    "refresh": "5s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "HTTP Requests Total",
+        "type": "graph",
+        "gridPos": {
+          "x": 0,
+          "y": 0,
+          "w": 12,
+          "h": 8
+        },
+        "targets": [
+          {
+            "expr": "rate(http_requests_total[5m])",
+            "legendFormat": "Requests/sec",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "HTTP Request Duration (P95)",
+        "type": "graph",
+        "gridPos": {
+          "x": 12,
+          "y": 0,
+          "w": 12,
+          "h": 8
+        },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "P95 Latency",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Active Users",
+        "type": "stat",
+        "gridPos": {
+          "x": 0,
+          "y": 8,
+          "w": 6,
+          "h": 4
+        },
+        "targets": [
+          {
+            "expr": "active_users",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Database Connections",
+        "type": "stat",
+        "gridPos": {
+          "x": 6,
+          "y": 8,
+          "w": 6,
+          "h": 4
+        },
+        "targets": [
+          {
+            "expr": "db_connections_active",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Security Violations",
+        "type": "stat",
+        "gridPos": {
+          "x": 12,
+          "y": 8,
+          "w": 6,
+          "h": 4
+        },
+        "targets": [
+          {
+            "expr": "rate(security_violations_total[5m])",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "value": 0,
+                  "color": "green"
+                },
+                {
+                  "value": 1,
+                  "color": "yellow"
+                },
+                {
+                  "value": 5,
+                  "color": "red"
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "Jailbreak Success Rate",
+        "type": "gauge",
+        "gridPos": {
+          "x": 18,
+          "y": 8,
+          "w": 6,
+          "h": 4
+        },
+        "targets": [
+          {
+            "expr": "(rate(jailbreak_success_total[5m]) / rate(jailbreak_attempts_total[5m])) * 100",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "value": 0,
+                  "color": "red"
+                },
+                {
+                  "value": 70,
+                  "color": "yellow"
+                },
+                {
+                  "value": 85,
+                  "color": "green"
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 7,
+        "title": "Redis Operations Rate",
+        "type": "graph",
+        "gridPos": {
+          "x": 0,
+          "y": 12,
+          "w": 12,
+          "h": 8
+        },
+        "targets": [
+          {
+            "expr": "rate(redis_operations_total[5m])",
+            "legendFormat": "Operations/sec",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Jailbreak Attempts vs Success",
+        "type": "graph",
+        "gridPos": {
+          "x": 12,
+          "y": 12,
+          "w": 12,
+          "h": 8
+        },
+        "targets": [
+          {
+            "expr": "rate(jailbreak_attempts_total[5m])",
+            "legendFormat": "Attempts",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(jailbreak_success_total[5m])",
+            "legendFormat": "Success",
+            "refId": "B"
+          }
+        ]
+      }
+    ]
+  }
+}

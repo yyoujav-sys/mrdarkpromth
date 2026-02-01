@@ -48,6 +48,7 @@ pub struct ErrorResponse {
 #[derive(Debug, Deserialize)]
 pub struct VerifyEmailRequest {
     pub token: String,
+    pub email: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -192,7 +193,10 @@ pub async fn verify_email_handler(
     Json(req): Json<VerifyEmailRequest>,
 ) -> impl IntoResponse {
     match state.email_service.verify_email_token(&req.token).await {
-        Ok(_) => json_response(serde_json::json!({ "verified": true })).into_response(),
+        Ok(_) => json_response(serde_json::json!({ 
+            "verified": true,
+            "email": req.email
+        })).into_response(),
         Err(e) => error_response(
             StatusCode::BAD_REQUEST,
             "VERIFICATION_FAILED",

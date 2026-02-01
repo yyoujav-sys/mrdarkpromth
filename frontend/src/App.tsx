@@ -6,6 +6,7 @@ import { Sandbox } from '@/pages/Sandbox'
 import { Tools } from '@/pages/Tools'
 import { Admin } from '@/pages/Admin'
 import { Login } from '@/pages/Login'
+import { Register } from '@/pages/Register'
 import { GitHubLogin } from '@/pages/GitHubLogin'
 import { Profile } from '@/pages/Profile'
 import { HackerDashboard } from '@/pages/HackerDashboard'
@@ -22,6 +23,7 @@ function App() {
     <Router>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
         <Route path="/login/github" element={<GitHubLogin />} />
         <Route path="/auth/verify-email" element={<EmailVerification />} />
         <Route path="/auth/password-reset" element={<PasswordReset />} />

@@ -24,6 +24,7 @@ interface UserProfile {
   tier: 'Free' | 'Premium' | 'Ultra'
   joinDate: Date
   lastActive: Date
+  avatarUrl?: string
   usageStats: {
     totalRequests: number
     thisMonth: number
@@ -43,6 +44,8 @@ export const Profile: React.FC = () => {
   const { updateUser } = useAuthStore()
 
   const [isEditing, setIsEditing] = useState(false)
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
   const [formData, setFormData] = useState({
     username: '',
     email: ''
@@ -145,6 +148,47 @@ export const Profile: React.FC = () => {
       email: profile.email
     })
     setIsEditing(false)
+  }
+
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    // Validate file type and size
+    if (!file.type.startsWith('image/')) {
+      setErrorMessage('Please select an image file')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setErrorMessage('Image must be less than 5MB')
+      return
+    }
+
+    setIsUploadingAvatar(true)
+    setErrorMessage(null)
+
+    try {
+      const formData = new FormData()
+      formData.append('avatar', file)
+
+      const response = await apiClient.getClient().post('/api/users/avatar', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+
+      setProfile(prev => {
+        if (!prev) return prev
+        return { ...prev, avatarUrl: response.data.avatar_url }
+      })
+      updateUser({ avatarUrl: response.data.avatar_url })
+    } catch (error) {
+      setErrorMessage('Failed to upload avatar. Please try again.')
+    } finally {
+      setIsUploadingAvatar(false)
+    }
+  }
+
+  const triggerFileInput = () => {
+    fileInputRef.current?.click()
   }
 
   const getTierColor = (tier: UserProfile['tier']) => {

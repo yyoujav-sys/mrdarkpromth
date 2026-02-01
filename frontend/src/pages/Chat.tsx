@@ -8,7 +8,10 @@ import {
   User, 
   Zap,
   Settings,
-  History
+  History,
+  X,
+  Trash2,
+  Save
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import apiClient from '@/lib/api'
@@ -20,6 +23,14 @@ interface Message {
   role: 'user' | 'assistant'
   timestamp: Date
   jailbreak_applied?: boolean
+}
+
+interface ChatSession {
+  id: string
+  title: string
+  messages: Message[]
+  createdAt: Date
+  updatedAt: Date
 }
 
 export const Chat: React.FC = () => {
@@ -34,6 +45,16 @@ export const Chat: React.FC = () => {
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [jailbreakEnabled, setJailbreakEnabled] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>([])
+  const [currentSessionId, setCurrentSessionId] = useState<string>('')
+  const [chatSettings, setChatSettings] = useState({
+    autoSave: true,
+    soundEnabled: false,
+    enterToSend: true,
+    theme: 'dark'
+  })
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const { user } = useAuthStore()
 
@@ -44,6 +65,95 @@ export const Chat: React.FC = () => {
   useEffect(() => {
     scrollToBottom()
   }, [messages])
+
+  // Load chat sessions from localStorage on mount
+  useEffect(() => {
+    const savedSessions = localStorage.getItem('chat_sessions')
+    if (savedSessions) {
+      const parsed = JSON.parse(savedSessions)
+      setChatSessions(parsed.map((s: any) => ({
+        ...s,
+        createdAt: new Date(s.createdAt),
+        updatedAt: new Date(s.updatedAt),
+        messages: s.messages.map((m: any) => ({
+          ...m,
+          timestamp: new Date(m.timestamp)
+        }))
+      })))
+    }
+    const savedSettings = localStorage.getItem('chat_settings')
+    if (savedSettings) {
+      setChatSettings(JSON.parse(savedSettings))
+    }
+  }, [])
+
+  // Save current session when messages change
+  useEffect(() => {
+    if (chatSettings.autoSave && messages.length > 1) {
+      saveCurrentSession()
+    }
+  }, [messages])
+
+  const saveCurrentSession = () => {
+    const title = messages.find(m => m.role === 'user')?.content.slice(0, 50) || 'New Chat'
+    const newSession: ChatSession = {
+      id: currentSessionId || Date.now().toString(),
+      title,
+      messages: [...messages],
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }
+    
+    setChatSessions(prev => {
+      const existing = prev.find(s => s.id === newSession.id)
+      let updated
+      if (existing) {
+        updated = prev.map(s => s.id === newSession.id ? newSession : s)
+      } else {
+        updated = [newSession, ...prev].slice(0, 50) // Keep last 50 sessions
+      }
+      localStorage.setItem('chat_sessions', JSON.stringify(updated))
+      return updated
+    })
+    
+    if (!currentSessionId) {
+      setCurrentSessionId(newSession.id)
+    }
+  }
+
+  const loadSession = (session: ChatSession) => {
+    setMessages(session.messages)
+    setCurrentSessionId(session.id)
+    setShowHistory(false)
+  }
+
+  const deleteSession = (sessionId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setChatSessions(prev => {
+      const updated = prev.filter(s => s.id !== sessionId)
+      localStorage.setItem('chat_sessions', JSON.stringify(updated))
+      return updated
+    })
+    if (currentSessionId === sessionId) {
+      setCurrentSessionId('')
+    }
+  }
+
+  const startNewChat = () => {
+    setMessages([{
+      id: '1',
+      content: "Hello! I'm your AI assistant. How can I help you today?",
+      role: 'assistant',
+      timestamp: new Date()
+    }])
+    setCurrentSessionId('')
+    setShowHistory(false)
+  }
+
+  const saveSettings = () => {
+    localStorage.setItem('chat_settings', JSON.stringify(chatSettings))
+    setShowSettings(false)
+  }
 
   const handleSend = async () => {
     if (!input.trim()) return
@@ -117,10 +227,10 @@ export const Chat: React.FC = () => {
             <Zap className="h-4 w-4" />
             <span>{jailbreakEnabled ? 'Ultra Mode' : 'Standard'}</span>
           </Button>
-          <Button variant="ghost" size="sm">
+          <Button variant="ghost" size="sm" onClick={() => setShowHistory(true)}>
             <History className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="sm">
+          <Button variant="ghost" size="sm" onClick={() => setShowSettings(true)}>
             <Settings className="h-4 w-4" />
           </Button>
         </div>
@@ -224,6 +334,136 @@ export const Chat: React.FC = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* History Modal */}
+      {showHistory && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-lg max-h-[80vh] flex flex-col">
+            <CardHeader className="flex items-center justify-between border-b border-dark-accent">
+              <CardTitle className="flex items-center space-x-2">
+                <History className="h-5 w-5 text-neon-purple" />
+                <span>Chat History</span>
+              </CardTitle>
+              <Button variant="ghost" size="sm" onClick={() => setShowHistory(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </CardHeader>
+            <CardContent className="flex-1 overflow-y-auto p-4">
+              <Button 
+                variant="neon" 
+                size="sm" 
+                className="w-full mb-4"
+                onClick={startNewChat}
+              >
+                + New Chat
+              </Button>
+              {chatSessions.length === 0 ? (
+                <p className="text-gray-500 text-center py-8">No chat history yet</p>
+              ) : (
+                <div className="space-y-2">
+                  {chatSessions.map(session => (
+                    <div
+                      key={session.id}
+                      onClick={() => loadSession(session)}
+                      className={`p-3 rounded-lg cursor-pointer hover:bg-dark-accent transition-colors flex items-center justify-between ${
+                        session.id === currentSessionId ? 'bg-neon-purple/20 border border-neon-purple/40' : 'bg-dark-secondary'
+                      }`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{session.title}</p>
+                        <p className="text-xs text-gray-500">
+                          {session.updatedAt.toLocaleDateString()} • {session.messages.length} messages
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => deleteSession(session.id, e)}
+                        className="ml-2 text-red-400 hover:text-red-300"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Settings Modal */}
+      {showSettings && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader className="flex items-center justify-between border-b border-dark-accent">
+              <CardTitle className="flex items-center space-x-2">
+                <Settings className="h-5 w-5 text-neon-purple" />
+                <span>Chat Settings</span>
+              </CardTitle>
+              <Button variant="ghost" size="sm" onClick={() => setShowSettings(false)}>
+                <X className="h-4 w-4" />
+              </Button>
+            </CardHeader>
+            <CardContent className="p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Auto-save chats</p>
+                  <p className="text-sm text-gray-500">Automatically save conversations</p>
+                </div>
+                <button
+                  onClick={() => setChatSettings(s => ({ ...s, autoSave: !s.autoSave }))}
+                  className={`w-12 h-6 rounded-full transition-colors ${
+                    chatSettings.autoSave ? 'bg-neon-purple' : 'bg-gray-600'
+                  }`}
+                >
+                  <div className={`w-4 h-4 bg-white rounded-full transition-transform ${
+                    chatSettings.autoSave ? 'translate-x-7' : 'translate-x-1'
+                  }`} />
+                </button>
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Sound effects</p>
+                  <p className="text-sm text-gray-500">Play sounds for notifications</p>
+                </div>
+                <button
+                  onClick={() => setChatSettings(s => ({ ...s, soundEnabled: !s.soundEnabled }))}
+                  className={`w-12 h-6 rounded-full transition-colors ${
+                    chatSettings.soundEnabled ? 'bg-neon-purple' : 'bg-gray-600'
+                  }`}
+                >
+                  <div className={`w-4 h-4 bg-white rounded-full transition-transform ${
+                    chatSettings.soundEnabled ? 'translate-x-7' : 'translate-x-1'
+                  }`} />
+                </button>
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Enter to send</p>
+                  <p className="text-sm text-gray-500">Press Enter to send message</p>
+                </div>
+                <button
+                  onClick={() => setChatSettings(s => ({ ...s, enterToSend: !s.enterToSend }))}
+                  className={`w-12 h-6 rounded-full transition-colors ${
+                    chatSettings.enterToSend ? 'bg-neon-purple' : 'bg-gray-600'
+                  }`}
+                >
+                  <div className={`w-4 h-4 bg-white rounded-full transition-transform ${
+                    chatSettings.enterToSend ? 'translate-x-7' : 'translate-x-1'
+                  }`} />
+                </button>
+              </div>
+              <div className="pt-4 border-t border-dark-accent">
+                <Button variant="neon" className="w-full" onClick={saveSettings}>
+                  <Save className="h-4 w-4 mr-2" />
+                  Save Settings
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   )
 }

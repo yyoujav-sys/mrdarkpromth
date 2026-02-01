@@ -327,6 +327,118 @@ impl BillingService {
         })
     }
 
+    pub async fn validate_payment_amount(&self, payment_id: &str, amount: f64) -> Result<()> {
+        let id = Uuid::parse_str(payment_id)
+            .map_err(|e| anyhow!("Invalid payment ID format: {}", e))?;
+        
+        let payment: Payment = sqlx::query_as(
+            "SELECT * FROM payments WHERE id = $1"
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await?
+        .ok_or_else(|| anyhow!("Payment not found"))?;
+        
+        if (payment.amount - amount).abs() > 0.01 {
+            return Err(anyhow!("Payment amount mismatch. Expected: {}, Got: {}", payment.amount, amount));
+        }
+        
+        Ok(())
+    }
+
+    /// Simple payment verification for user-submitted slips
+    pub async fn verify_user_payment_slip(
+        &self,
+        payment_id_str: &str,
+        amount: f64,
+        reference: &str,
+    ) -> Result<SlipVerificationResult> {
+        let payment_id = Uuid::parse_str(payment_id_str)
+            .map_err(|e| anyhow!("Invalid payment ID format: {}", e))?;
+        
+        // Find payment by ID and reference
+        let payment: Payment = sqlx::query_as(
+            r#"
+            SELECT * FROM payments 
+            WHERE id = $1 AND reference = $2
+            "#
+        )
+        .bind(payment_id)
+        .bind(reference)
+        .fetch_optional(&self.pool)
+        .await?
+        .ok_or_else(|| anyhow!("Payment not found with given ID and reference"))?;
+        
+        // Validate amount matches
+        if (payment.amount - amount).abs() > 0.01 {
+            return Err(anyhow!("Payment amount mismatch"));
+        }
+        
+        // Check payment is still pending
+        if payment.status != PaymentStatus::Pending.as_str() {
+            return Err(anyhow!("Payment is not in pending status"));
+        }
+        
+        // For demo purposes, auto-approve if reference matches pattern
+        // In production, this would involve actual slip image analysis
+        let verified = reference.starts_with("PAY-") && payment.reference == reference;
+        
+        if verified {
+            // Update payment status
+            sqlx::query(
+                r#"
+                UPDATE payments
+                SET status = $1, verified_at = NOW()
+                WHERE id = $2
+                "#
+            )
+            .bind(PaymentStatus::Verified.as_str())
+            .bind(payment_id)
+            .execute(&self.pool)
+            .await?;
+            
+            // Get plan and create subscription
+            let plan: Plan = sqlx::query_as(
+                "SELECT * FROM plans WHERE id = $1"
+            )
+            .bind(payment.plan_id)
+            .fetch_one(&self.pool)
+            .await?;
+            
+            self.create_or_update_subscription(
+                payment.user_id,
+                payment.plan_id,
+                payment_id,
+                &plan.tier,
+            ).await?;
+            
+            // Update user tier
+            sqlx::query("UPDATE users SET tier = $1 WHERE id = $2")
+                .bind(&plan.tier)
+                .bind(payment.user_id)
+                .execute(&self.pool)
+                .await?;
+        }
+        
+        Ok(SlipVerificationResult {
+            verified,
+            payment_id,
+            amount: payment.amount,
+            reference: payment.reference,
+            timestamp: Utc::now(),
+        })
+    }
+
+    pub async fn create_subscription(&self, user_id_str: &str, plan_id_str: &str) -> Result<Subscription> {
+        let user_id = Uuid::parse_str(user_id_str)
+            .map_err(|e| anyhow!("Invalid user ID: {}", e))?;
+        let plan_id = Uuid::parse_str(plan_id_str)
+            .map_err(|e| anyhow!("Invalid plan ID: {}", e))?;
+        
+        let plan = self.get_plan(plan_id).await?;
+        self.create_or_update_subscription(user_id, plan_id, Uuid::new_v4(), &plan.tier).await
+    }
+
     pub async fn create_or_update_subscription(
         &self,
         user_id: Uuid,

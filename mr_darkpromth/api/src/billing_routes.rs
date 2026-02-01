@@ -146,16 +146,16 @@ async fn verify_payment_slip(
     }
 
     // Verify payment slip
-    match state.billing_service.verify_payment_slip(
+    match state.billing_service.verify_user_payment_slip(
         &payload.payment_id,
         payload.amount,
         &payload.reference,
-    ) {
+    ).await {
         Ok(result) => {
             // Create subscription for user
             if let Ok(plan_id) = extract_plan_id_from_payment(&payload.payment_id) {
                 if let Ok(subscription) =
-                    state.billing_service.create_subscription(&user.id, &plan_id)
+                    state.billing_service.create_subscription(&user.id, &plan_id).await
                 {
                     return (
                         StatusCode::OK,

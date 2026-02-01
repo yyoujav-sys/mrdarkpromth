@@ -59,8 +59,13 @@ export const Profile: React.FC = () => {
       setErrorMessage(null)
 
       try {
-        const response = await apiClient.getUserProfile()
-        const normalizedTier = response.tier?.toLowerCase()
+        const [profileResponse, statsResponse, prefsResponse] = await Promise.all([
+          apiClient.getUserProfile(),
+          apiClient.getUserStats().catch(() => null),
+          apiClient.getUserPreferences().catch(() => null)
+        ])
+
+        const normalizedTier = profileResponse.tier?.toLowerCase()
         const tier: UserProfile['tier'] = normalizedTier === 'ultra'
           ? 'Ultra'
           : normalizedTier === 'premium'
@@ -68,18 +73,27 @@ export const Profile: React.FC = () => {
           : 'Free'
 
         const profileData: UserProfile = {
-          id: response.id,
-          username: response.username,
-          email: response.email,
+          id: profileResponse.id,
+          username: profileResponse.username,
+          email: profileResponse.email,
           tier,
-          joinDate: new Date(response.created_at ?? Date.now()),
-          lastActive: new Date(response.created_at ?? Date.now()),
-          usageStats: {
+          joinDate: new Date(profileResponse.created_at ?? Date.now()),
+          lastActive: new Date(profileResponse.created_at ?? Date.now()),
+          avatarUrl: profileResponse.avatar_url,
+          usageStats: statsResponse ? {
+            totalRequests: statsResponse.total_requests ?? 0,
+            thisMonth: statsResponse.this_month ?? 0,
+            jailbreakUsage: statsResponse.jailbreak_usage ?? 0
+          } : {
             totalRequests: 0,
             thisMonth: 0,
             jailbreakUsage: 0
           },
-          preferences: {
+          preferences: prefsResponse ? {
+            emailNotifications: prefsResponse.email_notifications ?? true,
+            twoFactorAuth: prefsResponse.two_factor_auth ?? false,
+            dataSharing: prefsResponse.data_sharing ?? false
+          } : {
             emailNotifications: true,
             twoFactorAuth: false,
             dataSharing: false
@@ -150,6 +164,30 @@ export const Profile: React.FC = () => {
     setIsEditing(false)
   }
 
+  const handlePreferenceChange = async (key: keyof UserProfile['preferences'], value: boolean) => {
+    if (!profile) return
+
+    const newPreferences = {
+      ...profile.preferences,
+      [key]: value
+    }
+
+    setProfile(prev => {
+      if (!prev) return prev
+      return { ...prev, preferences: newPreferences }
+    })
+
+    try {
+      await apiClient.updateUserPreferences({
+        emailNotifications: newPreferences.emailNotifications,
+        twoFactorAuth: newPreferences.twoFactorAuth,
+        dataSharing: newPreferences.dataSharing
+      })
+    } catch (error) {
+      setErrorMessage('Failed to save preferences. Please try again.')
+    }
+  }
+
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
@@ -179,7 +217,7 @@ export const Profile: React.FC = () => {
         if (!prev) return prev
         return { ...prev, avatarUrl: response.data.avatar_url }
       })
-      updateUser({ avatarUrl: response.data.avatar_url })
+      updateUser({ avatar: response.data.avatar_url })
     } catch (error) {
       setErrorMessage('Failed to upload avatar. Please try again.')
     } finally {
@@ -280,12 +318,35 @@ export const Profile: React.FC = () => {
               {/* Avatar */}
               <div className="flex items-center space-x-4">
                 <div className="relative">
-                  <div className="w-20 h-20 bg-neon-purple/20 rounded-full flex items-center justify-center">
-                    <User className="h-10 w-10 text-neon-purple" />
-                  </div>
-                  <button className="absolute bottom-0 right-0 p-1 bg-neon-purple rounded-full text-white hover:bg-neon-purple/80">
-                    <Camera className="h-3 w-3" />
+                  {profile.avatarUrl ? (
+                    <img 
+                      src={profile.avatarUrl} 
+                      alt="Profile" 
+                      className="w-20 h-20 rounded-full object-cover border-2 border-neon-purple"
+                    />
+                  ) : (
+                    <div className="w-20 h-20 bg-neon-purple/20 rounded-full flex items-center justify-center">
+                      <User className="h-10 w-10 text-neon-purple" />
+                    </div>
+                  )}
+                  <button 
+                    onClick={triggerFileInput}
+                    disabled={isUploadingAvatar}
+                    className="absolute bottom-0 right-0 p-1.5 bg-neon-purple rounded-full text-white hover:bg-neon-purple/80 disabled:opacity-50"
+                  >
+                    {isUploadingAvatar ? (
+                      <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Camera className="h-3 w-3" />
+                    )}
                   </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAvatarUpload}
+                    className="hidden"
+                  />
                 </div>
                 <div>
                   <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${getTierColor(profile.tier)}`}>
@@ -401,16 +462,7 @@ export const Profile: React.FC = () => {
                     <input
                       type="checkbox"
                       checked={profile.preferences[key as keyof typeof profile.preferences]}
-                      onChange={(e) => setProfile(prev => {
-                        if (!prev) return prev
-                        return {
-                          ...prev,
-                          preferences: {
-                            ...prev.preferences,
-                            [key]: e.target.checked
-                          }
-                        }
-                      })}
+                      onChange={(e) => handlePreferenceChange(key as keyof UserProfile['preferences'], e.target.checked)}
                       className="sr-only peer"
                     />
                     <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-neon-purple"></div>

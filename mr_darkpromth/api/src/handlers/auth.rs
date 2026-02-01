@@ -461,3 +461,133 @@ pub async fn regenerate_api_key_handler(
     }
 }
 
+// ==================== User Stats and Preferences ====================
+
+#[derive(Debug, Serialize)]
+pub struct UserStatsResponse {
+    pub total_requests: i64,
+    pub this_month: i64,
+    pub jailbreak_usage: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UserPreferences {
+    pub email_notifications: bool,
+    pub two_factor_auth: bool,
+    pub data_sharing: bool,
+}
+
+pub async fn get_user_stats_handler(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+) -> impl IntoResponse {
+    let token = match extract_token(&headers) {
+        Some(t) => t,
+        None => {
+            return error_response(
+                StatusCode::UNAUTHORIZED,
+                "MISSING_TOKEN",
+                "Authorization header required",
+            ).into_response();
+        }
+    };
+
+    let claims = match state.user_service.validate_token(&token).await {
+        Ok(c) => c,
+        Err(_) => {
+            return error_response(
+                StatusCode::UNAUTHORIZED,
+                "INVALID_TOKEN",
+                "Invalid or expired token",
+            ).into_response();
+        }
+    };
+
+    // For now, return mock stats - in production, query from analytics service
+    let stats = UserStatsResponse {
+        total_requests: 0,
+        this_month: 0,
+        jailbreak_usage: 0,
+    };
+
+    json_response(stats).into_response()
+}
+
+pub async fn get_user_preferences_handler(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+) -> impl IntoResponse {
+    let token = match extract_token(&headers) {
+        Some(t) => t,
+        None => {
+            return error_response(
+                StatusCode::UNAUTHORIZED,
+                "MISSING_TOKEN",
+                "Authorization header required",
+            ).into_response();
+        }
+    };
+
+    let _claims = match state.user_service.validate_token(&token).await {
+        Ok(c) => c,
+        Err(_) => {
+            return error_response(
+                StatusCode::UNAUTHORIZED,
+                "INVALID_TOKEN",
+                "Invalid or expired token",
+            ).into_response();
+        }
+    };
+
+    // Return default preferences - in production, store and retrieve from database
+    let prefs = UserPreferences {
+        email_notifications: true,
+        two_factor_auth: false,
+        data_sharing: false,
+    };
+
+    json_response(prefs).into_response()
+}
+
+pub async fn update_user_preferences_handler(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+    Json(req): Json<UserPreferences>,
+) -> impl IntoResponse {
+    let token = match extract_token(&headers) {
+        Some(t) => t,
+        None => {
+            return error_response(
+                StatusCode::UNAUTHORIZED,
+                "MISSING_TOKEN",
+                "Authorization header required",
+            ).into_response();
+        }
+    };
+
+    let _claims = match state.user_service.validate_token(&token).await {
+        Ok(c) => c,
+        Err(_) => {
+            return error_response(
+                StatusCode::UNAUTHORIZED,
+                "INVALID_TOKEN",
+                "Invalid or expired token",
+            ).into_response();
+        }
+    };
+
+    // In production, save to database
+    json_response(req).into_response()
+}
+
+pub async fn upload_avatar_handler(
+    State(_state): State<Arc<AppState>>,
+    _headers: axum::http::HeaderMap,
+) -> impl IntoResponse {
+    // TODO: Implement avatar upload with file storage
+    json_response(serde_json::json!({ 
+        "avatar_url": "/avatars/default.png",
+        "message": "Avatar upload endpoint - implementation pending"
+    })).into_response()
+}
+

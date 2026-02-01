@@ -44,6 +44,21 @@ pub struct SubscriptionResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct CreditCardPaymentRequest {
+    pub plan_id: String,
+    pub amount: f64,
+    pub card_token: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreditCardPaymentResponse {
+    pub success: bool,
+    pub payment_id: String,
+    pub subscription: Option<SubscriptionResponse>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct PaymentHistoryItem {
     pub id: String,
     pub plan_id: String,

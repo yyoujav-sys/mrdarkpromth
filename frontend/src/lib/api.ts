@@ -74,7 +74,35 @@ class ApiClient {
     username: string
     email: string
   }>) {
-    const response = await this.client.put('/api/users/me', userData)
+    const response = await this.client.put('/api/auth/me', userData)
+    return response.data
+  }
+
+  async getUserStats() {
+    const response = await this.client.get('/api/users/me/stats')
+    return response.data
+  }
+
+  async getUserPreferences() {
+    const response = await this.client.get('/api/users/me/preferences')
+    return response.data
+  }
+
+  async updateUserPreferences(preferences: {
+    emailNotifications: boolean
+    twoFactorAuth: boolean
+    dataSharing: boolean
+  }) {
+    const response = await this.client.put('/api/users/me/preferences', preferences)
+    return response.data
+  }
+
+  async uploadAvatar(formData: FormData) {
+    const response = await this.client.post('/api/users/avatar', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
     return response.data
   }
 

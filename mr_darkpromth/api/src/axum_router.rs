@@ -61,6 +61,9 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/auth/me", get(handlers::get_me_handler).put(handlers::update_profile_handler))
         .route("/api/users/me/password", put(handlers::change_password_handler))
         .route("/api/users/me/api-key", post(handlers::regenerate_api_key_handler))
+        .route("/api/users/me/stats", get(handlers::get_user_stats_handler))
+        .route("/api/users/me/preferences", get(handlers::get_user_preferences_handler).put(handlers::update_user_preferences_handler))
+        .route("/api/users/avatar", post(handlers::upload_avatar_handler))
         // Chat
         .route("/api/chat", post(handlers::chat_handler))
         // Billing

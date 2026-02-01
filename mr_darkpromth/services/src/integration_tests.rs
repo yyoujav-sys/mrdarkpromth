@@ -358,7 +358,11 @@ impl IntegrationTestSuite {
                 metadata: HashMap::new(),
             };
             
-            if self.ultra_tier_logic.process_request(request).await.is_ok() {
+            // Process request through Ultra Tier logic (synchronously for test)
+            let result = tokio::runtime::Handle::current().block_on(
+                self.ultra_tier_logic.process_request(request)
+            );
+            if result.is_ok() {
                 success_count += 1;
             }
         }

@@ -195,7 +195,7 @@ impl UltraTierLogic {
                         id: Uuid::new_v4().to_string(),
                         timestamp: Utc::now(),
                         user_id: resp.user_id.clone(),
-                        user_tier: resp.user_tier, // Will be updated based on actual user
+                        user_tier: resp.user_tier.clone(), // Will be updated based on actual user
                         request_id: resp.request_id.clone(),
                         action: UltraAuditAction::ResponseGenerated,
                         details: format!("Response generated in {}ms", processing_time),

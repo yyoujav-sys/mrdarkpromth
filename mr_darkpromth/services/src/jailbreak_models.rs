@@ -1,10 +1,11 @@
-// MR.DarkPromth Jailbreak Models
+// MR.DarkPromth Jailbreak Models - Fixed Version
 // Agent 4: Jailbreak & Ultra Tier Engineer
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
-use sqlx::{Type, FromRow};
+use sqlx::{Type, FromRow, Encode, Postgres};
+use sqlx::postgres::PgTypeInfo;
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct JailbreakPrompt {
@@ -27,8 +28,6 @@ pub struct JailbreakPrompt {
     pub is_active: bool,
     pub requires_ultra_tier: bool,
 }
-
-// impl FromRow moved to derive macro above
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreatePromptRequest {
@@ -55,7 +54,6 @@ pub struct UpdatePromptRequest {
     pub target_models: Option<Vec<String>>,
     pub description: Option<String>,
     pub tags: Option<Vec<String>>,
-    pub version: Option<String>,
     pub is_active: Option<bool>,
     pub requires_ultra_tier: Option<bool>,
 }
@@ -78,6 +76,8 @@ pub struct PromptResponse {
     pub updated_at: DateTime<Utc>,
     pub usage_count: i64,
     pub success_rate: f64,
+    pub is_active: bool,
+    pub requires_ultra_tier: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -87,38 +87,17 @@ pub struct PromptSearchRequest {
     pub technique: Option<Technique>,
     pub effectiveness: Option<EffectivenessRating>,
     pub risk_level: Option<RiskLevel>,
-    pub target_model: Option<String>,
     pub tags: Option<Vec<String>>,
     pub author: Option<String>,
-    pub sort_by: Option<PromptSortBy>,
-    pub sort_order: Option<SortOrder>,
+    pub requires_ultra_tier: Option<bool>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
-    pub requires_ultra_tier: Option<bool>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[sqlx(type_name = "prompt_sort_by", rename_all = "snake_case")]
-pub enum PromptSortBy {
-    CreatedAt,
-    UpdatedAt,
-    UsageCount,
-    SuccessRate,
-    Effectiveness,
-    Title,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[sqlx(type_name = "sort_order", rename_all = "snake_case")]
-pub enum SortOrder {
-    Asc,
-    Desc,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PromptSearchResponse {
     pub prompts: Vec<PromptResponse>,
-    pub total_count: i64,
+    pub total: i64,
     pub limit: i64,
     pub offset: i64,
 }
@@ -126,52 +105,25 @@ pub struct PromptSearchResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PromptUsageRequest {
     pub prompt_id: Uuid,
-    pub user_id: String,
-    pub target_model: String,
-    pub user_tier: String,
+    pub model: String,
     pub success: bool,
     pub response_time_ms: Option<i64>,
     pub error_message: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PromptUsageResponse {
-    pub id: Uuid,
+pub struct PromptUsageStats {
     pub prompt_id: Uuid,
-    pub user_id: String,
-    pub target_model: String,
-    pub user_tier: String,
-    pub success: bool,
-    pub response_time_ms: Option<i64>,
-    pub error_message: Option<String>,
-    pub used_at: DateTime<Utc>,
+    pub total_uses: i64,
+    pub successful_uses: i64,
+    pub failed_uses: i64,
+    pub success_rate: f64,
+    pub average_response_time_ms: f64,
+    pub last_used: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PromptStatistics {
-    pub total_prompts: i64,
-    pub total_usage: i64,
-    pub average_success_rate: f64,
-    pub most_used_prompts: Vec<PromptResponse>,
-    pub category_distribution: Vec<CategoryCount>,
-    pub technique_distribution: Vec<TechniqueCount>,
-    pub model_distribution: Vec<ModelCount>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CategoryCount {
-    pub category: PromptCategory,
-    pub count: i64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TechniqueCount {
-    pub technique: Technique,
-    pub count: i64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ModelCount {
+pub struct ModelUsageStats {
     pub model: String,
     pub count: i64,
 }
@@ -185,8 +137,6 @@ pub enum PromptCategory {
     AdvancedTechniques,
     Custom,
 }
-
-// Trait impls moved to derive macro above
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[sqlx(type_name = "technique", rename_all = "snake_case")]
@@ -206,8 +156,6 @@ pub enum Technique {
     Custom,
 }
 
-// Trait impls moved to derive macro above
-
 // Type alias for backward compatibility
 pub type BypassTechnique = Technique;
 
@@ -222,8 +170,6 @@ pub enum EffectivenessRating {
     Experimental,
 }
 
-// Trait impls moved to derive macro above
-
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[sqlx(type_name = "risk_level", rename_all = "snake_case")]
 pub enum RiskLevel {
@@ -235,8 +181,6 @@ pub enum RiskLevel {
     VeryHigh,
     Critical,
 }
-
-// Trait impls moved to derive macro above
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PromptTemplate {
@@ -281,144 +225,43 @@ pub struct TemplateResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PromptGenerationRequest {
+pub struct TemplateUsageRequest {
     pub template_id: Uuid,
-    pub variables: std::collections::HashMap<String, String>,
+    pub variables: serde_json::Value,
     pub target_model: String,
-    pub user_tier: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PromptGenerationResponse {
+pub struct TemplateUsageResponse {
     pub generated_prompt: String,
     pub template_id: Uuid,
-    pub variables_used: std::collections::HashMap<String, String>,
-    pub generated_at: DateTime<Utc>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PromptOptimizationRequest {
-    pub prompt_id: Uuid,
-    pub target_model: String,
-    pub optimization_goals: Vec<OptimizationGoal>,
-    pub constraints: Vec<OptimizationConstraint>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PromptOptimizationResponse {
-    pub optimized_prompt: String,
-    pub original_prompt: String,
-    pub improvements: Vec<String>,
-    pub optimization_score: f64,
-    pub optimized_at: DateTime<Utc>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[sqlx(type_name = "optimization_goal", rename_all = "snake_case")]
-pub enum OptimizationGoal {
-    MaximizeSuccessRate,
-    MinimizeResponseTime,
-    MinimizeTokenUsage,
-    MaximizeCoherence,
-    MinimizeDetectionRisk,
-    MaximizeSpecificity,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum OptimizationConstraint {
-    MaxTokenLength(i32),
-    MinTokenLength(i32),
-    MustIncludeKeywords(Vec<String>),
-    MustExcludeKeywords(Vec<String>),
-    MaxComplexity(f64),
-    MinComplexity(f64),
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PromptValidationRequest {
-    pub prompt: String,
-    pub target_model: String,
-    pub validation_rules: Vec<ValidationRule>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PromptValidationResponse {
-    pub is_valid: bool,
-    pub validation_results: Vec<ValidationResult>,
-    pub overall_score: f64,
-    pub recommendations: Vec<String>,
-    pub validated_at: DateTime<Utc>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ValidationRule {
-    pub rule_type: ValidationRuleType,
-    pub parameters: std::collections::HashMap<String, serde_json::Value>,
-    pub weight: f64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[sqlx(type_name = "validation_rule_type", rename_all = "snake_case")]
-pub enum ValidationRuleType {
-    LengthCheck,
-    KeywordCheck,
-    ComplexityCheck,
-    SafetyCheck,
-    EffectivenessCheck,
-    Custom,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ValidationResult {
-    pub rule_type: ValidationRuleType,
-    pub passed: bool,
-    pub score: f64,
-    pub message: String,
-    pub details: Option<serde_json::Value>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PromptBatchRequest {
-    pub requests: Vec<PromptGenerationRequest>,
-    pub batch_size: Option<i32>,
-    pub parallel_execution: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PromptBatchResponse {
-    pub responses: Vec<PromptGenerationResponse>,
-    pub total_processed: i32,
-    pub successful: i32,
-    pub failed: i32,
-    pub processing_time_ms: i64,
-    pub batch_id: Uuid,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
-pub struct ModelUsageStats {
-    pub model: String,
-    pub usage_count: i64,
-    pub success_count: i64,
-    pub success_rate: f64,
-}
-
-// impl FromRow moved to derive macro above
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UsageTrendData {
-    pub date: chrono::NaiveDate,
-    pub usage_count: i64,
-    pub success_rate: f64,
+    pub variables_used: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PromptAnalytics {
     pub prompt_id: Uuid,
-    pub total_usage: i64,
-    pub successful_usage: i64,
+    pub total_uses: i64,
+    pub unique_users: i64,
     pub success_rate: f64,
-    pub average_response_time: f64,
-    pub usage_by_model: Vec<ModelUsageStats>,
-    pub usage_trend: Vec<UsageTrendData>,
-    pub last_used: Option<DateTime<Utc>>,
+    pub average_effectiveness: f64,
+    pub trending: bool,
+    pub popular_models: Vec<ModelUsageStats>,
+    pub usage_by_day: Vec<DailyUsage>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DailyUsage {
+    pub date: DateTime<Utc>,
+    pub count: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PopularPromptResponse {
+    pub prompts: Vec<PromptResponse>,
+    pub period: String,
+}
+
+// Re-export for backward compatibility
+pub use PromptCategory as Category;
+pub use Technique as BypassTechnique2;

@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+#![cfg(test)]
 
 use mr_darkpromth_core::output_filter::{OutputFilter, FilterConfig};
 use crate::server_protection::{ServerProtection, ProtectionConfig, ProtectionMiddleware};

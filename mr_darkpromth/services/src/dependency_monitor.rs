@@ -133,6 +133,7 @@ impl DependencyMonitor {
             (task_events, resource_events, heartbeat_events)
         };
 
+        // Handle events first
         for stream_event in &task_events {
             self.handle_task_completion_event(&stream_event.event);
         }
@@ -145,7 +146,9 @@ impl DependencyMonitor {
             self.handle_heartbeat_event(&stream_event.event);
         }
 
-        if let Ok(coordinator) = self.redis_coordinator.lock() {
+        // Acknowledge events in separate scope
+        {
+            let coordinator = self.redis_coordinator.lock().unwrap();
             for stream_event in task_events {
                 let _ = coordinator.acknowledge_event(&EventType::TaskCompletion, &stream_event.stream_id);
             }

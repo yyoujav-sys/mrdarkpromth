@@ -55,7 +55,7 @@ jobs:
           output: 'trivy-results.sarif'
 
       - name: Upload Trivy scan results
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: 'trivy-results.sarif'
 
@@ -82,7 +82,7 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: .
-          file: ./Dockerfile
+          file: ./api_dockerfile_with_metrics
           push: true
           tags: |
             ${{ secrets.DOCKER_USERNAME }}/mr-darkpromth-api:${{ github.sha }}
@@ -116,7 +116,7 @@ jobs:
             
             # Start new containers
             docker run -d --name mr_darkpromth_api --network mr_darkpromth_network -p 8080:8080 ${{ secrets.DOCKER_USERNAME }}/mr-darkpromth-api:latest
-            docker run -d --name mr_darkpromth_frontend --network mr_darkpromth_network -p 3000:80 mr_darkpromth_frontend:latest
+            docker run -d --name mr_darkpromth_frontend --network mr_darkpromth_network -p 3000:80 ${{ secrets.DOCKER_USERNAME }}/mr-darkpromth-frontend:latest
             
             # Run health checks
             sleep 10

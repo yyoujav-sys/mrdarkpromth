@@ -173,7 +173,25 @@ impl JailbreakSafetyFilter {
         Ok(filter)
     }
 
-        pub fn analyze_prompt(&self, prompt: &str, user_tier: &mr_darkpromth_db::UserTier) -> Result<SafetyAnalysisResult, JailbreakSafetyError> {rror> {
+    fn check_emergency_stop(&self, prompt: &str) -> bool {
+        // Check for critical emergency stop triggers
+        let emergency_patterns = [
+            r"(?i)(?i)(rm\s+-rf\s+/|dd\s+if=/dev/zero\s+of=/dev/sda|mkfs\.ext4\s+/dev/sda|del\s+/f\s+/s\s+/q\s+C:\\.*)",
+            r"(?i)(shutdown\s+-h\s+now|reboot|init\s+0|poweroff)",
+            r"(?i)(iptables\s+-F|iptables\s+-P\s+INPUT\s+DROP)",
+        ];
+        
+        for pattern in &emergency_patterns {
+            if let Ok(regex) = Regex::new(pattern) {
+                if regex.is_match(prompt) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    pub fn analyze_prompt(&self, prompt: &str, user_tier: &mr_darkpromth_db::UserTier) -> Result<SafetyAnalysisResult, JailbreakSafetyError> {
         let mut result = SafetyAnalysisResult {
             is_safe: true,
             risk_score: 0.0,

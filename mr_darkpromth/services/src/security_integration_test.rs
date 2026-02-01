@@ -3,6 +3,7 @@
 use mr_darkpromth_core::output_filter::{OutputFilter, FilterConfig};
 use crate::server_protection::{ServerProtection, ProtectionConfig, ProtectionMiddleware};
 use crate::sandboxed_execution::{SandboxedExecutor, SandboxConfig, SandboxManager};
+use mr_darkpromth_db::UserTier;
 use std::sync::Arc;
 use log::info;
 
@@ -26,7 +27,7 @@ async fn test_output_filtering() -> Result<(), Box<dyn std::error::Error>> {
     let filter = OutputFilter::new(config)?;
     
     let test_content = "This is safe content with email test@example.com and password secret123";
-    match filter.filter_content(test_content) {
+    match filter.filter_content(test_content, &UserTier::Free) {
         Ok(_) => println!("✓ Content passed filtering"),
         Err(e) => println!("✓ Content correctly blocked: {}", e),
     }

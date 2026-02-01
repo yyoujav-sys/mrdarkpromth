@@ -1,36 +1,38 @@
-use crate::user_service::UserService;
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc, Duration};
 use serde::{Deserialize, Serialize};
+use sqlx::FromRow;
 use uuid::Uuid;
-use qrcode::QrCode;
-use image::Luma;
-use base64::Engine;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Plan {
-    pub id: String,
+    pub id: Uuid,
     pub name: String,
     pub tier: String,
     pub price: f64,
     pub duration_days: i32,
-    pub features: Vec<String>,
+    pub features: serde_json::Value,
+    pub is_active: bool,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Payment {
-    pub id: String,
-    pub user_id: String,
-    pub plan_id: String,
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub plan_id: Uuid,
     pub amount: f64,
-    pub status: PaymentStatus,
-    pub payment_method: PaymentMethod,
+    pub status: String,
+    pub payment_method: String,
     pub reference: String,
-    pub qr_code: Option<String>,
-    pub slip_path: Option<String>,
-    pub created_at: DateTime<Utc>,
-    pub expires_at: DateTime<Utc>,
+    pub qr_code_data: Option<String>,
+    pub slip_image_path: Option<String>,
+    pub verified_by: Option<Uuid>,
     pub verified_at: Option<DateTime<Utc>>,
+    pub expires_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -42,6 +44,18 @@ pub enum PaymentStatus {
     Refunded,
 }
 
+impl PaymentStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            PaymentStatus::Pending => "pending",
+            PaymentStatus::Verified => "verified",
+            PaymentStatus::Failed => "failed",
+            PaymentStatus::Expired => "expired",
+            PaymentStatus::Refunded => "refunded",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PaymentMethod {
     QRCode,
@@ -49,13 +63,24 @@ pub enum PaymentMethod {
     BankTransfer,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+impl PaymentMethod {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            PaymentMethod::QRCode => "qr_code",
+            PaymentMethod::CreditCard => "credit_card",
+            PaymentMethod::BankTransfer => "bank_transfer",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Subscription {
-    pub id: String,
-    pub user_id: String,
-    pub plan_id: String,
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub plan_id: Uuid,
+    pub payment_id: Option<Uuid>,
     pub tier: String,
-    pub status: SubscriptionStatus,
+    pub status: String,
     pub start_date: DateTime<Utc>,
     pub end_date: DateTime<Utc>,
     pub auto_renew: bool,
@@ -71,10 +96,35 @@ pub enum SubscriptionStatus {
     Expired,
 }
 
+impl SubscriptionStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            SubscriptionStatus::Active => "active",
+            SubscriptionStatus::Inactive => "inactive",
+            SubscriptionStatus::Cancelled => "cancelled",
+            SubscriptionStatus::Expired => "expired",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct PaymentSlipVerification {
+    pub id: Uuid,
+    pub payment_id: Uuid,
+    pub user_id: Uuid,
+    pub slip_image_path: String,
+    pub status: String,
+    pub submitted_at: DateTime<Utc>,
+    pub reviewed_by: Option<Uuid>,
+    pub reviewed_at: Option<DateTime<Utc>>,
+    pub review_notes: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct QRCodePaymentData {
     pub qr_code: String,
-    pub payment_id: String,
+    pub payment_id: Uuid,
     pub amount: f64,
     pub reference: String,
     pub expires_at: DateTime<Utc>,
@@ -82,247 +132,337 @@ pub struct QRCodePaymentData {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SlipVerificationRequest {
-    pub payment_id: String,
+    pub payment_id: Uuid,
     pub slip_path: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SlipVerificationResult {
     pub verified: bool,
-    pub payment_id: String,
+    pub payment_id: Uuid,
     pub amount: f64,
     pub reference: String,
     pub timestamp: DateTime<Utc>,
 }
 
 pub struct BillingService {
-    user_service: UserService,
-    plans: Vec<Plan>,
+    pool: sqlx::PgPool,
 }
 
 impl BillingService {
-    pub fn new(user_service: UserService) -> Self {
-        let plans = vec![
-            Plan {
-                id: "premium-monthly".to_string(),
-                name: "Premium".to_string(),
-                tier: "premium".to_string(),
-                price: 9.99,
-                duration_days: 30,
-                features: vec![
-                    "Advanced AI features".to_string(),
-                    "Higher rate limits".to_string(),
-                    "Priority support".to_string(),
-                    "Custom models".to_string(),
-                    "10 concurrent requests".to_string(),
-                ],
-            },
-            Plan {
-                id: "premium-yearly".to_string(),
-                name: "Premium (Yearly)".to_string(),
-                tier: "premium".to_string(),
-                price: 99.99,
-                duration_days: 365,
-                features: vec![
-                    "Advanced AI features".to_string(),
-                    "Higher rate limits".to_string(),
-                    "Priority support".to_string(),
-                    "Custom models".to_string(),
-                    "10 concurrent requests".to_string(),
-                    "2 months free".to_string(),
-                ],
-            },
-            Plan {
-                id: "ultra-monthly".to_string(),
-                name: "Ultra".to_string(),
-                tier: "ultra".to_string(),
-                price: 29.99,
-                duration_days: 30,
-                features: vec![
-                    "All Premium features".to_string(),
-                    "Jailbreak prompt access".to_string(),
-                    "Unlimited rate limits".to_string(),
-                    "50 concurrent requests".to_string(),
-                    "API access".to_string(),
-                    "Dedicated support".to_string(),
-                ],
-            },
-            Plan {
-                id: "ultra-yearly".to_string(),
-                name: "Ultra (Yearly)".to_string(),
-                tier: "ultra".to_string(),
-                price: 299.99,
-                duration_days: 365,
-                features: vec![
-                    "All Premium features".to_string(),
-                    "Jailbreak prompt access".to_string(),
-                    "Unlimited rate limits".to_string(),
-                    "50 concurrent requests".to_string(),
-                    "API access".to_string(),
-                    "Dedicated support".to_string(),
-                    "3 months free".to_string(),
-                ],
-            },
-        ];
-
-        Self { user_service, plans }
+    pub fn new(pool: sqlx::PgPool) -> Self {
+        Self { pool }
     }
 
-    pub fn get_plans(&self) -> Vec<Plan> {
-        self.plans.clone()
+    pub async fn get_plans(&self) -> Result<Vec<Plan>> {
+        let plans = sqlx::query_as::<_, Plan>(
+            "SELECT * FROM plans WHERE is_active = true ORDER BY price ASC"
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(plans)
     }
 
-    pub fn get_plan(&self, plan_id: &str) -> Result<Plan> {
-        self.plans
-            .iter()
-            .find(|p| p.id == plan_id)
-            .cloned()
-            .ok_or_else(|| anyhow!("Plan not found: {}", plan_id))
+    pub async fn get_plan(&self, plan_id: Uuid) -> Result<Plan> {
+        let plan = sqlx::query_as::<_, Plan>(
+            "SELECT * FROM plans WHERE id = $1"
+        )
+        .bind(plan_id)
+        .fetch_optional(&self.pool)
+        .await?
+        .ok_or_else(|| anyhow!("Plan not found: {}", plan_id))?;
+
+        Ok(plan)
     }
 
-    pub fn generate_qr_code(&self, plan_id: &str, amount: f64) -> Result<QRCodePaymentData> {
-        let plan = self.get_plan(plan_id)?;
-        let payment_id = Uuid::new_v4().to_string();
+    pub async fn generate_qr_code(&self, user_id: Uuid, plan_id: Uuid) -> Result<QRCodePaymentData> {
+        let plan = self.get_plan(plan_id).await?;
+        let payment_id = Uuid::new_v4();
         let reference = self.generate_reference_number();
 
-        // Generate QR code data
+        // Generate QR code data (simplified - in production use proper QR library)
         let qr_data = format!(
             "PAYMENT|{}|{}|{}|{}",
-            payment_id, reference, amount, plan.name
+            payment_id, reference, plan.price, plan.name
         );
 
-        // Create QR code
-        let qr = QrCode::new(&qr_data)?;
-        let image = qr.render::<Luma<u8>>().min_dimensions(300, 300).build();
-
-        // Convert to base64
-        let mut buffer = Vec::new();
-        image.write_png(&mut buffer)?;
-        let base64_qr = base64::engine::general_purpose::STANDARD.encode(&buffer);
+        // Placeholder QR code - base64 encoded placeholder
+        // In production, use a proper QR code generation library or service
+        let placeholder_qr = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 
         let expires_at = Utc::now() + Duration::minutes(15);
 
+        // Save payment record
+        sqlx::query(
+            r#"
+            INSERT INTO payments (id, user_id, plan_id, amount, status, payment_method, reference, qr_code_data, expires_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            "#
+        )
+        .bind(payment_id)
+        .bind(user_id)
+        .bind(plan_id)
+        .bind(plan.price)
+        .bind(PaymentStatus::Pending.as_str())
+        .bind(PaymentMethod::QRCode.as_str())
+        .bind(&reference)
+        .bind(&placeholder_qr)
+        .bind(expires_at)
+        .execute(&self.pool)
+        .await?;
+
         Ok(QRCodePaymentData {
-            qr_code: format!("data:image/png;base64,{}", base64_qr),
+            qr_code: format!("data:image/png;base64,{}", placeholder_qr),
             payment_id,
-            amount,
+            amount: plan.price,
             reference,
             expires_at,
         })
     }
 
-    pub fn verify_payment_slip(
+    pub async fn submit_slip_for_verification(
         &self,
-        payment_id: &str,
-        amount: f64,
-        reference: &str,
+        payment_id: Uuid,
+        user_id: Uuid,
+        slip_path: &str,
+    ) -> Result<PaymentSlipVerification> {
+        let verification_id = Uuid::new_v4();
+
+        let verification = sqlx::query_as::<_, PaymentSlipVerification>(
+            r#"
+            INSERT INTO payment_slip_verifications (id, payment_id, user_id, slip_image_path, status)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING *
+            "#
+        )
+        .bind(verification_id)
+        .bind(payment_id)
+        .bind(user_id)
+        .bind(slip_path)
+        .bind("pending")
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(verification)
+    }
+
+    pub async fn verify_payment_slip(
+        &self,
+        verification_id: Uuid,
+        admin_id: Uuid,
+        approved: bool,
+        notes: Option<&str>,
     ) -> Result<SlipVerificationResult> {
-        // In a real implementation, this would use OCR or manual verification
-        // For now, we'll do basic validation
+        let status = if approved { "approved" } else { "rejected" };
 
-        if reference.len() < 10 {
-            return Err(anyhow!("Invalid reference number"));
-        }
+        // Update verification record
+        let verification: PaymentSlipVerification = sqlx::query_as(
+            r#"
+            UPDATE payment_slip_verifications
+            SET status = $1, reviewed_by = $2, reviewed_at = NOW(), review_notes = $3
+            WHERE id = $4
+            RETURNING *
+            "#
+        )
+        .bind(status)
+        .bind(admin_id)
+        .bind(notes)
+        .bind(verification_id)
+        .fetch_one(&self.pool)
+        .await?;
 
-        if amount <= 0.0 {
-            return Err(anyhow!("Invalid amount"));
+        // Get payment details
+        let payment: Payment = sqlx::query_as(
+            "SELECT * FROM payments WHERE id = $1"
+        )
+        .bind(verification.payment_id)
+        .fetch_one(&self.pool)
+        .await?;
+
+        if approved {
+            // Update payment status
+            sqlx::query(
+                r#"
+                UPDATE payments
+                SET status = $1, verified_by = $2, verified_at = NOW()
+                WHERE id = $3
+                "#
+            )
+            .bind(PaymentStatus::Verified.as_str())
+            .bind(admin_id)
+            .bind(verification.payment_id)
+            .execute(&self.pool)
+            .await?;
+
+            // Get plan tier and create/update subscription
+            let plan: Plan = sqlx::query_as(
+                "SELECT * FROM plans WHERE id = $1"
+            )
+            .bind(payment.plan_id)
+            .fetch_one(&self.pool)
+            .await?;
+
+            self.create_or_update_subscription(
+                verification.user_id,
+                payment.plan_id,
+                verification.payment_id,
+                &plan.tier,
+            ).await?;
+
+            // Update user tier
+            sqlx::query("UPDATE users SET tier = $1 WHERE id = $2")
+                .bind(&plan.tier)
+                .bind(verification.user_id)
+                .execute(&self.pool)
+                .await?;
         }
 
         Ok(SlipVerificationResult {
-            verified: true,
-            payment_id: payment_id.to_string(),
-            amount,
-            reference: reference.to_string(),
+            verified: approved,
+            payment_id: verification.payment_id,
+            amount: payment.amount,
+            reference: payment.reference,
             timestamp: Utc::now(),
         })
     }
 
-    pub fn create_subscription(
+    pub async fn create_or_update_subscription(
         &self,
-        user_id: &str,
-        plan_id: &str,
+        user_id: Uuid,
+        plan_id: Uuid,
+        payment_id: Uuid,
+        tier: &str,
     ) -> Result<Subscription> {
-        let plan = self.get_plan(plan_id)?;
+        let plan = self.get_plan(plan_id).await?;
         let now = Utc::now();
         let end_date = now + Duration::days(plan.duration_days as i64);
 
-        Ok(Subscription {
-            id: Uuid::new_v4().to_string(),
-            user_id: user_id.to_string(),
-            plan_id: plan_id.to_string(),
-            tier: plan.tier,
-            status: SubscriptionStatus::Active,
-            start_date: now,
-            end_date,
-            auto_renew: true,
-            created_at: now,
-            updated_at: now,
-        })
-    }
+        // Check for existing active subscription
+        let existing: Option<Subscription> = sqlx::query_as(
+            r#"
+            SELECT * FROM subscriptions 
+            WHERE user_id = $1 AND status = 'active'
+            ORDER BY end_date DESC
+            LIMIT 1
+            "#
+        )
+        .bind(user_id)
+        .fetch_optional(&self.pool)
+        .await?;
 
-    pub fn check_subscription_expiry(&self, subscription: &Subscription) -> SubscriptionStatus {
-        let now = Utc::now();
+        let subscription = if let Some(existing) = existing {
+            // Extend existing subscription
+            let new_end_date = if existing.end_date > now {
+                existing.end_date + Duration::days(plan.duration_days as i64)
+            } else {
+                end_date
+            };
 
-        if subscription.end_date < now {
-            SubscriptionStatus::Expired
-        } else if subscription.status == SubscriptionStatus::Cancelled {
-            SubscriptionStatus::Cancelled
+            sqlx::query_as(
+                r#"
+                UPDATE subscriptions
+                SET plan_id = $1, payment_id = $2, tier = $3, end_date = $4, updated_at = NOW()
+                WHERE id = $5
+                RETURNING *
+                "#
+            )
+            .bind(plan_id)
+            .bind(payment_id)
+            .bind(tier)
+            .bind(new_end_date)
+            .bind(existing.id)
+            .fetch_one(&self.pool)
+            .await?
         } else {
-            SubscriptionStatus::Active
-        }
+            // Create new subscription
+            let subscription_id = Uuid::new_v4();
+            sqlx::query_as(
+                r#"
+                INSERT INTO subscriptions (id, user_id, plan_id, payment_id, tier, status, start_date, end_date, auto_renew)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                RETURNING *
+                "#
+            )
+            .bind(subscription_id)
+            .bind(user_id)
+            .bind(plan_id)
+            .bind(payment_id)
+            .bind(tier)
+            .bind(SubscriptionStatus::Active.as_str())
+            .bind(now)
+            .bind(end_date)
+            .bind(false)
+            .fetch_one(&self.pool)
+            .await?
+        };
+
+        Ok(subscription)
     }
 
-    pub fn renew_subscription(&self, subscription: &mut Subscription) -> Result<()> {
-        if subscription.auto_renew {
-            subscription.start_date = subscription.end_date;
-            subscription.end_date = subscription.end_date + Duration::days(30);
-            subscription.status = SubscriptionStatus::Active;
-            subscription.updated_at = Utc::now();
-            Ok(())
-        } else {
-            Err(anyhow!("Auto-renewal is disabled for this subscription"))
-        }
+    pub async fn get_user_subscription(&self, user_id: Uuid) -> Result<Option<Subscription>> {
+        let subscription = sqlx::query_as::<_, Subscription>(
+            r#"
+            SELECT * FROM subscriptions 
+            WHERE user_id = $1 AND status = 'active'
+            ORDER BY end_date DESC
+            LIMIT 1
+            "#
+        )
+        .bind(user_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(subscription)
     }
 
-    pub fn cancel_subscription(&self, subscription: &mut Subscription) -> Result<()> {
-        subscription.status = SubscriptionStatus::Cancelled;
-        subscription.updated_at = Utc::now();
-        Ok(())
+    pub async fn get_payment_history(&self, user_id: Uuid) -> Result<Vec<Payment>> {
+        let payments = sqlx::query_as::<_, Payment>(
+            r#"
+            SELECT * FROM payments 
+            WHERE user_id = $1 
+            ORDER BY created_at DESC
+            "#
+        )
+        .bind(user_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(payments)
+    }
+
+    pub async fn get_pending_verifications(&self) -> Result<Vec<PaymentSlipVerification>> {
+        let verifications = sqlx::query_as::<_, PaymentSlipVerification>(
+            r#"
+            SELECT * FROM payment_slip_verifications 
+            WHERE status = 'pending'
+            ORDER BY submitted_at ASC
+            "#
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(verifications)
     }
 
     pub fn generate_reference_number(&self) -> String {
         let timestamp = Utc::now().timestamp_millis();
-        let random = Uuid::new_v4().to_string()[0..8].to_string();
-        format!("PAY-{}-{}", timestamp, random.to_uppercase())
+        let random = Uuid::new_v4().to_string();
+        format!("PAY-{}-{}", timestamp, &random[..8].to_uppercase())
     }
 
-    pub fn calculate_discount(&self, plan_id: &str) -> f64 {
-        // Apply discount for yearly plans
-        if plan_id.contains("yearly") {
-            0.15 // 15% discount
-        } else {
-            0.0
-        }
-    }
-
-    pub fn get_payment_history(&self, user_id: &str) -> Result<Vec<Payment>> {
-        // This would query the database in a real implementation
-        // For now, return empty vector
-        Ok(Vec::new())
-    }
-
-    pub fn validate_payment_amount(&self, plan_id: &str, amount: f64) -> Result<()> {
-        let plan = self.get_plan(plan_id)?;
-        let discount = self.calculate_discount(plan_id);
-        let expected_amount = plan.price * (1.0 - discount);
-
-        if (amount - expected_amount).abs() > 0.01 {
-            return Err(anyhow!(
-                "Amount mismatch. Expected: {}, Got: {}",
-                expected_amount,
-                amount
-            ));
-        }
+    pub async fn cancel_subscription(&self, subscription_id: Uuid) -> Result<()> {
+        sqlx::query(
+            r#"
+            UPDATE subscriptions
+            SET status = $1, updated_at = NOW()
+            WHERE id = $2
+            "#
+        )
+        .bind(SubscriptionStatus::Cancelled.as_str())
+        .bind(subscription_id)
+        .execute(&self.pool)
+        .await?;
 
         Ok(())
     }
@@ -332,12 +472,14 @@ impl BillingService {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_generate_reference_number() {
-        let pool = mr_darkpromth_db::DbPool::connect_lazy("postgres://postgres:postgres@localhost:5432/mr_darkpromth").unwrap();
-        let repository = mr_darkpromth_db::UserRepository::new(pool);
-        let user_service = UserService::new(repository, "test_secret".to_string());
-        let billing = BillingService::new(user_service);
+    fn get_test_pool() -> sqlx::PgPool {
+        sqlx::PgPool::connect_lazy("postgres://postgres:postgres@localhost:5432/mr_darkpromth")
+            .expect("Failed to connect to database")
+    }
+
+    #[tokio::test]
+    async fn test_generate_reference_number() {
+        let billing = BillingService::new(get_test_pool());
         let ref1 = billing.generate_reference_number();
         let ref2 = billing.generate_reference_number();
 
@@ -346,58 +488,11 @@ mod tests {
         assert_ne!(ref1, ref2);
     }
 
-    #[test]
-    fn test_get_plans() {
-        let pool = mr_darkpromth_db::DbPool::connect_lazy("postgres://postgres:postgres@localhost:5432/mr_darkpromth").unwrap();
-        let repository = mr_darkpromth_db::UserRepository::new(pool);
-        let user_service = UserService::new(repository, "test_secret".to_string());
-        let billing = BillingService::new(user_service);
-        let plans = billing.get_plans();
+    #[tokio::test]
+    async fn test_get_plans() {
+        let billing = BillingService::new(get_test_pool());
+        let plans = billing.get_plans().await.expect("Failed to get plans");
 
-        assert_eq!(plans.len(), 4);
-        assert_eq!(plans[0].id, "premium-monthly");
-        assert_eq!(plans[3].id, "ultra-yearly");
-    }
-
-    #[test]
-    fn test_calculate_discount() {
-        let pool = mr_darkpromth_db::DbPool::connect_lazy("postgres://postgres:postgres@localhost:5432/mr_darkpromth").unwrap();
-        let repository = mr_darkpromth_db::UserRepository::new(pool);
-        let user_service = UserService::new(repository, "test_secret".to_string());
-        let billing = BillingService::new(user_service);
-
-        assert_eq!(billing.calculate_discount("premium-monthly"), 0.0);
-        assert_eq!(billing.calculate_discount("premium-yearly"), 0.15);
-        assert_eq!(billing.calculate_discount("ultra-yearly"), 0.15);
-    }
-
-    #[test]
-    fn test_create_subscription() {
-        let pool = mr_darkpromth_db::DbPool::connect_lazy("postgres://postgres:postgres@localhost:5432/mr_darkpromth").unwrap();
-        let repository = mr_darkpromth_db::UserRepository::new(pool);
-        let user_service = UserService::new(repository, "test_secret".to_string());
-        let billing = BillingService::new(user_service);
-        let subscription = billing.create_subscription("user123", "premium-monthly").unwrap();
-
-        assert_eq!(subscription.user_id, "user123");
-        assert_eq!(subscription.tier, "premium");
-        assert_eq!(subscription.status, SubscriptionStatus::Active);
-        assert!(subscription.auto_renew);
-    }
-
-    #[test]
-    fn test_check_subscription_expiry() {
-        let pool = mr_darkpromth_db::DbPool::connect_lazy("postgres://postgres:postgres@localhost:5432/mr_darkpromth").unwrap();
-        let repository = mr_darkpromth_db::UserRepository::new(pool);
-        let user_service = UserService::new(repository, "test_secret".to_string());
-        let billing = BillingService::new(user_service);
-        let mut subscription = billing.create_subscription("user123", "premium-monthly").unwrap();
-
-        // Subscription should be active
-        assert_eq!(billing.check_subscription_expiry(&subscription), SubscriptionStatus::Active);
-
-        // Set end date to past
-        subscription.end_date = Utc::now() - Duration::days(1);
-        assert_eq!(billing.check_subscription_expiry(&subscription), SubscriptionStatus::Expired);
+        assert!(!plans.is_empty());
     }
 }

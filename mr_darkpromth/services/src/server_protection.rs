@@ -2,6 +2,8 @@ use governor::{Quota, RateLimiter};
 use governor::state::direct::NotKeyed;
 use log::{error, warn};
 #[cfg(unix)]
+use nix::sys::signal::{self, Signal};
+#[cfg(unix)]
 use nix::unistd::Pid;
 use regex::Regex;
 use serde::{Deserialize, Serialize};

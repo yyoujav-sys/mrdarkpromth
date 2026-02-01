@@ -51,7 +51,6 @@ interface GitHubAuthResponse {
 export const GitHubLogin: React.FC = () => {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const authStore = useAuthStore()
   const [isGitHubLoading, setIsGitHubLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)

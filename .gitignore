@@ -30,3 +30,9 @@ Thumbs.db
 
 # Agent memory logs
 /memory/*.log
+
+# Build error artifacts
+**/build_errors*.txt
+
+# Runtime logs
+logs/

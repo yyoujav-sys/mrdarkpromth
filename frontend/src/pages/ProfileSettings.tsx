@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { User, Mail, Lock, Save, AlertCircle, CheckCircle, Loader, Eye, EyeOff, LogOut } from 'lucide-react'
+import { User, Mail, Lock, AlertCircle, CheckCircle, Loader, Eye, EyeOff, LogOut } from 'lucide-react'
 import { apiClient } from '../lib/api'
 import { useNavigate } from 'react-router-dom'
 
@@ -25,7 +25,7 @@ export const ProfileSettings: React.FC = () => {
   // Profile form
   const [username, setUsername] = useState('')
   const [bio, setBio] = useState('')
-  const [avatar, setAvatar] = useState<File | null>(null)
+  const [_avatar, setAvatar] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState('')
 
   // Security form

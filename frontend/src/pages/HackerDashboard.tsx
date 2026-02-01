@@ -489,23 +489,23 @@ const ToolExecutionPanel: React.FC = () => {
     );
 };
 
-// WebSocket hook for real-time logs
-const useWebSocketLogs = (url: string) => {
-    const [logs, setLogs] = useState<LogEntry[]>([]);
-    const [connected, setConnected] = useState(false);
-    useEffect(() => {
-        try {
-            const ws = new WebSocket(url);
-            ws.onopen = () => setConnected(true);
-            ws.onclose = () => setConnected(false);
-            ws.onmessage = (event) => {
-                try { setLogs(prev => [...prev.slice(-49), JSON.parse(event.data)]); } catch { }
-            };
-            return () => ws.close();
-        } catch { setConnected(false); }
-    }, [url]);
-    return { logs, connected };
-};
+// WebSocket hook for real-time logs (currently unused)
+// const useWebSocketLogs = (url: string) => {
+//     const [logs, setLogs] = useState<LogEntry[]>([]);
+//     const [connected, setConnected] = useState(false);
+//     useEffect(() => {
+//         try {
+//             const ws = new WebSocket(url);
+//             ws.onopen = () => setConnected(true);
+//             ws.onclose = () => setConnected(false);
+//             ws.onmessage = (event) => {
+//                 try { setLogs(prev => [...prev.slice(-49), JSON.parse(event.data)]); } catch { }
+//             };
+//             return () => ws.close();
+//         } catch { setConnected(false); }
+//     }, [url]);
+//     return { logs, connected };
+// };
 
 const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
     ({ className, ...props }, ref) => {

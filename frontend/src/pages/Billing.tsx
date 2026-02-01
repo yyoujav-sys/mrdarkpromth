@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react'
-import { CreditCard, QrCode, Upload, CheckCircle, AlertCircle, Loader, Copy, Download } from 'lucide-react'
+import React, { useState } from 'react'
+import { CreditCard, QrCode, Upload, CheckCircle, AlertCircle, Loader, Copy } from 'lucide-react'
 import { apiClient } from '../lib/api'
 
 type BillingStep = 'select-plan' | 'payment-method' | 'qr-payment' | 'slip-verification' | 'success'
@@ -94,7 +94,7 @@ export const Billing: React.FC = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
-  const [copied, setCopied] = useState(false)
+  const [_copied, setCopied] = useState(false)
 
   const handleSelectPlan = (plan: Plan) => {
     setSelectedPlan(plan)

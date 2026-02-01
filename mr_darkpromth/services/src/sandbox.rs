@@ -9,6 +9,8 @@ use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 use tempfile::TempDir;
 use uuid::Uuid;
+#[cfg(unix)]
+use libc;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SandboxConfig {
@@ -284,9 +286,9 @@ impl Sandbox {
             use std::os::unix::process::CommandExt;
             
             // Use ulimit to set resource limits
-            command.before_exec(move || {
-                // Set memory limit
-                unsafe {
+            unsafe {
+                _command.pre_exec(move || {
+                    // Set memory limit
                     libc::setrlimit(
                         libc::RLIMIT_AS,
                         &libc::rlimit {
@@ -312,10 +314,10 @@ impl Sandbox {
                             rlim_max: 10 * 1024 * 1024,
                         },
                     );
-                }
-                
-                Ok(())
-            });
+                    
+                    Ok(())
+                });
+            }
         }
 
         Ok(())

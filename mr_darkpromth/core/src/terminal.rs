@@ -8,7 +8,6 @@ use std::time::Duration;
 use tokio::process::{Command as TokioCommand};
 use tokio::time::timeout;
 use uuid::Uuid;
-use std::str::FromStr;
 use mr_darkpromth_db::UserTier;
 
 pub struct TerminalAgent {
@@ -182,9 +181,9 @@ impl TerminalAgent {
     async fn list_directory(&mut self, path: Option<&str>) -> Result<Value> {
         let target_path = path.unwrap_or(&self.working_directory).to_string();
         
-        let result = match self.execute_command("ls", vec![target_path.clone()], 10).await {
-            Ok(output) => Ok(output),
-            Err(_) => self.execute_command("dir", vec![target_path.clone()], 10).await,
+        let result = match self.execute_command("ls", vec![target_path.clone()], 10, &UserTier::Free).await {
+            Ok(result) => Ok(result),
+            Err(_) => self.execute_command("dir", vec![target_path.clone()], 10, &UserTier::Free).await,
         };
         
         let response_path = target_path.clone();
@@ -272,7 +271,11 @@ impl Agent for TerminalAgent {
                     .unwrap_or_default();
                 let timeout_secs = message.payload["timeout_secs"].as_u64().unwrap_or(30);
                 let user_tier_str = message.payload["user_tier"].as_str().unwrap_or("Free");
-                let user_tier = UserTier::from_str(user_tier_str).unwrap_or(UserTier::Free);
+                let user_tier = match user_tier_str.to_lowercase().as_str() {
+                    "ultra" => UserTier::Ultra,
+                    "premium" => UserTier::Premium,
+                    _ => UserTier::Free,
+                };
                 
                 let result = self.execute_command(command, args, timeout_secs, &user_tier).await?;
                 
@@ -289,7 +292,11 @@ impl Agent for TerminalAgent {
                 let shell_command = message.payload["command"].as_str().unwrap_or("");
                 let timeout_secs = message.payload["timeout_secs"].as_u64().unwrap_or(30);
                 let user_tier_str = message.payload["user_tier"].as_str().unwrap_or("Free");
-                let user_tier = UserTier::from_str(user_tier_str).unwrap_or(UserTier::Free);
+                let user_tier = match user_tier_str.to_lowercase().as_str() {
+                    "ultra" => UserTier::Ultra,
+                    "premium" => UserTier::Premium,
+                    _ => UserTier::Free,
+                };
                 
                 let result = self.execute_shell_command(shell_command, timeout_secs, &user_tier).await?;
                 
@@ -343,7 +350,8 @@ impl Agent for TerminalAgent {
     
     async fn process_task(&mut self, task: Task) -> Result<TaskStatus> {
         if let Some((command, args)) = self.parse_command_from_task(&task.description) {
-            let result = self.execute_command(&command, args, 60).await;
+            let user_tier = UserTier::Free; // Default for task processing
+            let result = self.execute_command(&command, args, 60, &user_tier).await;
             
             match result {
                 Ok(output) => {

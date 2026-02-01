@@ -1,40 +1,11 @@
 #![allow(ambiguous_glob_reexports)]
 
-pub mod middleware;
-pub mod rate_limiter;
-pub mod routes;
-pub mod server;
-pub mod websocket;
-pub mod jailbreak_api;
+// Axum modules (new)
+pub mod axum_router;
+pub mod app_state;
+pub mod handlers;
 
-pub mod tier_middleware;
-pub mod auth_routes;
-pub mod auth_middleware;
-pub mod user_routes;
-pub mod openapi;
-pub mod terminal_routes;
-pub mod tool_routes;
-pub mod github_routes;
-pub mod billing_routes;
-pub mod email_routes;
-pub mod metrics_exporter;
-pub mod security_middleware;
-
-pub use middleware::*;
-pub use rate_limiter::*;
-pub use routes::*;
-pub use server::*;
-pub use websocket::*;
-pub use jailbreak_api::*;
-pub use tier_middleware::*;
-pub use auth_routes::*;
-pub use auth_middleware::*;
-pub use user_routes::*;
-pub use openapi::*;
-pub use tool_routes::*;
-pub use terminal_routes::*;
-pub use github_routes::*;
-pub use billing_routes::*;
-pub use email_routes::*;
-pub use metrics_exporter::*;
-pub use security_middleware::*;
+// Re-export Axum modules
+pub use axum_router::*;
+pub use app_state::*;
+pub use handlers::*;

@@ -13,7 +13,7 @@ scrape_configs:
   # MR.DarkPromth API
   - job_name: 'mr-darkpromth-api'
     static_configs:
-      - targets: ['mr_darkpromth:8080']
+      - targets: ['api:8080']
     metrics_path: '/metrics'
     scrape_interval: 5s
 
@@ -22,7 +22,7 @@ scrape_configs:
     static_configs:
       - targets: ['redis:6379']
 
-  # PostgreSQL (if exporter is available)
+  # PostgreSQL
   - job_name: 'postgres'
     static_configs:
       - targets: ['postgres:5432']
@@ -33,4 +33,4 @@ alerting:
         - targets: []
 
 rule_files:
-  - '/etc/prometheus/rules/*.yml'
+  # - '/etc/prometheus/rules/*.yml'

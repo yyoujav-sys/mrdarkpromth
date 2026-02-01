@@ -30,7 +30,8 @@ sha2 = "0.10"
 hmac = "0.12"
 ring = "0.16"
 # Sandboxing dependencies
-nix = "0.27"
+nix = { version = "0.27", features = ["user", "signal", "process"] }
+libc = "0.2"
 # Rate limiting
 governor = "0.6"
 # Resource monitoring
@@ -44,6 +45,12 @@ jsonwebtoken = "8.3"
 mr_darkpromth_db = { path = "../db" }
 mr_darkpromth_core = { path = "../core" }
 sqlx = { version = "0.6", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono"], default-features = false }
+
+# Email dependencies
+lettre = { version = "0.10", features = ["smtp-transport", "tokio1", "tokio1-native-tls"] }
+qrcode = "0.12"
+image = "0.24"
+base64 = "0.21"
 
 # Web framework dependencies for API
 axum = "0.6"

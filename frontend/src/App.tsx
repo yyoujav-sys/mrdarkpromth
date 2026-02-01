@@ -14,6 +14,8 @@ import { PasswordReset } from '@/pages/PasswordReset'
 import { AdminDashboard } from '@/pages/AdminDashboard'
 import { ProfileSettings } from '@/pages/ProfileSettings'
 import { Billing } from '@/pages/Billing'
+import { TerminalPage } from '@/pages/Terminal'
+import { Jailbreak } from '@/pages/Jailbreak'
 
 function App() {
   return (
@@ -32,6 +34,12 @@ function App() {
           <Route path="chat" element={<Chat />} />
           <Route path="sandbox" element={<Sandbox />} />
           <Route path="tools" element={<Tools />} />
+          <Route path="jailbreak" element={<Jailbreak />} />
+          <Route path="terminal" element={
+            <ProtectedRoute requiredTier="Ultra">
+              <TerminalPage />
+            </ProtectedRoute>
+          } />
           <Route path="admin" element={
             <ProtectedRoute requiredTier="Premium">
               <Admin />

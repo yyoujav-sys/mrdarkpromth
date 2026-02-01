@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Users, Activity, TrendingUp, AlertCircle, Search, Filter, MoreVertical, Shield, Trash2, Edit2, Eye } from 'lucide-react'
+import { Users, Activity, TrendingUp, AlertCircle, Search, Shield, Trash2, Eye } from 'lucide-react'
 import { apiClient } from '../lib/api'
 
 interface User {

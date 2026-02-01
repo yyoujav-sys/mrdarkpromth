@@ -16,12 +16,31 @@ pub struct AuthState {
     pub user_service: Arc<UserService>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AuthenticatedUser {
     pub id: uuid::Uuid,
     pub username: String,
     pub email: String,
     pub tier: UserTier,
+}
+
+fn parse_user_tier(raw: &str) -> UserTier {
+    match raw.to_lowercase().as_str() {
+        "free" | "basic" => UserTier::Free,
+        "premium" => UserTier::Premium,
+        "ultra" => UserTier::Ultra,
+        _ => UserTier::Free,
+    }
+}
+
+fn has_required_tier(current: &UserTier, required: &UserTier) -> bool {
+    let rank = |tier: &UserTier| match tier {
+        UserTier::Free => 0,
+        UserTier::Premium => 1,
+        UserTier::Ultra => 2,
+    };
+
+    rank(current) >= rank(required)
 }
 
 pub async fn auth_middleware(
@@ -77,11 +96,7 @@ pub async fn auth_middleware(
     };
 
     // Parse user tier from claims
-    let user_tier = match claims.tier.as_str() {
-        "free" => UserTier::Free,
-        "ultra" => UserTier::Ultra,
-        _ => UserTier::Free,
-    };
+    let user_tier = parse_user_tier(&claims.tier);
 
     // Add authenticated user to request extensions
     let auth_user = AuthenticatedUser {
@@ -159,10 +174,7 @@ pub fn require_tier(required_tier: UserTier) -> impl Fn(Request<axum::body::Body
             };
 
             // Check tier permissions
-            if !matches!((auth_user.tier.clone(), required_tier.clone()),
-                (UserTier::Ultra, _) | // Ultra tier has access to everything
-                (UserTier::Free, UserTier::Free) // Free tier can access free features
-            ) {
+            if !has_required_tier(&auth_user.tier, &required_tier) {
                 return Ok((StatusCode::FORBIDDEN, Json(json!({
                     "error": "Insufficient permissions",
                     "required_tier": format!("{:?}", required_tier),
@@ -192,10 +204,7 @@ pub fn extract_auth_user(request: &Request<axum::body::Body>) -> Result<&Authent
 // Helper function to check if user has specific tier
 pub fn check_user_tier(request: &Request<axum::body::Body>, required_tier: UserTier) -> Result<bool, StatusCode> {
     let auth_user = extract_auth_user(request)?;
-    Ok(matches!((auth_user.tier.clone(), required_tier),
-        (UserTier::Ultra, _) | // Ultra tier has access to everything
-        (UserTier::Free, UserTier::Free) // Free tier can access free features
-    ))
+    Ok(has_required_tier(&auth_user.tier, &required_tier))
 }
 
 // Middleware for optional authentication (doesn't fail if no auth)
@@ -220,11 +229,7 @@ pub async fn optional_auth_middleware(
         // Try to validate token
         if let Ok(claims) = state.user_service.validate_token(auth_header).await {
             if let Ok(user_id) = uuid::Uuid::parse_str(&claims.sub) {
-                let user_tier = match claims.tier.as_str() {
-                    "free" => UserTier::Free,
-                    "ultra" => UserTier::Ultra,
-                    _ => UserTier::Free,
-                };
+                let user_tier = parse_user_tier(&claims.tier);
 
                 let auth_user = AuthenticatedUser {
                     id: user_id,

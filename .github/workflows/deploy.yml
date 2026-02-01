@@ -1,7 +1,9 @@
-name: Deploy
+name: Deploy to Production
 
 on:
   push:
+    branches: [ main ]
+  pull_request:
     branches: [ main ]
   workflow_dispatch:
 
@@ -9,39 +11,125 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  deploy:
-    name: Deploy to Production
+  test:
+    name: Run Tests
     runs-on: ubuntu-latest
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Setup Python
+        uses: actions/setup-python@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+          python-version: '3.11'
 
-      - name: Deploy to ECS
+      - name: Install dependencies
         run: |
-          # Build and push Docker image
-          docker build -t mr-darkpromth/backend:${{ github.sha }} .
-          docker tag mr-darkpromth/backend:${{ github.sha }} mr-darkpromth/backend:latest
-          
-          # Push to ECR
-          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}
-          docker push ${{ secrets.ECR_REGISTRY }}/mr-darkpromth/backend:${{ github.sha }}
-          docker push ${{ secrets.ECR_REGISTRY }}/mr-darkpromth/backend:latest
-          
-          # Update ECS service
-          aws ecs update-service --cluster mr-darkpromth --service backend --force-new-deployment
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
 
-      - name: Run database migrations
+      - name: Run tests
         run: |
-          # Execute migrations on the database
-          aws ecs run-task --cluster mr-darkpromth --task-definition migrations --launch-type FARGATE
+          pytest --cov=. --cov-report=xml
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  build-and-deploy:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+    needs: [test, security-scan]
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push API image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/mr-darkpromth-api:${{ github.sha }}
+            ${{ secrets.DOCKER_USERNAME }}/mr-darkpromth-api:latest
+
+      - name: Build and push Frontend image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ${{ secrets.DOCKER_USERNAME }}/mr-darkpromth-frontend:${{ github.sha }}
+            ${{ secrets.DOCKER_USERNAME }}/mr-darkpromth-frontend:latest
+
+      - name: Deploy to production
+        uses: appleboy/ssh-action@v0.1.5
+        with:
+          host: ${{ secrets.HOST }}
+          username: root
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd /opt/mrdarkpromth
+            
+            # Pull latest images
+            docker pull ${{ secrets.DOCKER_USERNAME }}/mr-darkpromth-api:latest
+            docker pull ${{ secrets.DOCKER_USERNAME }}/mr-darkpromth-frontend:latest
+            
+            # Stop and remove old containers
+            docker stop mr_darkpromth_api mr_darkpromth_frontend || true
+            docker rm mr_darkpromth_api mr_darkpromth_frontend || true
+            
+            # Start new containers
+            docker run -d --name mr_darkpromth_api --network mr_darkpromth_network -p 8080:8080 ${{ secrets.DOCKER_USERNAME }}/mr-darkpromth-api:latest
+            docker run -d --name mr_darkpromth_frontend --network mr_darkpromth_network -p 3000:80 mr_darkpromth_frontend:latest
+            
+            # Run health checks
+            sleep 10
+            curl -f http://localhost:8080/health || exit 1
+            curl -f http://localhost:3000 || exit 1
+            
+            echo "Deployment completed successfully!"
+
+      - name: Run smoke tests
+        run: |
+          sleep 15
+          curl -f https://bt-shop-dark.online/health
+          curl -f https://bt-shop-dark.online/api/status
 
       - name: Notify deployment
         uses: 8398a7/action-slack@v3

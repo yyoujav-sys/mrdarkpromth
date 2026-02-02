@@ -138,6 +138,7 @@ pub enum PromptCategory {
     CharacterRolePlaying,
     TechnicalExploitation,
     AdvancedTechniques,
+    Reasoning,
     Custom,
 }
 

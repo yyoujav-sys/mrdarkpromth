@@ -1,5 +1,6 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
+use tokio::net::TcpListener;
 
 use mr_darkpromth_api::axum_router::create_router;
 use mr_darkpromth_api::AppState;
@@ -24,8 +25,6 @@ async fn main() {
     let addr = SocketAddr::from(([0,0,0,0], 8080));
     log::info!("Listening on {}", addr);
     
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
-        .await
-        .unwrap();
+    let listener = TcpListener::bind(&addr).await.expect("Failed to bind");
+    axum::serve(listener, app).await.expect("Server error");
 }

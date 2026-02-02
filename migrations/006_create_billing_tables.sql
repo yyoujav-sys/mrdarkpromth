@@ -1,11 +1,19 @@
 -- Billing & Payment Tables
 -- Migration: 006_create_billing_tables.sql
 
+-- Create user_tier type if not exists
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_tier') THEN
+        CREATE TYPE user_tier AS ENUM ('free', 'premium', 'ultra');
+    END IF;
+END$$;
+
 -- Plans table
 CREATE TABLE IF NOT EXISTS plans (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(100) NOT NULL,
-    tier user_tier NOT NULL,
+    tier VARCHAR(20) NOT NULL DEFAULT 'free',
     price DECIMAL(10, 2) NOT NULL,
     duration_days INTEGER NOT NULL DEFAULT 30,
     features JSONB NOT NULL DEFAULT '[]',
@@ -38,7 +46,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     plan_id UUID NOT NULL REFERENCES plans(id),
     payment_id UUID REFERENCES payments(id),
-    tier user_tier NOT NULL,
+    tier VARCHAR(20) NOT NULL DEFAULT 'free',
     status VARCHAR(20) NOT NULL DEFAULT 'active',
     start_date TIMESTAMP WITH TIME ZONE NOT NULL,
     end_date TIMESTAMP WITH TIME ZONE NOT NULL,

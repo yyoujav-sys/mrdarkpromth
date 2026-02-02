@@ -139,6 +139,9 @@ pub enum PromptCategory {
     TechnicalExploitation,
     AdvancedTechniques,
     Reasoning,
+    Coding,
+    Creative,
+    Analysis,
     Custom,
 }
 

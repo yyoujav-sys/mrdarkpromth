@@ -4,9 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-axum = { workspace = true }
-tower = { workspace = true }
-tower-http = { workspace = true, features = ["cors", "trace"] }
+axum = "0.7"
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors", "trace"] }
 utoipa = { version = "4.2", features = ["axum_extras", "chrono", "uuid"] }
 utoipa-swagger-ui = { version = "4.0", features = ["axum"] }
 redis = "0.23"
@@ -17,6 +17,7 @@ log = "0.4"
 env_logger = "0.10"
 uuid = { version = "1.6", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
+time = "=0.3.45"
 jsonwebtoken = "8.3"
 anyhow = "1.0"
 thiserror = "1.0"

@@ -44,6 +44,7 @@ jobs:
     permissions:
       contents: read
       security-events: write
+      actions: read
     
     steps:
       - name: Checkout code
@@ -58,7 +59,7 @@ jobs:
           output: 'trivy-results.sarif'
 
       - name: Upload Trivy scan results
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: 'trivy-results.sarif'
 
@@ -133,6 +134,31 @@ jobs:
           sleep 15
           curl -f https://bt-shop-dark.online/health
           curl -f https://bt-shop-dark.online/api/status
+
+      - name: Run E2E tests
+        uses: appleboy/ssh-action@v0.1.5
+        with:
+          host: ${{ secrets.HOST }}
+          username: root
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd /opt/mrdarkpromth/frontend
+            npm ci
+            npx playwright install --with-deps
+            npm run e2e
+
+      - name: Run load tests
+        uses: appleboy/ssh-action@v0.1.5
+        with:
+          host: ${{ secrets.HOST }}
+          username: root
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd /opt/mrdarkpromth
+            k6 run load-tests/sandbox-execution.js \
+              -e LOAD_TEST_BASE_URL=http://localhost:8080 \
+              -e SANDBOX_AUTH_EMAIL=loadtest@example.com \
+              -e SANDBOX_AUTH_PASSWORD=TestPass123!
 
       - name: Notify deployment
         uses: 8398a7/action-slack@v3

@@ -1,0 +1,39 @@
+FROM rust:1.83-slim AS builder
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy workspace root files first (for caching)
+COPY Cargo.toml .
+
+# Copy all workspace members
+COPY mr_darkpromth/ ./mr_darkpromth/
+
+# Build the API
+WORKDIR /app/mr_darkpromth/api
+RUN cargo build --release
+
+# Runtime stage
+FROM debian:bookworm-slim
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    libssl3 \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy the built binary
+COPY --from=builder /app/mr_darkpromth/api/target/release/mr_darkpromth_api /app/
+
+# Expose port
+EXPOSE 8080
+
+# Run the API
+CMD ["./mr_darkpromth_api"]

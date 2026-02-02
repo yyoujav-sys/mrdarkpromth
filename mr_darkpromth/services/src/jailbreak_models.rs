@@ -239,6 +239,22 @@ pub struct TemplateUsageResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum PromptSortBy {
+    CreatedAt,
+    UpdatedAt,
+    UsageCount,
+    SuccessRate,
+    Effectiveness,
+    Title,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum SortOrder {
+    Asc,
+    Desc,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PromptAnalytics {
     pub prompt_id: Uuid,
     pub total_uses: i64,

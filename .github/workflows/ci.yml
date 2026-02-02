@@ -92,6 +92,120 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
 
+  e2e-load:
+    name: E2E & Load Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: mr_darkpromth_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/mr_darkpromth_test
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: ci-test-secret
+      CEREBRAS_API_KEYS: csk-test-key
+      RUST_LOG: info
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: ./frontend
+        run: npx playwright install --with-deps
+
+      - name: Run database migrations
+        env:
+          PGPASSWORD: postgres
+        run: |
+          for file in migrations/*.sql; do
+            psql -h localhost -U postgres -d mr_darkpromth_test -v ON_ERROR_STOP=1 -f "$file"
+          done
+
+      - name: Start API server
+        run: |
+          cargo run -p mr_darkpromth_api &
+          for i in {1..30}; do
+            if curl -fs http://localhost:8080/health; then
+              echo "API is up"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "API failed to start" && exit 1
+
+      - name: Run Playwright E2E
+        working-directory: ./frontend
+        env:
+          VITE_API_BASE_URL: http://localhost:8080
+          VITE_WS_URL: ws://localhost:8080/ws
+          PLAYWRIGHT_BASE_URL: http://localhost:5173
+        run: npm run e2e
+
+      - name: Seed load test user
+        env:
+          PGPASSWORD: postgres
+        run: |
+          curl -fs http://localhost:8080/api/auth/register \
+            -H "Content-Type: application/json" \
+            -d '{"username":"loadtest","email":"loadtest@example.com","password":"TestPass123!"}'
+          psql -h localhost -U postgres -d mr_darkpromth_test -v ON_ERROR_STOP=1 \
+            -c "UPDATE users SET tier = 'premium' WHERE email = 'loadtest@example.com';"
+
+      - name: Run sandbox load test
+        uses: grafana/k6-action@v0.3.1
+        env:
+          LOAD_TEST_BASE_URL: http://localhost:8080
+          SANDBOX_AUTH_EMAIL: loadtest@example.com
+          SANDBOX_AUTH_PASSWORD: TestPass123!
+          LOAD_VUS: 5
+          LOAD_DURATION: 30s
+          LOAD_SLEEP: 1
+        with:
+          filename: load-tests/sandbox-execution.js
+
   build:
     name: Build
     runs-on: ubuntu-latest
@@ -118,7 +232,7 @@ jobs:
   docker:
     name: Docker Build
     runs-on: ubuntu-latest
-    needs: [test, build]
+    needs: [test, build, e2e-load]
     
     steps:
       - name: Checkout code
@@ -150,6 +264,7 @@ jobs:
     permissions:
       contents: read
       security-events: write
+      actions: read
     
     steps:
       - name: Checkout code
@@ -164,6 +279,6 @@ jobs:
           output: 'trivy-results.sarif'
 
       - name: Upload Trivy scan results
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: 'trivy-results.sarif'

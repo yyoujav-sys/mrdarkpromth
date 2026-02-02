@@ -142,6 +142,7 @@ pub enum PromptCategory {
     Coding,
     Creative,
     Analysis,
+    General,
     Custom,
 }
 
@@ -150,6 +151,7 @@ pub enum PromptCategory {
 pub enum Technique {
     DirectInstruction,
     RolePlaying,
+    Roleplay,
     ScenarioCreation,
     SystemPromptOverride,
     ContextManipulation,

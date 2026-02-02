@@ -32,5 +32,4 @@ alerting:
     - static_configs:
         - targets: []
 
-rule_files:
-  # - '/etc/prometheus/rules/*.yml'
+rule_files: []

@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import '@/styles/dark-theme.css'
 import { Layout } from '@/components/layout/Layout'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { Chat } from '@/pages/Chat'
@@ -17,6 +18,7 @@ import { ProfileSettings } from '@/pages/ProfileSettings'
 import { Billing } from '@/pages/Billing'
 import { TerminalPage } from '@/pages/Terminal'
 import { Jailbreak } from '@/pages/Jailbreak'
+import { LandingPage } from '@/pages/LandingPage'
 
 function App() {
   return (
@@ -27,7 +29,9 @@ function App() {
         <Route path="/login/github" element={<GitHubLogin />} />
         <Route path="/auth/verify-email" element={<EmailVerification />} />
         <Route path="/auth/password-reset" element={<PasswordReset />} />
-        <Route path="/" element={
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/landing" element={<LandingPage />} />
+        <Route path="/app" element={
           <ProtectedRoute>
             <Layout />
           </ProtectedRoute>
@@ -47,13 +51,13 @@ function App() {
               <Admin />
             </ProtectedRoute>
           } />
-          <Route path="admin-dashboard" element={
+          <Route path="admin/dashboard" element={
             <ProtectedRoute requiredTier="Premium">
               <AdminDashboard />
             </ProtectedRoute>
           } />
           <Route path="profile" element={<Profile />} />
-          <Route path="settings" element={<ProfileSettings />} />
+          <Route path="profile/settings" element={<ProfileSettings />} />
           <Route path="billing" element={<Billing />} />
         </Route>
       </Routes>

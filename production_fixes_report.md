@@ -1,6 +1,34 @@
 # 🔥 รายงานการแก้ไขปัญหา Production
 
-## ✅ แก้ไขแล้ว
+## 🆕 การแก้ไขล่าสุด (Feb 2, 2026)
+
+### 1. Frontend Dockerfile - SPA Routing Fix
+**ไฟล์**: `frontend/Dockerfile:12`
+**ปัญหา**: ไม่ copy nginx config ทำให้ React Router ไม่ทำงาน
+**แก้ไข**: เพิ่ม `COPY nginx/frontend.conf /etc/nginx/conf.d/default.conf`
+**สถานะ**: ✅ แก้ไขแล้ว
+
+### 2. Container Name Mismatch Fix
+**ไฟล์**: `nginx/nginx.conf:37`
+**ปัญหา**: `mr_darkpromth_frontend_react` vs `mr_darkpromth_frontend`
+**แก้ไข**: เปลี่ยนเป็น `server mr_darkpromth_frontend:80`
+**สถานะ**: ✅ แก้ไขแล้ว
+
+### 3. CORS Production Domain Fix
+**ไฟล์**: `mr_darkpromth/api/src/axum_router.rs:28-29`
+**ปัญหา**: ไม่รองรับ `bt-shop-dark.online`
+**แก้ไข**: เพิ่ม production domains ใน CORS origins
+**สถานะ**: ✅ แก้ไขแล้ว
+
+### 4. CI/CD Pipeline Complete Fix
+**ไฟล์**: `.github/workflows/ci.yml:250-270`, `deploy.yml:85-123`
+**ปัญหา**: ไม่ build frontend image, ชื่อ image ไม่ตรงกัน
+**แก้ไข**: เพิ่ม frontend build, ปรับ image names ให้สอดคล้อง
+**สถานะ**: ✅ แก้ไขแล้ว
+
+---
+
+## ✅ แก้ไขก่อนหน้า
 
 ### 1. GitHub Actions (CI/CD)
 - ✅ เพิ่ม `actions: read` permission ใน security-scan jobs

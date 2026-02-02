@@ -25,6 +25,8 @@ pub fn create_router(state: Arc<AppState>) -> Router {
             "http://127.0.0.1:80".parse().unwrap(),
             "http://127.0.0.1:5173".parse().unwrap(),
             "http://127.0.0.1:3000".parse().unwrap(),
+            "https://bt-shop-dark.online".parse().unwrap(),
+            "https://www.bt-shop-dark.online".parse().unwrap(),
         ])
         .allow_methods([
             axum::http::Method::GET,

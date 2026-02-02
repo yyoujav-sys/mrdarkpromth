@@ -86,11 +86,11 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./api_dockerfile_with_metrics
+          file: ./Dockerfile
           push: true
           tags: |
-            ${{ secrets.DOCKER_USERNAME }}/mr-darkpromth-api:${{ github.sha }}
-            ${{ secrets.DOCKER_USERNAME }}/mr-darkpromth-api:latest
+            ${{ secrets.DOCKER_USERNAME }}/mr-darkpromth-backend:${{ github.sha }}
+            ${{ secrets.DOCKER_USERNAME }}/mr-darkpromth-backend:latest
 
       - name: Build and push Frontend image
         uses: docker/build-push-action@v5
@@ -111,7 +111,7 @@ jobs:
             cd /opt/mrdarkpromth
             
             # Pull latest images
-            docker pull ${{ secrets.DOCKER_USERNAME }}/mr-darkpromth-api:latest
+            docker pull ${{ secrets.DOCKER_USERNAME }}/mr-darkpromth-backend:latest
             docker pull ${{ secrets.DOCKER_USERNAME }}/mr-darkpromth-frontend:latest
             
             # Stop and remove old containers
@@ -119,7 +119,7 @@ jobs:
             docker rm mr_darkpromth_api mr_darkpromth_frontend || true
             
             # Start new containers
-            docker run -d --name mr_darkpromth_api --network mr_darkpromth_network -p 8080:8080 ${{ secrets.DOCKER_USERNAME }}/mr-darkpromth-api:latest
+            docker run -d --name mr_darkpromth_api --network mr_darkpromth_network -p 8080:8080 ${{ secrets.DOCKER_USERNAME }}/mr-darkpromth-backend:latest
             docker run -d --name mr_darkpromth_frontend --network mr_darkpromth_network -p 3000:80 ${{ secrets.DOCKER_USERNAME }}/mr-darkpromth-frontend:latest
             
             # Run health checks

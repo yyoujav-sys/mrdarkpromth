@@ -2,6 +2,7 @@ use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc, Duration};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
+use sqlx::types::Decimal;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
@@ -9,7 +10,7 @@ pub struct Plan {
     pub id: Uuid,
     pub name: String,
     pub tier: String,
-    pub price: f64,
+    pub price: Decimal,
     pub duration_days: i32,
     pub features: serde_json::Value,
     pub is_active: bool,
@@ -22,7 +23,7 @@ pub struct Payment {
     pub id: Uuid,
     pub user_id: Uuid,
     pub plan_id: Uuid,
-    pub amount: f64,
+    pub amount: Decimal,
     pub status: String,
     pub payment_method: String,
     pub reference: String,

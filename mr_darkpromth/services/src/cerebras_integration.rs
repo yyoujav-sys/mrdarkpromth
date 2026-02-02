@@ -158,8 +158,9 @@ impl CerebrasClient {
     fn from_env_or_default() -> Self {
         let keys = load_keys_from_env();
         if keys.is_empty() {
-            error!("❌ CEREBRAS_API_KEYS/CEREBRAS_API_KEY not set or invalid. Ultra Tier will not work without valid API keys.");
-            panic!("Cerebras API keys are required for Ultra Tier functionality. Please set CEREBRAS_API_KEYS or CEREBRAS_API_KEY environment variable.");
+            warn!("❌ CEREBRAS_API_KEYS/CEREBRAS_API_KEY not set or invalid. Ultra Tier will not work without valid API keys.");
+            // Return a dummy client that will fail gracefully when used
+            return Self::from_keys(vec!["csk-dummy-key-for-startup".to_string()]);
         }
         Self::from_keys(keys)
     }

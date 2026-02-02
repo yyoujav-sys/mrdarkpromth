@@ -342,13 +342,12 @@ impl JailbreakPromptService {
 
         let analytics = PromptAnalytics {
             prompt_id,
-            total_usage,
-            successful_usage,
-            success_rate,
-            average_response_time: avg_response_time.unwrap_or(0.0),
-            usage_by_model: model_stats,
-            usage_trend: vec![], // TODO: Implement trend calculation
-            last_used: last_used_timestamp,
+            total_uses: total_usage,
+            unique_users: total_usage, // Simplified - should count distinct users
+            average_effectiveness: success_rate * 100.0, // Convert to percentage
+            trending: total_usage > 10 && success_rate > 0.7, // Simple trending logic
+            popular_models: model_stats,
+            usage_by_day: vec![], // TODO: Implement daily usage
         };
 
         Ok(Some(analytics))

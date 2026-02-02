@@ -92,6 +92,9 @@ pub struct PromptSearchRequest {
     pub requires_ultra_tier: Option<bool>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
+    pub sort_by: Option<PromptSortBy>,
+    pub sort_order: Option<SortOrder>,
+    pub target_model: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -122,7 +125,7 @@ pub struct PromptUsageStats {
     pub last_used: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct ModelUsageStats {
     pub model: String,
     pub count: i64,
@@ -259,7 +262,6 @@ pub struct PromptAnalytics {
     pub prompt_id: Uuid,
     pub total_uses: i64,
     pub unique_users: i64,
-    pub success_rate: f64,
     pub average_effectiveness: f64,
     pub trending: bool,
     pub popular_models: Vec<ModelUsageStats>,

@@ -591,3 +591,28 @@ pub async fn upload_avatar_handler(
     })).into_response()
 }
 
+
+pub async fn get_api_key_status_handler(
+    State(state): State<Arc<AppState>>,
+) -> impl IntoResponse {
+    match state.user_service.get_all_api_keys().await {
+        Ok(keys) => {
+            let response: Vec<serde_json::Value> = keys.into_iter().map(|k| {
+                serde_json::json!({
+                    "id": k.id,
+                    "provider": "Internal",
+                    "label": k.name.unwrap_or_else(|| "API Key".to_string()),
+                    "is_active": k.is_active,
+                    "failure_count": 0,
+                    "last_used": k.last_used,
+                })
+            }).collect();
+            json_response(response).into_response()
+        }
+        Err(e) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "DATABASE_ERROR",
+            &e.to_string(),
+        ).into_response(),
+    }
+}

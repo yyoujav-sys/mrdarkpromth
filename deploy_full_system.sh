@@ -25,7 +25,7 @@ npm run build 2>&1 | tail -5
 
 # 5. Build Docker image for Frontend
 echo "5. Building Docker image for Frontend..."
-docker build -t mr-darkpromth-frontend-react:latest . 2>&1 | tail -5
+docker build -t mr-darkpromth-frontend-react:latest -f /opt/mrdarkpromth/Dockerfile.frontend /opt/mrdarkpromth 2>&1 | tail -5
 
 # 6. Run new containers
 echo "6. Starting new containers..."

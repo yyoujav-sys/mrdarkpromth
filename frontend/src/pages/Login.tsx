@@ -106,13 +106,13 @@ export const Login: React.FC = () => {
                     type="checkbox"
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
-                    className="rounded border-dark-secondary bg-dark-primary text-neon-purple focus:ring-neon-purple"
+                    className="rounded border-gray-600 bg-gray-800 text-purple-600 focus:ring-purple-500"
                   />
                   <span className="text-sm text-gray-400">Remember me</span>
                 </label>
                 <button
                   type="button"
-                  className="text-sm text-neon-purple hover:text-neon-purple/80"
+                  className="text-sm text-purple-400 hover:text-purple-300"
                 >
                   Forgot password?
                 </button>
@@ -137,10 +137,10 @@ export const Login: React.FC = () => {
             </form>
 
             {/* Demo Account */}
-            <div className="mt-6 p-4 bg-neon-purple/10 border border-neon-purple/30 rounded-lg">
+            <div className="mt-6 p-4 bg-purple-900/20 border border-purple-600/30 rounded-lg">
               <div className="flex items-center space-x-2 mb-2">
-                <Zap className="h-4 w-4 text-neon-purple" />
-                <span className="text-sm font-medium text-neon-purple">Demo Account</span>
+                <Zap className="h-4 w-4 text-purple-400" />
+                <span className="text-sm font-medium text-purple-400">Demo Account</span>
               </div>
               <p className="text-xs text-gray-400 mb-2">
                 Use any email and password to access the demo
@@ -185,7 +185,7 @@ export const Login: React.FC = () => {
             Don't have an account?{' '}
             <button 
               onClick={() => navigate('/register')}
-              className="text-neon-purple hover:text-neon-purple/80 font-medium"
+              className="text-purple-400 hover:text-purple-300 font-medium"
             >
               Sign up for access
             </button>

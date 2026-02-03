@@ -155,8 +155,8 @@ services:
   # Frontend (Nginx serving built React app)
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: Dockerfile.frontend
     container_name: mr_darkpromth_frontend
     restart: always
     environment:

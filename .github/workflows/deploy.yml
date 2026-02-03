@@ -95,7 +95,8 @@ jobs:
       - name: Build and push Frontend image
         uses: docker/build-push-action@v5
         with:
-          context: ./frontend
+          context: .
+          file: ./Dockerfile.frontend
           push: true
           tags: |
             ${{ secrets.DOCKER_USERNAME }}/mr-darkpromth-frontend:${{ github.sha }}
@@ -166,4 +167,5 @@ jobs:
         with:
           status: ${{ job.status }}
           text: 'Deployment to production completed'
-          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}

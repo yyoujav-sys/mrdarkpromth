@@ -12,9 +12,9 @@ export const Card: React.FC<CardProps> = ({
   ...props 
 }) => {
   const variants = {
-    default: 'card',
-    glass: 'glass-effect',
-    neon: 'card glow'
+    default: 'bg-gray-800 border border-gray-700',
+    glass: 'bg-gray-800/50 backdrop-blur-sm border border-gray-700',
+    neon: 'bg-gray-800 border border-purple-600 shadow-lg shadow-purple-500/20'
   }
   
   return (

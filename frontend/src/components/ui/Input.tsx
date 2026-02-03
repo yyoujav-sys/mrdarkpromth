@@ -36,7 +36,7 @@ export const Input: React.FC<InputProps> = ({
         <input
           id={inputId}
           className={cn(
-            'flex h-10 w-full rounded-lg border border-dark-secondary bg-dark-primary px-3 py-2 text-sm text-gray-100 placeholder-gray-500 transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium focus:border-neon-purple focus:outline-none focus:ring-1 focus:ring-neon-purple disabled:cursor-not-allowed disabled:opacity-50',
+            'flex h-10 w-full rounded-lg border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-gray-100 placeholder-gray-500 transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500 disabled:cursor-not-allowed disabled:opacity-50',
             icon && 'pl-10',
             error && 'border-red-500 focus:border-red-500 focus:ring-red-500',
             className

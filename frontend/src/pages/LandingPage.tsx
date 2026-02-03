@@ -91,7 +91,6 @@ export const LandingPage: React.FC = () => {
               Everything you need for advanced AI development
             </p>
           </div>
-          
           <div className="dashboard-grid">
             <div className="card">
               <div className="flex items-center space-x-3 mb-4">

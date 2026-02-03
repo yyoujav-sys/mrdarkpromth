@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
+import apiClient from '@/lib/api'
 import { 
   Github, 
   User, 
@@ -77,20 +78,11 @@ export const GitHubLogin: React.FC = () => {
     setSuccess(null)
 
     try {
-      const response = await fetch('/api/auth/github/callback', {
+      const data: GitHubAuthResponse = await apiClient.request({
+        url: '/api/auth/github/callback',
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ code, state }),
+        data: { code, state }
       })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || 'GitHub authentication failed')
-      }
-
-      const data: GitHubAuthResponse = await response.json()
       
       // Update auth store with GitHub user data
       await loginWithGitHub(data)
@@ -135,8 +127,7 @@ export const GitHubLogin: React.FC = () => {
     setError(null)
 
     try {
-      const response = await fetch('/api/auth/github/url')
-      const data = await response.json()
+      const data = await apiClient.getGitHubAuthUrl()
       
       // Store state in sessionStorage for verification
       sessionStorage.setItem('github_oauth_state', data.state)

@@ -6,8 +6,8 @@ class ApiClient {
 
   constructor() {
     this.client = axios.create({
-      baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080',
-      timeout: 10000,
+      baseURL: import.meta.env.VITE_API_BASE_URL || 'https://bt-shop-dark.online',
+      timeout: 15000,
       headers: {
         'Content-Type': 'application/json',
       },
@@ -31,11 +31,22 @@ class ApiClient {
     this.client.interceptors.response.use(
       (response) => response,
       (error) => {
-        if (error.response?.status === 401) {
+        const status = error.response?.status
+        
+        if (status === 401) {
           // Token expired or invalid
           localStorage.removeItem('token')
-          window.location.href = '/login'
+          if (window.location.pathname !== '/login') {
+            window.location.href = '/login'
+          }
+        } else if (status === 403) {
+          console.error('Access forbidden: You do not have permission for this action.')
+        } else if (status === 429) {
+          console.error('Too many requests: Please try again later.')
+        } else if (status >= 500) {
+          console.error('Server error: Something went wrong on our end.')
         }
+        
         return Promise.reject(error)
       }
     )
@@ -64,9 +75,20 @@ class ApiClient {
     return response.data
   }
 
+  // GitHub Auth
+  async getGitHubAuthUrl() {
+    const response = await this.client.get('/api/auth/github/url')
+    return response.data
+  }
+
+  async githubCallback(code: string) {
+    const response = await this.client.post('/api/auth/github/callback', { code })
+    return response.data
+  }
+
   // User endpoints
   async getUserProfile() {
-    const response = await this.client.get('/api/users/me')
+    const response = await this.client.get('/api/auth/me')
     return response.data
   }
 
@@ -247,6 +269,17 @@ class ApiClient {
     timeout_ms?: number
   }) {
     const response = await this.client.post('/api/tools/execute', payload)
+    return response.data
+  }
+
+  // Terminal endpoints
+  async executeTerminal(command: string) {
+    const response = await this.client.post('/api/terminal/execute', { command })
+    return response.data
+  }
+
+  async getApiKeyStatus() {
+    const response = await this.client.get('/api/status/keys')
     return response.data
   }
 

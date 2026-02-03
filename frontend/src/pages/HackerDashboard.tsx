@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import apiClient from '@/lib/api';
 import {
     Terminal as TerminalIcon,
     Cpu,
@@ -67,14 +68,9 @@ export const HackerDashboard: React.FC = () => {
     // Fetch real key status from backend
     const fetchKeyStatus = async () => {
         try {
-            const response = await fetch('/api/status/keys');
-            if (response.ok) {
-                const data = await response.json();
-                setKeys(data);
-                setSystemHealth('NOMINAL');
-            } else {
-                setSystemHealth('DEGRADED');
-            }
+            const data = await apiClient.getApiKeyStatus();
+            setKeys(data);
+            setSystemHealth('NOMINAL');
         } catch (error) {
             console.error('Failed to fetch key status:', error);
             setSystemHealth('OFFLINE');
@@ -307,19 +303,8 @@ const InteractiveTerminal: React.FC = () => {
         setIsExecuting(true);
 
         try {
-            const response = await fetch('/api/terminal/execute', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    command: command.split(' ')[0],
-                    args: command.split(' ').slice(1),
-                    user_id: 'ultra-dashboard-user' // Ultra tier user
-                })
-            });
-
-            const result = await response.json();
-
-            if (response.ok) {
+            const result = await apiClient.executeTerminal(command);
+            if (result) {
                 if (result.stdout) {
                     setOutput(prev => [...prev, { type: 'out', text: result.stdout }]);
                 }
@@ -433,8 +418,7 @@ const ToolExecutionPanel: React.FC = () => {
     const [tools, setTools] = useState<Array<{ name: string; description: string }>>([]);
 
     useEffect(() => {
-        fetch('/api/tools')
-            .then(res => res.json())
+        apiClient.listTools()
             .then(data => setTools(data.tools || []))
             .catch(err => console.error('Failed to fetch tools:', err));
     }, []);
@@ -446,12 +430,11 @@ const ToolExecutionPanel: React.FC = () => {
         try {
             let inputJson;
             try { inputJson = JSON.parse(toolInput); } catch { inputJson = { input: toolInput }; }
-            const response = await fetch('/api/tools/execute', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ tool_name: selectedTool, input: inputJson, user_id: 'ultra-dashboard-user' })
+            const result = await apiClient.executeTool({ 
+                tool_name: selectedTool, 
+                input: inputJson 
             });
-            setResult(await response.json());
+            setResult(result);
         } catch (error) {
             setResult({ success: false, data: null, error: String(error) });
         } finally {

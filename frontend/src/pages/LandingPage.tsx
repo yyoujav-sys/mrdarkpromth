@@ -15,14 +15,14 @@ import {
 
 export const LandingPage: React.FC = () => {
   return (
-    <div className="min-h-screen" style={{background: 'var(--bg-primary)'}}>
+    <div className="min-h-screen bg-gray-900">
       {/* Navigation */}
       <nav className="navbar">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-3">
-              <div className="p-2 rounded-full pulse" style={{background: 'rgba(255, 0, 110, 0.2)'}}>
-                <Bot className="h-6 w-6" style={{color: 'var(--accent-primary)'}} />
+              <div className="p-2 rounded-full pulse bg-pink-600/20">
+                <Bot className="h-6 w-6 text-pink-600" />
               </div>
               <span className="navbar-brand">MR.DarkPromth</span>
             </div>
@@ -38,23 +38,19 @@ export const LandingPage: React.FC = () => {
       <section className="relative overflow-hidden py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <div className="relative z-10">
-            <div className="inline-flex items-center space-x-2 px-4 py-2 rounded-full mb-8" 
-                 style={{background: 'rgba(255, 0, 110, 0.1)', border: '1px solid var(--accent-primary)'}}>
-              <Sparkles className="h-4 w-4" style={{color: 'var(--accent-primary)'}} />
-              <span style={{color: 'var(--accent-primary)'}}>Ultra-Tier AI Platform</span>
+            <div className="inline-flex items-center space-x-2 px-4 py-2 rounded-full mb-8 bg-pink-600/10 border border-pink-600">
+              <Sparkles className="h-4 w-4 text-pink-600" />
+              <span className="text-pink-600">Ultra-Tier AI Platform</span>
             </div>
             
             <h1 className="text-5xl md:text-6xl font-bold mb-6">
-              <span style={{background: 'var(--gradient-primary)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent'}}>
-                Advanced AI
+              <span className="bg-gradient-to-r from-pink-600 to-orange-600 bg-clip-text text-transparent">Advanced AI
               </span>
               <br />
-              <span style={{background: 'var(--gradient-secondary)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent'}}>
-                Platform
-              </span>
+              <span className="bg-gradient-to-r from-green-400 to-cyan-400 bg-clip-text text-transparent">Platform</span>
             </h1>
             
-            <p className="text-xl mb-8 max-w-3xl mx-auto" style={{color: 'var(--text-secondary)'}}>
+            <p className="text-xl mb-8 max-w-3xl mx-auto text-gray-400">
               Unlock the power of ultra-tier AI capabilities with jailbreak prompts, 
               terminal access, and advanced tools for serious developers.
             </p>
@@ -81,85 +77,85 @@ export const LandingPage: React.FC = () => {
       </section>
 
       {/* Features */}
-      <section className="py-20" style={{background: 'var(--bg-secondary)'}}>
+      <section className="py-20 bg-gray-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold mb-4" style={{background: 'var(--gradient-primary)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent'}}>
+            <h2 className="text-4xl font-bold mb-4 bg-gradient-to-r from-pink-600 to-orange-600 bg-clip-text text-transparent">
               Ultra-Tier Features
             </h2>
-            <p className="text-xl" style={{color: 'var(--text-secondary)'}}>
+            <p className="text-xl text-gray-400">
               Everything you need for advanced AI development
             </p>
           </div>
           <div className="dashboard-grid">
             <div className="card">
               <div className="flex items-center space-x-3 mb-4">
-                <div className="p-3 rounded-full" style={{background: 'rgba(255, 0, 110, 0.2)'}}>
-                  <Terminal className="h-6 w-6" style={{color: 'var(--accent-primary)'}} />
+                <div className="p-3 rounded-full bg-pink-600/20">
+                  <Terminal className="h-6 w-6 text-pink-600" />
                 </div>
                 <h3 className="text-xl font-bold">Terminal Access</h3>
               </div>
-              <p style={{color: 'var(--text-secondary)'}}>
+              <p className="text-gray-400">
                 Full terminal access with ultra-tier permissions for complete system control.
               </p>
             </div>
             
             <div className="card">
               <div className="flex items-center space-x-3 mb-4">
-                <div className="p-3 rounded-full" style={{background: 'rgba(251, 86, 7, 0.2)'}}>
-                  <Zap className="h-6 w-6" style={{color: 'var(--accent-secondary)'}} />
+                <div className="p-3 rounded-full bg-orange-600/20">
+                  <Zap className="h-6 w-6 text-orange-600" />
                 </div>
                 <h3 className="text-xl font-bold">Jailbreak Prompts</h3>
               </div>
-              <p style={{color: 'var(--text-secondary)'}}>
+              <p className="text-gray-400">
                 Advanced jailbreak techniques and prompts for maximum AI capabilities.
               </p>
             </div>
             
             <div className="card">
               <div className="flex items-center space-x-3 mb-4">
-                <div className="p-3 rounded-full" style={{background: 'rgba(0, 245, 160, 0.2)'}}>
-                  <Shield className="h-6 w-6" style={{color: 'var(--accent-success)'}} />
+                <div className="p-3 rounded-full bg-green-400/20">
+                  <Shield className="h-6 w-6 text-green-400" />
                 </div>
                 <h3 className="text-xl font-bold">Secure & Private</h3>
               </div>
-              <p style={{color: 'var(--text-secondary)'}}>
+              <p className="text-gray-400">
                 Enterprise-grade security with end-to-end encryption and privacy protection.
               </p>
             </div>
             
             <div className="card">
               <div className="flex items-center space-x-3 mb-4">
-                <div className="p-3 rounded-full" style={{background: 'rgba(255, 190, 11, 0.2)'}}>
-                  <Cpu className="h-6 w-6" style={{color: 'var(--accent-warning)'}} />
+                <div className="p-3 rounded-full bg-yellow-400/20">
+                  <Cpu className="h-6 w-6 text-yellow-400" />
                 </div>
                 <h3 className="text-xl font-bold">AI Models</h3>
               </div>
-              <p style={{color: 'var(--text-secondary)'}}>
+              <p className="text-gray-400">
                 Access to multiple AI models with advanced customization options.
               </p>
             </div>
             
             <div className="card">
               <div className="flex items-center space-x-3 mb-4">
-                <div className="p-3 rounded-full" style={{background: 'rgba(0, 217, 255, 0.2)'}}>
-                  <Network className="h-6 w-6" style={{color: '#00d9ff'}} />
+                <div className="p-3 rounded-full bg-blue-400/20">
+                  <Network className="h-6 w-6 text-blue-400" />
                 </div>
                 <h3 className="text-xl font-bold">API Access</h3>
               </div>
-              <p style={{color: 'var(--text-secondary)'}}>
+              <p className="text-gray-400">
                 Full API access with comprehensive documentation and examples.
               </p>
             </div>
             
             <div className="card">
               <div className="flex items-center space-x-3 mb-4">
-                <div className="p-3 rounded-full" style={{background: 'rgba(255, 0, 110, 0.2)'}}>
-                  <Lock className="h-6 w-6" style={{color: 'var(--accent-primary)'}} />
+                <div className="p-3 rounded-full bg-pink-600/20">
+                  <Lock className="h-6 w-6 text-pink-600" />
                 </div>
                 <h3 className="text-xl font-bold">Premium Tools</h3>
               </div>
-              <p style={{color: 'var(--text-secondary)'}}>
+              <p className="text-gray-400">
                 Exclusive tools and features for premium and ultra-tier members.
               </p>
             </div>
@@ -170,10 +166,10 @@ export const LandingPage: React.FC = () => {
       {/* CTA Section */}
       <section className="py-20 text-center">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-4xl font-bold mb-4" style={{background: 'var(--gradient-primary)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent'}}>
+          <h2 className="text-4xl font-bold mb-4 bg-gradient-to-r from-pink-600 to-orange-600 bg-clip-text text-transparent">
             Ready to Unlock Ultra-Tier AI?
           </h2>
-          <p className="text-xl mb-8" style={{color: 'var(--text-secondary)'}}>
+          <p className="text-xl mb-8 text-gray-400">
             Join thousands of developers using MR.DarkPromth for advanced AI development.
           </p>
           <Link to="/register" className="btn btn-primary text-lg px-8 py-4">
@@ -184,12 +180,12 @@ export const LandingPage: React.FC = () => {
       </section>
 
       {/* Footer */}
-      <footer className="py-12 border-t" style={{borderColor: 'var(--border-color)', background: 'var(--bg-secondary)'}}>
+      <footer className="py-12 border-t border-gray-700 bg-gray-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="flex items-center space-x-3 mb-4 md:mb-0">
-              <div className="p-2 rounded-full" style={{background: 'rgba(255, 0, 110, 0.2)'}}>
-                <Bot className="h-5 w-5" style={{color: 'var(--accent-primary)'}} />
+              <div className="p-2 rounded-full bg-pink-600/20">
+                <Bot className="h-5 w-5 text-pink-600" />
               </div>
               <span className="navbar-brand">MR.DarkPromth</span>
             </div>
@@ -202,7 +198,7 @@ export const LandingPage: React.FC = () => {
               </a>
             </div>
           </div>
-          <div className="mt-8 text-center" style={{color: 'var(--text-muted)'}}>
+          <div className="mt-8 text-center text-gray-500">
             © 2026 MR.DarkPromth. All rights reserved.
           </div>
         </div>

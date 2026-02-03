@@ -39,15 +39,15 @@ export const Login: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4" style={{background: 'var(--bg-primary)'}}>
+    <div className="min-h-screen flex items-center justify-center px-4 bg-gray-900">
       <div className="w-full max-w-md">
         {/* Logo and Title */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center space-x-3 mb-4">
-            <div className="p-3 rounded-full pulse" style={{background: 'rgba(255, 0, 110, 0.2)'}}>
-              <Bot className="h-8 w-8" style={{color: 'var(--accent-primary)'}} />
+            <div className="p-3 rounded-full pulse bg-pink-600/20">
+              <Bot className="h-8 w-8 text-pink-600" />
             </div>
-            <h1 className="text-3xl font-bold" style={{background: 'var(--gradient-primary)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent'}}>MR.DarkPromth</h1>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-pink-600 to-orange-600 bg-clip-text text-transparent">MR.DarkPromth</h1>
           </div>
           <p className="text-gray-400">
             Advanced AI platform with ultra-tier capabilities

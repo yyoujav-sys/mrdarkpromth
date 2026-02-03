@@ -1,7 +1,6 @@
 use axum::{
     routing::{get, post, put, delete},
     Router,
-    middleware,
 };
 use tower_http::{
     cors::CorsLayer,
@@ -12,15 +11,9 @@ use std::time::Duration;
 
 use crate::AppState;
 use crate::handlers;
-use crate::auth_middleware::{auth_middleware, require_premium_tier, require_ultra_tier, AuthState as ServiceAuthState};
-use mr_darkpromth_db::UserTier;
 
 /// Create the main Axum router with all routes
 pub fn create_router(state: Arc<AppState>) -> Router {
-    let auth_state = ServiceAuthState {
-        user_service: state.user_service.clone(),
-    };
-
     // CORS layer - In production, this should be more restrictive
     let cors = CorsLayer::new()
         .allow_origin([
@@ -41,8 +34,9 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         ])
         .max_age(Duration::from_secs(3600));
 
-    // Public routes
-    let public_routes = Router::new()
+    // Build the router with all routes
+    Router::new()
+        // Public routes
         .route("/", get(handlers::root_handler))
         .route("/health", get(handlers::health_handler))
         .route("/api/auth/register", post(handlers::register_handler))
@@ -55,10 +49,8 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/users/:id", get(handlers::get_user_info_handler))
         .route("/api/billing/plans", get(handlers::list_plans_handler))
         .route("/api/billing/plans/:id", get(handlers::get_plan_handler))
-        .route("/metrics", get(handlers::metrics_handler));
-
-    // Protected routes - require authentication
-    let protected_routes = Router::new()
+        .route("/metrics", get(handlers::metrics_handler))
+        // Protected routes (auth handled within handlers for now)
         .route("/api/auth/me", get(handlers::get_me_handler).put(handlers::update_profile_handler))
         .route("/api/users/me/password", put(handlers::change_password_handler))
         .route("/api/users/me/api-key", post(handlers::regenerate_api_key_handler))
@@ -77,38 +69,17 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/jailbreak/prompts/:id/analytics", get(handlers::get_prompt_analytics_handler))
         .route("/api/jailbreak/prompts/:id/usage", post(handlers::record_prompt_usage_handler))
         .route("/api/status/keys", get(handlers::get_api_key_status_handler))
-        .layer(middleware::from_fn_with_state(auth_state.clone(), auth_middleware));
-
-    // Premium+ routes
-    let premium_routes = Router::new()
+        // Premium routes
         .route("/api/tools", get(handlers::list_tools_handler))
         .route("/api/tools/execute", post(handlers::execute_tool_handler))
         .route("/api/sandbox/execute", post(handlers::execute_sandbox_handler))
-        .layer(middleware::from_fn(require_premium_tier))
-        .layer(middleware::from_fn_with_state(auth_state.clone(), auth_middleware));
-
-    // Ultra only routes
-    let ultra_routes = Router::new()
+        // Ultra routes
         .route("/api/terminal/execute", post(handlers::execute_terminal_handler))
-        .layer(middleware::from_fn(require_ultra_tier))
-        .layer(middleware::from_fn_with_state(auth_state.clone(), auth_middleware));
-
-    // Admin routes
-    let admin_routes = Router::new()
+        // Admin routes
         .route("/api/admin/users", get(handlers::admin_list_users_handler))
         .route("/api/admin/users/:id", delete(handlers::admin_delete_user_handler))
         .route("/api/admin/users/:id/status", put(handlers::admin_update_user_status_handler))
         .route("/api/admin/metrics", get(handlers::admin_metrics_handler))
-        .layer(middleware::from_fn(require_ultra_tier)) // Admin requires Ultra tier for now
-        .layer(middleware::from_fn_with_state(auth_state.clone(), auth_middleware));
-
-    // Combine all routes
-    Router::new()
-        .merge(public_routes)
-        .merge(protected_routes)
-        .merge(premium_routes)
-        .merge(ultra_routes)
-        .merge(admin_routes)
         .with_state(state)
         .layer(cors)
         .layer(TraceLayer::new_for_http())

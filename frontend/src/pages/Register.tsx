@@ -63,7 +63,7 @@ export const Register: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-dark-primary flex items-center justify-center px-4">
+    <div className="min-h-screen bg-gray-900 flex items-center justify-center px-4">
       <div className="w-full max-w-md">
         {/* Back to Login */}
         <button
@@ -77,8 +77,8 @@ export const Register: React.FC = () => {
         {/* Logo and Title */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center space-x-3 mb-4">
-            <div className="p-3 bg-neon-purple/20 rounded-full">
-              <Bot className="h-8 w-8 text-neon-purple" />
+            <div className="p-3 bg-purple-900/20 rounded-full">
+              <Bot className="h-8 w-8 text-purple-400" />
             </div>
             <h1 className="text-3xl font-bold gradient-text">MR.DarkPromth</h1>
           </div>
@@ -203,7 +203,7 @@ export const Register: React.FC = () => {
             Already have an account?{' '}
             <button 
               onClick={() => navigate('/login')}
-              className="text-neon-purple hover:text-neon-purple/80 font-medium"
+              className="text-purple-400 hover:text-purple-300 font-medium"
             >
               Sign in
             </button>

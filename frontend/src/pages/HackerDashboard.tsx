@@ -95,28 +95,28 @@ export const HackerDashboard: React.FC = () => {
     }, [logs]);
 
     return (
-        <div className="space-y-6 font-mono selection:bg-neon-purple/30">
+        <div className="space-y-6 font-mono selection:bg-purple-600/30">
             {/* Header with System Specs */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-dark-accent pb-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-700 pb-6">
                 <div>
                     <h1 className="text-4xl font-black tracking-tighter text-gray-100 flex items-center gap-3">
-                        <Activity className="h-8 w-8 text-neon-green animate-pulse" />
-                        HACKER DASHBOARD <span className="text-xs font-mono text-neon-purple align-top px-2 py-0.5 bg-neon-purple/10 rounded">V2.0-ULTRA</span>
+                        <Activity className="h-8 w-8 text-green-400 animate-pulse" />
+                        HACKER DASHBOARD <span className="text-xs font-mono text-purple-400 align-top px-2 py-0.5 bg-purple-600/10 rounded">V2.0-ULTRA</span>
                     </h1>
                     <p className="mt-2 text-gray-400 max-w-2xl">
                         Real-time telemetry from MR.DarkPromth Core. Monitoring Agent coordination, AI brain rotation, and Sandbox security.
                     </p>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-dark-secondary p-3 rounded-lg border border-dark-accent shadow-lg shadow-neon-purple/5">
+                    <div className="bg-gray-800 p-3 rounded-lg border border-gray-700 shadow-lg shadow-purple-600/5">
                         <div className="text-[10px] text-gray-500 uppercase tracking-widest">System Status</div>
-                        <div className={`text-sm font-bold mt-1 ${systemHealth === 'NOMINAL' ? 'text-neon-green' : 'text-neon-pink'}`}>
+                        <div className={`text-sm font-bold mt-1 ${systemHealth === 'NOMINAL' ? 'text-green-400' : 'text-pink-400'}`}>
                             {systemHealth}
                         </div>
                     </div>
-                    <div className="bg-dark-secondary p-3 rounded-lg border border-dark-accent shadow-lg shadow-neon-blue/5">
+                    <div className="bg-gray-800 p-3 rounded-lg border border-gray-700 shadow-lg shadow-blue-600/5">
                         <div className="text-[10px] text-gray-500 uppercase tracking-widest">Uptime</div>
-                        <div className="text-sm font-bold mt-1 text-neon-blue">99.99%</div>
+                        <div className="text-sm font-bold mt-1 text-blue-400">99.99%</div>
                     </div>
                 </div>
             </div>
@@ -125,30 +125,30 @@ export const HackerDashboard: React.FC = () => {
 
                 {/* Main Log Terminal */}
                 <div className="lg:col-span-2 space-y-6">
-                    <Card className="bg-black/80 border-dark-accent shadow-2xl h-[600px] flex flex-col">
-                        <CardHeader className="border-b border-dark-accent/50 py-3 flex flex-row items-center justify-between">
+                    <Card className="bg-black/80 border-gray-700 shadow-2xl h-[600px] flex flex-col">
+                        <CardHeader className="border-b border-gray-700/50 py-3 flex flex-row items-center justify-between">
                             <div className="flex items-center gap-2">
-                                <TerminalIcon className="h-4 w-4 text-neon-purple" />
+                                <TerminalIcon className="h-4 w-4 text-purple-400" />
                                 <CardTitle className="text-sm font-bold tracking-widest uppercase">Live Agent Terminal</CardTitle>
                             </div>
                             <div className="flex gap-2">
-                                <div className="h-2 w-2 rounded-full bg-neon-pink animate-pulse" />
+                                <div className="h-2 w-2 rounded-full bg-pink-400 animate-pulse" />
                                 <span className="text-[10px] text-gray-500 uppercase">Streaming...</span>
                             </div>
                         </CardHeader>
                         <CardContent className="flex-1 p-0 overflow-hidden relative">
                             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_transparent_0%,_rgba(0,0,0,0.4)_100%)] pointer-events-none" />
-                            <div className="h-full overflow-y-auto p-4 space-y-1.5 scrollbar-thin scrollbar-thumb-dark-accent">
+                            <div className="h-full overflow-y-auto p-4 space-y-1.5 scrollbar-thin scrollbar-thumb-gray-700">
                                 {logs.map((log) => (
                                     <div key={log.id} className="text-xs flex gap-3 group">
                                         <span className="text-gray-600 shrink-0">[{log.timestamp}]</span>
-                                        <span className={`w-16 shrink-0 font-bold ${log.agent === 'Agent 4' ? 'text-neon-blue' :
-                                            log.agent === 'Agent 7' ? 'text-neon-purple' :
-                                                log.agent === 'Agent 8' ? 'text-neon-pink' : 'text-gray-400'
+                                        <span className={`w-16 shrink-0 font-bold ${log.agent === 'Agent 4' ? 'text-blue-400' :
+                                            log.agent === 'Agent 7' ? 'text-purple-400' :
+                                                log.agent === 'Agent 8' ? 'text-pink-400' : 'text-gray-400'
                                             }`}>
                                             {log.agent}
                                         </span>
-                                        <span className={`flex-1 ${log.level === 'error' ? 'text-neon-pink' :
+                                        <span className={`flex-1 ${log.level === 'error' ? 'text-pink-400' :
                                             log.level === 'warn' ? 'text-amber-400' : 'text-gray-300'
                                             }`}>
                                             {log.message}
@@ -161,32 +161,32 @@ export const HackerDashboard: React.FC = () => {
                     </Card>
 
                     {/* AI Brain Pool Status */}
-                    <Card className="bg-dark-secondary/50 border-dark-accent backdrop-blur-sm">
-                        <CardHeader className="py-4 border-b border-dark-accent/30">
+                    <Card className="bg-gray-800/50 border-gray-700 backdrop-blur-sm">
+                        <CardHeader className="py-4 border-b border-gray-700/30">
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
-                                    <BrainCircuit className="h-5 w-5 text-neon-blue" />
+                                    <BrainCircuit className="h-5 w-5 text-blue-400" />
                                     <CardTitle className="text-md uppercase tracking-tight">AI Brain Power Pool</CardTitle>
                                 </div>
-                                <Button variant="ghost" size="sm" onClick={fetchKeyStatus} className="h-8 px-2 hover:bg-neon-blue/10">
+                                <Button variant="ghost" size="sm" onClick={fetchKeyStatus} className="h-8 px-2 hover:bg-blue-600/10">
                                     <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                                 </Button>
                             </div>
                         </CardHeader>
                         <CardContent className="p-0">
-                            <div className="divide-y divide-dark-accent/20">
+                            <div className="divide-y divide-gray-700/20">
                                 {keys.length > 0 ? (
                                     keys.map((key) => (
                                         <div key={key.id} className="p-4 flex items-center justify-between hover:bg-white/5 transition-colors">
                                             <div className="flex items-center gap-4">
-                                                <div className={`p-2 rounded bg-black/40 border ${key.is_active ? 'border-neon-green/30' : 'border-neon-pink/30'}`}>
-                                                    <Database className={`h-5 w-5 ${key.is_active ? 'text-neon-green' : 'text-neon-pink'}`} />
+                                                <div className={`p-2 rounded bg-black/40 border ${key.is_active ? 'border-green-400/30' : 'border-pink-400/30'}`}>
+                                                    <Database className={`h-5 w-5 ${key.is_active ? 'text-green-400' : 'text-pink-400'}`} />
                                                 </div>
                                                 <div>
                                                     <div className="font-bold text-gray-200">{key.label}</div>
                                                     <div className="text-[10px] text-gray-500 uppercase flex items-center gap-2">
                                                         {key.provider} • ID: {key.id.split('-')[0]}...
-                                                        <span className={`inline-block w-1.5 h-1.5 rounded-full ${key.is_active ? 'bg-neon-green' : 'bg-neon-pink'}`} />
+                                                        <span className={`inline-block w-1.5 h-1.5 rounded-full ${key.is_active ? 'bg-green-400' : 'bg-pink-400'}`} />
                                                     </div>
                                                 </div>
                                             </div>
@@ -211,16 +211,16 @@ export const HackerDashboard: React.FC = () => {
                 {/* Sidebar: System Specs & Stats */}
                 <div className="space-y-6">
                     {/* Sandbox Security Status */}
-                    <Card className="bg-gradient-to-br from-dark-secondary to-black border-dark-accent overflow-hidden relative group">
+                    <Card className="bg-gradient-to-br from-gray-800 to-black border-gray-700 overflow-hidden relative group">
                         <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                            <ShieldCheck className="h-24 w-24 text-neon-green" />
+                            <ShieldCheck className="h-24 w-24 text-green-400" />
                         </div>
                         <CardHeader className="pb-2">
                             <CardTitle className="text-xs uppercase tracking-widest text-gray-500">Sandbox Isolation</CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <div className="text-3xl font-black text-neon-green tracking-tighter uppercase">MAX_SECURE</div>
-                            <div className="mt-2 p-2 bg-neon-green/5 border border-neon-green/20 rounded text-[10px] text-neon-green uppercase leading-relaxed">
+                            <div className="text-3xl font-black text-green-400 tracking-tighter uppercase">MAX_SECURE</div>
+                            <div className="mt-2 p-2 bg-green-400/5 border border-green-400/20 rounded text-[10px] text-green-400 uppercase leading-relaxed">
                                 Firewall: ACTIVE <br />
                                 Resource Limit: 512MB <br />
                                 Network: ISOLATED
@@ -230,33 +230,33 @@ export const HackerDashboard: React.FC = () => {
 
                     {/* Quick Metrics */}
                     <div className="grid grid-cols-1 gap-4">
-                        <div className="bg-black/50 p-4 rounded-xl border border-dark-accent flex justify-between items-center group cursor-crosshair">
+                        <div className="bg-black/50 p-4 rounded-xl border border-gray-700 flex justify-between items-center group cursor-crosshair">
                             <div>
                                 <div className="text-[10px] text-gray-500 uppercase">Agent Efficiency</div>
-                                <div className="text-2xl font-bold text-neon-purple group-hover:text-neon-green transition-colors">94.2%</div>
+                                <div className="text-2xl font-bold text-purple-400 group-hover:text-green-400 transition-colors">94.2%</div>
                             </div>
-                            <Cpu className="h-8 w-8 text-dark-accent group-hover:rotate-90 transition-transform duration-500" />
+                            <Cpu className="h-8 w-8 text-gray-700 group-hover:rotate-90 transition-transform duration-500" />
                         </div>
 
-                        <div className="bg-black/50 p-4 rounded-xl border border-dark-accent flex justify-between items-center group cursor-crosshair">
+                        <div className="bg-black/50 p-4 rounded-xl border border-gray-700 flex justify-between items-center group cursor-crosshair">
                             <div>
                                 <div className="text-[10px] text-gray-500 uppercase">Jailbreak Effectiveness</div>
-                                <div className="text-2xl font-bold text-neon-pink">HIGH</div>
+                                <div className="text-2xl font-bold text-pink-400">HIGH</div>
                             </div>
-                            <AlertTriangle className="h-8 w-8 text-neon-pink animate-pulse" />
+                            <AlertTriangle className="h-8 w-8 text-pink-400 animate-pulse" />
                         </div>
 
-                        <div className="bg-black/50 p-4 rounded-xl border border-dark-accent flex justify-between items-center group cursor-crosshair">
+                        <div className="bg-black/50 p-4 rounded-xl border border-gray-700 flex justify-between items-center group cursor-crosshair">
                             <div>
                                 <div className="text-[10px] text-gray-500 uppercase">Active Brains</div>
-                                <div className="text-2xl font-bold text-neon-blue">{keys.filter(k => k.is_active).length} / {keys.length}</div>
+                                <div className="text-2xl font-bold text-blue-400">{keys.filter(k => k.is_active).length} / {keys.length}</div>
                             </div>
-                            <BrainCircuit className="h-8 w-8 text-neon-blue group-hover:scale-110 transition-transform" />
+                            <BrainCircuit className="h-8 w-8 text-blue-400 group-hover:scale-110 transition-transform" />
                         </div>
                     </div>
 
                     {/* Interactive Terminal Control Panel */}
-                    <Card className="bg-dark-secondary border-dark-accent">
+                    <Card className="bg-gray-800 border-gray-700">
                         <CardHeader>
                             <CardTitle className="text-xs uppercase tracking-widest text-white flex items-center gap-2">
                                 <TerminalIcon className="h-3 w-3" />
@@ -269,7 +269,7 @@ export const HackerDashboard: React.FC = () => {
                     </Card>
 
                     {/* Tool Execution Panel */}
-                    <Card className="bg-dark-secondary border-dark-accent">
+                    <Card className="bg-gray-800 border-gray-700">
                         <CardHeader>
                             <CardTitle className="text-xs uppercase tracking-widest text-white flex items-center gap-2">
                                 <Cpu className="h-3 w-3" />
@@ -372,13 +372,13 @@ const InteractiveTerminal: React.FC = () => {
     return (
         <div className="space-y-3">
             {/* Output Display */}
-            <div className="bg-black/80 rounded border border-dark-accent/50 p-3 h-32 overflow-y-auto font-mono text-xs">
+            <div className="bg-black/80 rounded border border-gray-700/50 p-3 h-32 overflow-y-auto font-mono text-xs">
                 {output.length === 0 ? (
                     <span className="text-gray-600 italic">Ready for commands. Ultra Tier required.</span>
                 ) : (
                     output.map((line, i) => (
-                        <div key={i} className={`${line.type === 'cmd' ? 'text-neon-purple font-bold' :
-                            line.type === 'err' ? 'text-neon-pink' : 'text-gray-300'
+                        <div key={i} className={`${line.type === 'cmd' ? 'text-purple-400 font-bold' :
+                            line.type === 'err' ? 'text-pink-400' : 'text-gray-300'
                             } whitespace-pre-wrap break-all`}>
                             {line.text}
                         </div>
@@ -389,20 +389,20 @@ const InteractiveTerminal: React.FC = () => {
 
             {/* Command Input */}
             <div className="relative flex gap-2">
-                <span className="absolute left-3 top-2.5 text-neon-purple font-bold text-xs">$</span>
+                <span className="absolute left-3 top-2.5 text-purple-400 font-bold text-xs">$</span>
                 <Input
                     value={command}
                     onChange={(e) => setCommand(e.target.value)}
                     onKeyDown={handleKeyDown}
                     placeholder="Enter command..."
                     disabled={isExecuting}
-                    className="bg-black border-dark-accent text-neon-blue placeholder:text-gray-700 font-mono text-xs focus:ring-neon-purple pl-6"
+                    className="bg-black border-gray-700 text-blue-400 placeholder:text-gray-700 font-mono text-xs focus:ring-purple-600 pl-6"
                 />
                 <Button
                     size="sm"
                     onClick={executeCommand}
                     disabled={isExecuting || !command.trim()}
-                    className="bg-neon-purple hover:bg-neon-blue text-xs font-bold shrink-0"
+                    className="bg-purple-600 hover:bg-blue-600 text-xs font-bold shrink-0"
                 >
                     {isExecuting ? 'RUN...' : 'RUN'}
                 </Button>
@@ -414,7 +414,7 @@ const InteractiveTerminal: React.FC = () => {
                     <button
                         key={cmd}
                         onClick={() => setCommand(cmd)}
-                        className="px-2 py-0.5 bg-black/50 rounded border border-dark-accent/40 text-[9px] text-gray-400 hover:text-neon-blue hover:border-neon-blue/30 transition-colors"
+                        className="px-2 py-0.5 bg-black/50 rounded border border-gray-700/40 text-[9px] text-gray-400 hover:text-blue-400 hover:border-blue-400/30 transition-colors"
                     >
                         {cmd}
                     </button>
@@ -463,21 +463,21 @@ const ToolExecutionPanel: React.FC = () => {
         <div className="space-y-3">
             <div className="flex gap-2">
                 <select value={selectedTool} onChange={(e) => setSelectedTool(e.target.value)}
-                    className="bg-black border border-dark-accent text-neon-purple text-xs rounded px-2 py-1.5 focus:ring-neon-purple flex-1">
+                    className="bg-black border border-gray-700 text-purple-400 text-xs rounded px-2 py-1.5 focus:ring-purple-600 flex-1">
                     {tools.map(tool => (<option key={tool.name} value={tool.name}>{tool.name}</option>))}
                 </select>
             </div>
             <div className="flex gap-2">
                 <Input value={toolInput} onChange={(e) => setToolInput(e.target.value)}
-                    placeholder='{"path": "/tmp/test.txt"}' className="bg-black border-dark-accent text-neon-green placeholder:text-gray-700 font-mono text-xs" />
+                    placeholder='{"path": "/tmp/test.txt"}' className="bg-black border-gray-700 text-green-400 placeholder:text-gray-700 font-mono text-xs" />
                 <Button size="sm" onClick={executeTool} disabled={isExecuting || !toolInput.trim()}
-                    className="bg-neon-green hover:bg-neon-blue text-black text-xs font-bold shrink-0">
+                    className="bg-green-400 hover:bg-blue-600 text-black text-xs font-bold shrink-0">
                     {isExecuting ? '...' : 'EXEC'}
                 </Button>
             </div>
             {result && (
-                <div className={`bg-black/80 rounded border ${result.success ? 'border-neon-green/30' : 'border-neon-pink/30'} p-2 text-xs max-h-24 overflow-y-auto`}>
-                    <div className={`font-bold ${result.success ? 'text-neon-green' : 'text-neon-pink'}`}>
+                <div className={`bg-black/80 rounded border ${result.success ? 'border-green-400/30' : 'border-pink-400/30'} p-2 text-xs max-h-24 overflow-y-auto`}>
+                    <div className={`font-bold ${result.success ? 'text-green-400' : 'text-pink-400'}`}>
                         {result.success ? '✓ Success' : '✗ Error'}
                     </div>
                     <pre className="text-gray-300 whitespace-pre-wrap mt-1 text-[10px]">

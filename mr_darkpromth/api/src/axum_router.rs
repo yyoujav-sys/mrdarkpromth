@@ -12,7 +12,7 @@ use std::time::Duration;
 
 use crate::AppState;
 use crate::handlers;
-use crate::auth_middleware::{auth_middleware, require_tier, require_ultra_tier, AuthState as ServiceAuthState};
+use crate::auth_middleware::{auth_middleware, require_premium_tier, require_ultra_tier, AuthState as ServiceAuthState};
 use mr_darkpromth_db::UserTier;
 
 /// Create the main Axum router with all routes
@@ -84,13 +84,13 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/tools", get(handlers::list_tools_handler))
         .route("/api/tools/execute", post(handlers::execute_tool_handler))
         .route("/api/sandbox/execute", post(handlers::execute_sandbox_handler))
-        .layer(middleware::from_fn(require_tier(UserTier::Premium)))
+        .layer(middleware::from_fn(require_premium_tier))
         .layer(middleware::from_fn_with_state(auth_state.clone(), auth_middleware));
 
     // Ultra only routes
     let ultra_routes = Router::new()
         .route("/api/terminal/execute", post(handlers::execute_terminal_handler))
-        .layer(middleware::from_fn(require_ultra_tier()))
+        .layer(middleware::from_fn(require_ultra_tier))
         .layer(middleware::from_fn_with_state(auth_state.clone(), auth_middleware));
 
     // Admin routes
@@ -99,7 +99,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/admin/users/:id", delete(handlers::admin_delete_user_handler))
         .route("/api/admin/users/:id/status", put(handlers::admin_update_user_status_handler))
         .route("/api/admin/metrics", get(handlers::admin_metrics_handler))
-        .layer(middleware::from_fn(require_ultra_tier())) // Admin requires Ultra tier for now
+        .layer(middleware::from_fn(require_ultra_tier)) // Admin requires Ultra tier for now
         .layer(middleware::from_fn_with_state(auth_state.clone(), auth_middleware));
 
     // Combine all routes

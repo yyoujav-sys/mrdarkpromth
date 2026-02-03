@@ -595,16 +595,19 @@ pub async fn upload_avatar_handler(
 pub async fn get_api_key_status_handler(
     State(state): State<Arc<AppState>>,
 ) -> impl IntoResponse {
-    match state.user_service.get_all_api_keys().await {
-        Ok(keys) => {
-            let response: Vec<serde_json::Value> = keys.into_iter().map(|k| {
+    // Fetch all users instead of non-existent API keys
+    match state.user_service.list_users(1000, 0).await { // Using a high limit for admin view
+        Ok(users) => {
+            let response: Vec<serde_json::Value> = users.into_iter().map(|user| {
                 serde_json::json!({
-                    "id": k.id,
+                    "id": user.id,
                     "provider": "Internal",
-                    "label": k.name.unwrap_or_else(|| "API Key".to_string()),
-                    "is_active": k.is_active,
-                    "failure_count": 0,
-                    "last_used": k.last_used,
+                    "label": user.username, // Use username as a label
+                    "is_active": user.is_active,
+                    "failure_count": 0, // Mock data
+                    "last_used": null, // No last_used field available in UserResponse
+                    "api_key": user.api_key, // Include the actual API key
+                    "expires_at": user.api_key_expires_at,
                 })
             }).collect();
             json_response(response).into_response()

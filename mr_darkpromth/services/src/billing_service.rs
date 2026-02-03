@@ -340,7 +340,7 @@ impl BillingService {
         .await?
         .ok_or_else(|| anyhow!("Payment not found"))?;
         
-        if (payment.amount - amount).abs() > Decimal::from_str("0.01").unwrap() {
+        if (payment.amount - amount).abs() > Decimal::new(1, 2) {
             return Err(anyhow!("Payment amount mismatch. Expected: {}, Got: {}", payment.amount, amount));
         }
         
@@ -371,7 +371,7 @@ impl BillingService {
         .ok_or_else(|| anyhow!("Payment not found with given ID and reference"))?;
         
         // Validate amount matches
-        if (payment.amount - amount).abs() > Decimal::from_str("0.01").unwrap() {
+        if (payment.amount - amount).abs() > Decimal::new(1, 2) {
             return Err(anyhow!("Payment amount mismatch"));
         }
         

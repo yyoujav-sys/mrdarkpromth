@@ -126,7 +126,7 @@ pub struct PaymentSlipVerification {
 pub struct QRCodePaymentData {
     pub qr_code: String,
     pub payment_id: Uuid,
-    pub amount: f64,
+    pub amount: Decimal,
     pub reference: String,
     pub expires_at: DateTime<Utc>,
 }
@@ -141,7 +141,7 @@ pub struct SlipVerificationRequest {
 pub struct SlipVerificationResult {
     pub verified: bool,
     pub payment_id: Uuid,
-    pub amount: f64,
+    pub amount: Decimal,
     pub reference: String,
     pub timestamp: DateTime<Utc>,
 }
@@ -328,7 +328,7 @@ impl BillingService {
         })
     }
 
-    pub async fn validate_payment_amount(&self, payment_id: &str, amount: f64) -> Result<()> {
+    pub async fn validate_payment_amount(&self, payment_id: &str, amount: Decimal) -> Result<()> {
         let id = Uuid::parse_str(payment_id)
             .map_err(|e| anyhow!("Invalid payment ID format: {}", e))?;
         
@@ -340,7 +340,7 @@ impl BillingService {
         .await?
         .ok_or_else(|| anyhow!("Payment not found"))?;
         
-        if (payment.amount - amount).abs() > 0.01 {
+        if (payment.amount - amount).abs() > Decimal::from_str("0.01").unwrap() {
             return Err(anyhow!("Payment amount mismatch. Expected: {}, Got: {}", payment.amount, amount));
         }
         
@@ -351,7 +351,7 @@ impl BillingService {
     pub async fn verify_user_payment_slip(
         &self,
         payment_id_str: &str,
-        amount: f64,
+        amount: Decimal,
         reference: &str,
     ) -> Result<SlipVerificationResult> {
         let payment_id = Uuid::parse_str(payment_id_str)
@@ -371,7 +371,7 @@ impl BillingService {
         .ok_or_else(|| anyhow!("Payment not found with given ID and reference"))?;
         
         // Validate amount matches
-        if (payment.amount - amount).abs() > 0.01 {
+        if (payment.amount - amount).abs() > Decimal::from_str("0.01").unwrap() {
             return Err(anyhow!("Payment amount mismatch"));
         }
         

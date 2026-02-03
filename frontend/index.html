@@ -5,6 +5,29 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>frontend</title>
+    <script>
+      window.onerror = function(message, source, lineno, colno, error) {
+        const errorBox = document.createElement('div');
+        errorBox.style.position = 'fixed';
+        errorBox.style.top = '0';
+        errorBox.style.left = '0';
+        errorBox.style.width = '100%';
+        errorBox.style.padding = '20px';
+        errorBox.style.backgroundColor = '#ffdddd';
+        errorBox.style.border = '1px solid #ff0000';
+        errorBox.style.color = '#ff0000';
+        errorBox.style.zIndex = '9999';
+        errorBox.innerHTML = `
+          <h2>Unhandled Application Error</h2>
+          <p><strong>Message:</strong> ${message}</p>
+          <p><strong>Source:</strong> ${source}</p>
+          <p><strong>Line:</strong> ${lineno}, <strong>Column:</strong> ${colno}</p>
+          <pre><strong>Stack:</strong>\n${error ? error.stack : 'No stack available'}</pre>
+        `;
+        document.body.prepend(errorBox);
+        return true; // Prevents the default browser error handling
+      };
+    </script>
   </head>
   <body>
     <div id="root"></div>

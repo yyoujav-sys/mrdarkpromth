@@ -44,7 +44,7 @@ argon2 = "0.4"
 jsonwebtoken = "8.3"
 mr_darkpromth_db = { path = "../db" }
 mr_darkpromth_core = { path = "../core" }
-sqlx = { version = "0.6", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono"], default-features = false }
+sqlx = { version = "0.6", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "decimal"], default-features = false }
 
 # Email dependencies
 lettre = { version = "0.10", features = ["smtp-transport", "tokio1", "tokio1-native-tls"] }

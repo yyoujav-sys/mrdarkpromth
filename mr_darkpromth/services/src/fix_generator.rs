@@ -315,8 +315,8 @@ mod tests {
     use serde_json::json;
     use std::collections::HashMap;
 
-    #[test]
-    fn test_json_extraction() {
+    #[tokio::test]
+    async fn test_json_extraction() {
         let config = cerebras_client::CerebrasConfig::new(vec!["test_key".to_string()])
             .expect("config");
         let generator = FixGenerator::new(
@@ -329,8 +329,8 @@ mod tests {
         assert!(json.is_some());
     }
 
-    #[test]
-    fn test_confidence_calculation() {
+    #[tokio::test]
+    async fn test_confidence_calculation() {
         let config = cerebras_client::CerebrasConfig::new(vec!["test_key".to_string()])
             .expect("config");
         let generator = FixGenerator::new(

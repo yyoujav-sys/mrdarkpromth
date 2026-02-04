@@ -238,8 +238,8 @@ fn apply_env_overrides(config: &mut CerebrasConfig) {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_client_model_override() {
+    #[tokio::test]
+    async fn test_client_model_override() {
         let client = CerebrasClient::with_api_key("test".to_string());
         assert_eq!(client.get_model(), "llama-3.3-70b");
     }

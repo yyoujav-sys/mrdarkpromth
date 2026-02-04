@@ -5,7 +5,6 @@ use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 use reqwest::Client;
 use std::collections::HashMap;
-use uuid::Uuid;
 use chrono::{DateTime, Utc};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -290,18 +289,40 @@ mod tests {
 
         // Test Premium Tier user
         let premium_user = GitHubUser {
-            followers: 150,
+            id: 2,
+            login: "premium".to_string(),
+            name: Some("Premium User".to_string()),
+            email: Some("premium@example.com".to_string()),
+            avatar_url: None,
+            bio: None,
+            location: None,
+            company: None,
+            blog: None,
             public_repos: 25,
-            ..ultra_user
+            followers: 150,
+            following: 50,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
         };
 
         assert_eq!(client.determine_user_tier(&premium_user), "premium");
 
         // Test Free Tier user
         let free_user = GitHubUser {
-            followers: 50,
+            id: 3,
+            login: "free".to_string(),
+            name: Some("Free User".to_string()),
+            email: Some("free@example.com".to_string()),
+            avatar_url: None,
+            bio: None,
+            location: None,
+            company: None,
+            blog: None,
             public_repos: 5,
-            ..ultra_user
+            followers: 50,
+            following: 10,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
         };
 
         assert_eq!(client.determine_user_tier(&free_user), "free");

@@ -335,16 +335,18 @@ pub async fn delete_user_handler(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mr_darkpromth_db::UserRepository;
 
-    #[test]
-    fn test_calculate_api_key_status() {
+    #[tokio::test]
+    async fn test_calculate_api_key_status() {
+        let pool = sqlx::PgPool::connect("postgresql://postgres:postgres@localhost:5432/mrdarkpromth").await.unwrap();
         let service = UserProfileService::new(
             Arc::new(UserService::new(
-                UserRepository::new(sqlx::PgPool::connect_lazy("postgresql://test").unwrap()),
+                UserRepository::new(pool.clone()),
                 "test_secret".to_string(),
             )),
             Arc::new(TierManagementService::new(
-                UserRepository::new(sqlx::PgPool::connect_lazy("postgresql://test").unwrap())
+                UserRepository::new(pool)
             )),
         );
 
@@ -361,7 +363,8 @@ mod tests {
             updated_at: chrono::Utc::now(),
         };
 
-        let status = service.calculate_api_key_status(&user);
+        let user_response: mr_darkpromth_db::UserResponse = user.into();
+        let status = service.calculate_api_key_status(&user_response);
         assert_eq!(status.api_key, "mr_test_key");
         assert!(!status.is_expired);
         assert!(status.days_until_expiry.unwrap() > 0);

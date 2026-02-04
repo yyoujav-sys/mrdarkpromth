@@ -2,6 +2,8 @@
 // Agent 4: Jailbreak & Ultra Tier Engineer
 // Phase 3: Comprehensive Integration Testing
 
+#![allow(unused_imports)]
+
 use crate::ultra_tier_logic::*;
 use crate::jailbreak_system::*;
 use crate::safety_filter::*;

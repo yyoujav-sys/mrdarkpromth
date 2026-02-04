@@ -434,7 +434,7 @@ mod tests {
         ).unwrap();
         
         assert_eq!(key_value.len(), 64);
-        assert!(key_value.starts_with("mrpk_"));
+        assert!(api_key.key_prefix.starts_with("mrpk_"));
         assert_eq!(api_key.user_id, user_id);
         assert_eq!(api_key.name, "Test Key");
         assert!(api_key.is_active);

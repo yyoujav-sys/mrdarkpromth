@@ -391,11 +391,10 @@ impl TierManagementService {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_validate_tier_transition() {
-        let service = TierManagementService::new(
-            UserRepository::new(sqlx::PgPool::connect_lazy("postgresql://test").unwrap())
-        );
+    #[tokio::test]
+    async fn test_validate_tier_transition() {
+        let pool = sqlx::PgPool::connect("postgresql://postgres:postgres@localhost:5432/mrdarkpromth").await.unwrap();
+        let service = TierManagementService::new(UserRepository::new(pool));
 
         assert!(service.validate_tier_transition(&UserTier::Free, &UserTier::Ultra));
         assert!(service.validate_tier_transition(&UserTier::Ultra, &UserTier::Free));
@@ -405,9 +404,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_validate_promo_code() {
-        let service = TierManagementService::new(
-            UserRepository::new(sqlx::PgPool::connect_lazy("postgresql://test").unwrap())
-        );
+        let pool = sqlx::PgPool::connect("postgresql://postgres:postgres@localhost:5432/mrdarkpromth").await.unwrap();
+        let service = TierManagementService::new(UserRepository::new(pool));
 
         assert!(service.validate_promo_code("LAUNCH2026").await);
         assert!(service.validate_promo_code("BETA50").await);
@@ -417,9 +415,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_tier_benefits() {
-        let service = TierManagementService::new(
-            UserRepository::new(sqlx::PgPool::connect_lazy("postgresql://test").unwrap())
-        );
+        let pool = sqlx::PgPool::connect("postgresql://postgres:postgres@localhost:5432/mrdarkpromth").await.unwrap();
+        let service = TierManagementService::new(UserRepository::new(pool));
 
         let free_benefits = service.get_tier_benefits(UserTier::Free).await;
         assert_eq!(free_benefits.tier, UserTier::Free);

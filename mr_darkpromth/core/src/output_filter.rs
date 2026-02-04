@@ -168,7 +168,7 @@ mod tests {
         let filter = OutputFilter::new(config).unwrap();
 
         let content = "My password is secret123 and my email is test@example.com";
-        let result = filter.filter_content(content);
+        let result = filter.filter_content(content, &mr_darkpromth_db::UserTier::Free);
         assert!(result.is_err());
     }
 
@@ -191,7 +191,7 @@ mod tests {
         let filter = OutputFilter::new(config).unwrap();
 
         let content = "This is a very long content that exceeds the limit";
-        let result = filter.filter_content(content);
+        let result = filter.filter_content(content, &mr_darkpromth_db::UserTier::Free);
         assert!(result.is_err());
     }
 }

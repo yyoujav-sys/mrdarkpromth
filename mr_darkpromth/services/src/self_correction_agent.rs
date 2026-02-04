@@ -340,13 +340,13 @@ impl Agent for SelfCorrectionAgent {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_agent_creation() {
+    #[tokio::test]
+    async fn test_agent_creation() {
         let redis_url = "redis://localhost:6379";
         let config = cerebras_client::CerebrasConfig::new(vec!["test_key".to_string()])
             .expect("config");
         let cerebras_client = CerebrasClient::new(config);
-        let db_pool = sqlx::PgPool::connect_lazy("postgresql://localhost/test").unwrap();
+        let db_pool = sqlx::PgPool::connect("postgresql://postgres:postgres@localhost:5432/mrdarkpromth").await.unwrap();
         let project_root = "/tmp/test".to_string();
         
         let agent = SelfCorrectionAgent::new(

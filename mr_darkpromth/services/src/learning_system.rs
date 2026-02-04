@@ -321,9 +321,10 @@ impl LearningSystem {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_pattern_extraction() {
-        let system = LearningSystem::new(sqlx::PgPool::connect_lazy("postgresql://localhost/test").unwrap());
+    #[tokio::test]
+    async fn test_pattern_extraction() {
+        let pool = sqlx::PgPool::connect("postgresql://postgres:postgres@localhost:5432/mrdarkpromth").await.unwrap();
+        let system = LearningSystem::new(pool);
         
         let error = ErrorDetection {
             id: uuid::Uuid::new_v4(),
@@ -348,9 +349,10 @@ mod tests {
         assert!(pattern_key.contains("test_function"));
     }
 
-    #[test]
-    fn test_metrics_update() {
-        let mut system = LearningSystem::new(sqlx::PgPool::connect_lazy("postgresql://localhost/test").unwrap());
+    #[tokio::test]
+    async fn test_metrics_update() {
+        let pool = sqlx::PgPool::connect("postgresql://postgres:postgres@localhost:5432/mrdarkpromth").await.unwrap();
+        let mut system = LearningSystem::new(pool);
         
         let history = CorrectionHistory {
             id: uuid::Uuid::new_v4(),

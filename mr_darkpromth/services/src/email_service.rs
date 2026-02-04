@@ -412,32 +412,39 @@ impl EmailService {
 mod tests {
     use super::*;
 
-    fn get_test_pool() -> sqlx::PgPool {
-        sqlx::PgPool::connect_lazy("postgres://postgres:postgres@localhost:5432/mr_darkpromth")
-            .expect("Failed to connect to database")
-    }
-
     #[tokio::test]
     async fn test_create_verification_token() {
-        let pool = get_test_pool();
+        let pool = sqlx::PgPool::connect("postgresql://postgres:postgres@localhost:5432/mrdarkpromth").await.unwrap();
+        
+        // Use existing admin user
+        let admin_user: (Uuid,) = sqlx::query_as("SELECT id FROM users WHERE username = 'admin' LIMIT 1")
+            .fetch_one(&pool)
+            .await
+            .expect("Admin user should exist");
+        
         let service = EmailService::new_from_env(pool).unwrap();
-        let user_id = Uuid::new_v4();
-        let token = service.create_verification_token(user_id, "test@example.com").await.unwrap();
+        let token = service.create_verification_token(admin_user.0, "admin@mrdarkpromth.ai").await.unwrap();
 
-        assert_eq!(token.user_id, user_id);
-        assert_eq!(token.email, "test@example.com");
+        assert_eq!(token.user_id, admin_user.0);
+        assert_eq!(token.email, "admin@mrdarkpromth.ai");
         assert!(!token.used);
         assert!(token.expires_at > Utc::now());
     }
 
     #[tokio::test]
     async fn test_create_password_reset_token() {
-        let pool = get_test_pool();
+        let pool = sqlx::PgPool::connect("postgresql://postgres:postgres@localhost:5432/mrdarkpromth").await.unwrap();
+        
+        // Use existing admin user
+        let admin_user: (Uuid,) = sqlx::query_as("SELECT id FROM users WHERE username = 'admin' LIMIT 1")
+            .fetch_one(&pool)
+            .await
+            .expect("Admin user should exist");
+        
         let service = EmailService::new_from_env(pool).unwrap();
-        let user_id = Uuid::new_v4();
-        let token = service.create_password_reset_token(user_id).await.unwrap();
+        let token = service.create_password_reset_token(admin_user.0).await.unwrap();
 
-        assert_eq!(token.user_id, user_id);
+        assert_eq!(token.user_id, admin_user.0);
         assert!(!token.used);
         assert!(token.expires_at > Utc::now());
     }

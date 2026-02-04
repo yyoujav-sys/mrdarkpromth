@@ -15,6 +15,7 @@ async fn main() {
     
     let pool = sqlx::postgres::PgPoolOptions::new()
         .max_connections(50)
+        .acquire_timeout(std::time::Duration::from_secs(30))
         .connect(&db_url).await.expect("DB connect failed");
 
     log::info!("✅ Database connection established");

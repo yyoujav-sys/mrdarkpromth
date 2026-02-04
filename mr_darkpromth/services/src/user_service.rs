@@ -303,7 +303,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_password_hashing() {
-        let pool = sqlx::PgPool::connect("postgresql://test_user:test_pass@localhost/test_db").await.unwrap();
+        let pool = sqlx::PgPool::connect("postgresql://postgres:postgres@localhost:5432/mrdarkpromth").await.unwrap();
         let service = UserService::new(UserRepository::new(pool), "test_secret".to_string());
 
         let password = "test_password_123";
@@ -315,7 +315,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_api_key_generation() {
-        let pool = sqlx::PgPool::connect("postgresql://test_user:test_pass@localhost/test_db").await.unwrap();
+        let pool = sqlx::PgPool::connect("postgresql://postgres:postgres@localhost:5432/mrdarkpromth").await.unwrap();
         let service = UserService::new(UserRepository::new(pool), "test_secret".to_string());
 
         let api_key1 = service.generate_api_key();
@@ -326,9 +326,9 @@ mod tests {
         assert!(api_key2.starts_with("mr_"));
     }
 
-    #[test]
-    fn test_tier_permissions() {
-        let pool = sqlx::PgPool::connect_lazy("postgresql://test_user:test_pass@localhost/test_db").unwrap();
+    #[tokio::test]
+    async fn test_tier_permissions() {
+        let pool = sqlx::PgPool::connect("postgresql://postgres:postgres@localhost:5432/mrdarkpromth").await.unwrap();
         let service = UserService::new(UserRepository::new(pool), "test_secret".to_string());
 
         // Ultra tier should have access to everything

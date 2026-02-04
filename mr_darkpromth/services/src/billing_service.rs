@@ -586,7 +586,7 @@ mod tests {
     use super::*;
 
     fn get_test_pool() -> sqlx::PgPool {
-        sqlx::PgPool::connect_lazy("postgres://postgres:postgres@localhost:5432/mr_darkpromth")
+        sqlx::PgPool::connect_lazy("postgresql://postgres:postgres@localhost:5432/mrdarkpromth")
             .expect("Failed to connect to database")
     }
 

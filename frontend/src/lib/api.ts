@@ -221,6 +221,11 @@ class ApiClient {
   }
 
   // Billing endpoints
+  async getPlans() {
+    const response = await this.client.get('/api/billing/plans')
+    return response.data
+  }
+
   async generateQRCode(planId: string, amount: number) {
     const response = await this.client.post('/api/billing/generate-qr', {
       plan_id: planId,

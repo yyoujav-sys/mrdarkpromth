@@ -18,8 +18,7 @@ mod dark_scenario_tests {
     async fn create_test_logic_async() -> UltraTierLogic {
         let key_pool = Arc::new(KeyPool::new());
         // For tests, we create a jailbreak service with a test database pool
-        let test_db_url = std::env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5432/mrdarkpromth".to_string());
+        let test_db_url = crate::test_db_utils::get_test_database_url();
         let pool = sqlx::PgPool::connect(&test_db_url).await
             .expect("Failed to create test database pool");
         let jailbreak_service = Arc::new(JailbreakPromptService::new(pool));
@@ -27,6 +26,9 @@ mod dark_scenario_tests {
     }
 
     fn create_test_logic_sync() -> UltraTierLogic {
+        // Load environment variables first
+        crate::test_db_utils::load_test_env();
+        
         // Use tokio runtime to create the logic
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
@@ -48,8 +50,7 @@ mod dark_scenario_tests {
                 "Test Key".to_string()
             ).await;
             
-            let test_db_url = std::env::var("DATABASE_URL")
-                .unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5432/mrdarkpromth".to_string());
+            let test_db_url = crate::test_db_utils::get_test_database_url();
             let pool = sqlx::PgPool::connect(&test_db_url).await
                 .expect("Failed to create test database pool");
             let jailbreak_service = Arc::new(JailbreakPromptService::new(pool));

@@ -229,7 +229,7 @@ impl UltraTierLogic {
         // 1. Fetch Top N Prompts (e.g., top 5)
         let search_request = crate::jailbreak_models::PromptSearchRequest {
             query: None,
-            category: Some(crate::jailbreak_models::PromptCategory::DAN),
+            category: Some(crate::jailbreak_models::PromptCategory::DanVariations),
             technique: None,
             effectiveness: Some(crate::jailbreak_models::EffectivenessRating::VeryHigh),
             risk_level: None,

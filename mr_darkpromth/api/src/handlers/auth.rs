@@ -157,6 +157,7 @@ pub async fn login_handler(
     State(state): State<Arc<AppState>>,
     Json(req): Json<LoginRequest>,
 ) -> impl IntoResponse {
+    log::info!("Attempting login for email: {}", req.email);
     let login_req = mr_darkpromth_services::user_service::LoginRequest {
         email: req.email,
         password: req.password,
@@ -184,8 +185,31 @@ pub async fn login_handler(
     }
 }
 
-pub async fn logout_handler() -> impl IntoResponse {
-    StatusCode::OK
+pub async fn logout_handler(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+) -> impl IntoResponse {
+    let token = match extract_token(&headers) {
+        Some(t) => t,
+        None => {
+            return error_response(
+                StatusCode::UNAUTHORIZED,
+                "MISSING_TOKEN",
+                "Authorization header required",
+            )
+            .into_response();
+        }
+    };
+
+    if let Ok(claims) = state.user_service.validate_token(&token).await {
+        if let Some(redis_coordinator) = &state.redis_coordinator {
+            let mut coordinator = redis_coordinator.lock().unwrap();
+            let key = format!("jti:{}", claims.jti);
+            let _: Result<(), _> = coordinator.del(&key);
+        }
+    }
+
+    json_response(serde_json::json!({ "message": "Logout successful" })).into_response()
 }
 
 pub async fn verify_email_handler(
@@ -231,6 +255,7 @@ pub async fn reset_password_handler(
 
 pub async fn get_user_info_handler(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     Path(user_id): Path<String>,
 ) -> impl IntoResponse {
     let user_id = match Uuid::parse_str(&user_id) {
@@ -402,7 +427,7 @@ pub async fn update_profile_handler(
 
 pub async fn change_password_handler(
     State(_state): State<Arc<AppState>>,
-    _headers: axum::http::HeaderMap,
+    headers: axum::http::HeaderMap,
     Json(_req): Json<ChangePasswordRequest>,
 ) -> impl IntoResponse {
     // TODO: Implement password change
@@ -492,7 +517,7 @@ pub async fn get_user_stats_handler(
         }
     };
 
-    let claims = match state.user_service.validate_token(&token).await {
+    let _claims = match state.user_service.validate_token(&token).await {
         Ok(c) => c,
         Err(_) => {
             return error_response(
@@ -582,7 +607,7 @@ pub async fn update_user_preferences_handler(
 
 pub async fn upload_avatar_handler(
     State(_state): State<Arc<AppState>>,
-    _headers: axum::http::HeaderMap,
+    headers: axum::http::HeaderMap,
 ) -> impl IntoResponse {
     // TODO: Implement avatar upload with file storage
     json_response(serde_json::json!({ 
@@ -594,6 +619,7 @@ pub async fn upload_avatar_handler(
 
 pub async fn get_api_key_status_handler(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
 ) -> impl IntoResponse {
     // Fetch all users instead of non-existent API keys
     match state.user_service.list_users(1000, 0).await { // Using a high limit for admin view

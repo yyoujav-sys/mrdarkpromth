@@ -297,9 +297,8 @@ impl Default for MasterToolExecutor {
 static mut GLOBAL_EXECUTOR: Option<Arc<MasterToolExecutor>> = None;
 static EXECUTOR_INIT: std::sync::Once = std::sync::Once::new();
 
-#[allow(dead_code)]
+#[allow(static_mut_refs)]
 pub fn get_global_executor() -> Option<Arc<MasterToolExecutor>> {
-    #[allow(dead_code)]
     unsafe {
         EXECUTOR_INIT.call_once(|| {
             GLOBAL_EXECUTOR = Some(Arc::new(MasterToolExecutor::default()));

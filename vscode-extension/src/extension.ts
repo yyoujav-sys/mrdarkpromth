@@ -10,12 +10,13 @@ let authManager: AuthManager;
 let apiClient: ApiClient;
 let statusBarManager: StatusBarManager;
 let eventBusCoordinator: EventBusCoordinator;
+let healthCheckInterval: NodeJS.Timeout | null = null;
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('MR.DarkPromth extension is now active!');
 
     const config = vscode.workspace.getConfiguration('mr-darkpromth');
-    const apiEndpoint = config.get<string>('apiEndpoint', 'http://127.0.0.1:8080');
+    const apiEndpoint = config.get<string>('apiEndpoint', 'https://bt-shop-dark.online');
 
     // Initialize event bus coordinator for agent coordination
     eventBusCoordinator = new EventBusCoordinator();
@@ -91,10 +92,28 @@ export function activate(context: vscode.ExtensionContext) {
             }
         }),
 
-        vscode.window.registerWebviewViewProvider('mr-darkpromth-sidebar', chatPanelProvider)
+        vscode.window.registerWebviewViewProvider('mr-darkpromth-sidebar', chatPanelProvider),
+
+        vscode.commands.registerCommand('mr-darkpromth.healthCheck', async () => {
+            try {
+                await apiClient.healthCheck();
+                statusBarManager.updateHealthStatus(true);
+            } catch (error) {
+                statusBarManager.updateHealthStatus(false);
+            }
+        })
     );
 
     statusBarManager.initialize();
+
+    // Initial health check
+    vscode.commands.executeCommand('mr-darkpromth.healthCheck');
+
+    // Periodic health check
+    healthCheckInterval = setInterval(() => {
+        vscode.commands.executeCommand('mr-darkpromth.healthCheck');
+    }, 60000); // every 60 seconds
+
 
     // Initialize event bus coordination
     eventBusCoordinator.connect().then(() => {
@@ -111,7 +130,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     vscode.workspace.onDidChangeConfiguration(async (e) => {
         if (e.affectsConfiguration('mr-darkpromth.apiEndpoint')) {
-            const newEndpoint = config.get<string>('apiEndpoint', 'http://127.0.0.1:8080');
+            const newEndpoint = config.get<string>('apiEndpoint', 'https://bt-shop-dark.online');
             apiClient.updateEndpoint(newEndpoint);
         }
     });
@@ -128,6 +147,9 @@ export function deactivate() {
         eventBusCoordinator.disconnect().catch(error => {
             console.error('Error disconnecting event bus:', error);
         });
+    }
+    if (healthCheckInterval) {
+        clearInterval(healthCheckInterval);
     }
 }
 

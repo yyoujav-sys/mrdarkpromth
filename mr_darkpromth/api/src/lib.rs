@@ -5,6 +5,7 @@ pub mod axum_router;
 pub mod app_state;
 pub mod handlers;
 pub mod auth_middleware;
+pub mod middleware;
 
 // Re-export Axum modules
 pub use axum_router::*;

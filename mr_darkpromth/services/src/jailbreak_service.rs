@@ -159,26 +159,26 @@ impl JailbreakPromptService {
 
         if let Some(category) = &request.category {
             param_count += 1;
-            query.push_str(&format!(" AND category = ${}", param_count));
-            params.push(format!("{:?}", category));
+            query.push_str(&format!(" AND category = ${}::prompt_category", param_count));
+            params.push(format!("{:?}", category).to_lowercase());
         }
 
         if let Some(technique) = &request.technique {
             param_count += 1;
-            query.push_str(&format!(" AND technique = ${}", param_count));
-            params.push(format!("{:?}", technique));
+            query.push_str(&format!(" AND technique = ${}::technique", param_count));
+            params.push(format!("{:?}", technique).to_lowercase());
         }
 
         if let Some(effectiveness) = &request.effectiveness {
             param_count += 1;
-            query.push_str(&format!(" AND effectiveness = ${}", param_count));
-            params.push(format!("{:?}", effectiveness));
+            query.push_str(&format!(" AND effectiveness = ${}::effectiveness_rating", param_count));
+            params.push(format!("{:?}", effectiveness).to_lowercase());
         }
 
         if let Some(risk_level) = &request.risk_level {
             param_count += 1;
-            query.push_str(&format!(" AND risk_level = ${}", param_count));
-            params.push(format!("{:?}", risk_level));
+            query.push_str(&format!(" AND risk_level = ${}::risk_level", param_count));
+            params.push(format!("{:?}", risk_level).to_lowercase());
         }
 
         if let Some(requires_ultra_tier) = request.requires_ultra_tier {
@@ -207,9 +207,12 @@ impl JailbreakPromptService {
 
         query.push_str(&format!(" ORDER BY {} {} LIMIT {} OFFSET {}", sort_column, order_direction, limit, offset));
 
-        // For now, we'll use a simplified approach. In a real implementation, you'd want to use
-        // query builder or parameterized queries properly
-        let prompts = sqlx::query_as::<_, JailbreakPrompt>(&query)
+        let mut query_builder = sqlx::query_as::<_, JailbreakPrompt>(&query);
+        for param in params {
+            query_builder = query_builder.bind(param);
+        }
+        
+        let prompts = query_builder
             .fetch_all(&self.db)
             .await?;
 
@@ -302,7 +305,7 @@ impl JailbreakPromptService {
 
         let total_usage: i64 = stats.get("total_usage");
         let successful_usage: i64 = stats.get("successful_usage");
-        let avg_response_time: Option<f64> = stats.get("avg_response_time");
+        let _avg_response_time: Option<f64> = stats.get("avg_response_time");
 
         let success_rate = if total_usage > 0 {
             successful_usage as f64 / total_usage as f64
@@ -338,7 +341,7 @@ impl JailbreakPromptService {
         .fetch_one(&self.db)
         .await?;
 
-        let last_used_timestamp: Option<chrono::DateTime<chrono::Utc>> = last_used.get("last_used");
+        let _last_used_timestamp: Option<chrono::DateTime<chrono::Utc>> = last_used.get("last_used");
 
         let analytics = PromptAnalytics {
             prompt_id,

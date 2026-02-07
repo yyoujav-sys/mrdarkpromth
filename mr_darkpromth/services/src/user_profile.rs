@@ -337,9 +337,12 @@ mod tests {
     use super::*;
     use mr_darkpromth_db::UserRepository;
 
+    use super::*;
+    use crate::test_db_utils::create_test_pool;
+
     #[tokio::test]
     async fn test_calculate_api_key_status() {
-        let pool = sqlx::PgPool::connect("postgresql://postgres:postgres@localhost:5432/mrdarkpromth").await.unwrap();
+        let pool = create_test_pool().await.unwrap();
         let service = UserProfileService::new(
             Arc::new(UserService::new(
                 UserRepository::new(pool.clone()),

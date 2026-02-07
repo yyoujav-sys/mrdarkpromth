@@ -9,7 +9,7 @@ use mr_darkpromth_db::UserTier;
 use serde_json::json;
 use std::sync::Arc;
 
-use crate::{UserService, AuthError};
+use crate::UserService;
 
 #[derive(Clone)]
 pub struct AuthState {
@@ -29,6 +29,7 @@ fn parse_user_tier(raw: &str) -> UserTier {
         "free" | "basic" => UserTier::Free,
         "premium" => UserTier::Premium,
         "ultra" => UserTier::Ultra,
+        "admin" => UserTier::Admin,
         _ => UserTier::Free,
     }
 }
@@ -38,6 +39,7 @@ fn has_required_tier(current: &UserTier, required: &UserTier) -> bool {
         UserTier::Free => 0,
         UserTier::Premium => 1,
         UserTier::Ultra => 2,
+        UserTier::Admin => 3,
     };
 
     rank(current) >= rank(required)
@@ -123,6 +125,16 @@ pub async fn require_ultra_tier(
     next: Next<axum::body::Body>,
 ) -> Response {
     match require_tier_level(&request, &UserTier::Ultra).await {
+        Ok(_) => next.run(request).await,
+        Err(response) => response,
+    }
+}
+
+pub async fn require_admin_tier(
+    request: Request<axum::body::Body>,
+    next: Next<axum::body::Body>,
+) -> Response {
+    match require_tier_level(&request, &UserTier::Admin).await {
         Ok(_) => next.run(request).await,
         Err(response) => response,
     }

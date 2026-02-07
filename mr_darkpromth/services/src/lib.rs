@@ -44,6 +44,9 @@ pub mod billing_service;
 pub mod email_service;
 pub mod cache_service;
 
+#[cfg(test)]
+pub mod test_db_utils;
+
 // Agent 6: Tool System modules
 pub mod tool_system;
 pub mod tool_plugin_manager;

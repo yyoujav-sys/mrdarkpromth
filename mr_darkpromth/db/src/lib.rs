@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
+use std::str::FromStr;
 use uuid::Uuid;
 
 pub type DbPool = sqlx::PgPool;
@@ -25,6 +26,7 @@ pub enum UserTier {
     Free,
     Premium,
     Ultra,
+    Admin,
 }
 
 impl Default for UserTier {
@@ -39,6 +41,21 @@ impl std::fmt::Display for UserTier {
             UserTier::Free => write!(f, "free"),
             UserTier::Premium => write!(f, "premium"),
             UserTier::Ultra => write!(f, "ultra"),
+            UserTier::Admin => write!(f, "admin"),
+        }
+    }
+}
+
+impl FromStr for UserTier {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "free" => Ok(UserTier::Free),
+            "premium" => Ok(UserTier::Premium),
+            "ultra" => Ok(UserTier::Ultra),
+            "admin" => Ok(UserTier::Admin),
+            _ => Err(format!("Invalid user tier: {}", s)),
         }
     }
 }
@@ -189,6 +206,24 @@ impl UserRepository {
         )
         .bind(api_key)
         .bind(expires_at)
+        .bind(user_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(user)
+    }
+
+    pub async fn update_password_hash(&self, user_id: Uuid, password_hash: String) -> anyhow::Result<Option<User>> {
+        let user = sqlx::query_as::<_, User>(
+            r#"
+            UPDATE users 
+            SET password_hash = $1,
+                updated_at = NOW()
+            WHERE id = $2
+            RETURNING *
+            "#,
+        )
+        .bind(password_hash)
         .bind(user_id)
         .fetch_optional(&self.pool)
         .await?;

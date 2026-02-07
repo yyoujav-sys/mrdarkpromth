@@ -5,20 +5,24 @@ export class StatusBarManager {
     private authManager: AuthManager;
     private statusBarItem: vscode.StatusBarItem;
     private tierBarItem: vscode.StatusBarItem;
+    private healthStatusItem: vscode.StatusBarItem;
     private updateInterval: NodeJS.Timeout | null = null;
 
     constructor(authManager: AuthManager) {
         this.authManager = authManager;
         this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
         this.tierBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 99);
+        this.healthStatusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 101);
     }
 
     initialize(): void {
         this.statusBarItem.command = 'mr-darkpromth.refreshUserInfo';
         this.tierBarItem.command = 'mr-darkpromth.refreshUserInfo';
+        this.healthStatusItem.command = 'mr-darkpromth.healthCheck';
         
         this.statusBarItem.show();
         this.tierBarItem.show();
+        this.healthStatusItem.show();
         
         this.update();
         
@@ -75,11 +79,24 @@ export class StatusBarManager {
         }
     }
 
+    updateHealthStatus(isHealthy: boolean): void {
+        if (isHealthy) {
+            this.healthStatusItem.text = '$(plug) Connected';
+            this.healthStatusItem.tooltip = 'Backend is online';
+            this.healthStatusItem.backgroundColor = undefined;
+        } else {
+            this.healthStatusItem.text = '$(debug-disconnect) Disconnected';
+            this.healthStatusItem.tooltip = 'Backend is offline. Click to re-check.';
+            this.healthStatusItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
+        }
+    }
+
     dispose(): void {
         if (this.updateInterval) {
             clearInterval(this.updateInterval);
         }
         this.statusBarItem.dispose();
         this.tierBarItem.dispose();
+        this.healthStatusItem.dispose();
     }
 }

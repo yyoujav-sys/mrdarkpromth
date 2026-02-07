@@ -183,7 +183,7 @@ impl BillingService {
         let reference = self.generate_reference_number();
 
         // Generate QR code data (simplified - in production use proper QR library)
-        let qr_data = format!(
+        let _qr_data = format!(
             "PAYMENT|{}|{}|{}|{}",
             payment_id, reference, plan.price, plan.name
         );
@@ -584,11 +584,7 @@ impl BillingService {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn get_test_pool() -> sqlx::PgPool {
-        sqlx::PgPool::connect_lazy("postgresql://postgres:postgres@localhost:5432/mrdarkpromth")
-            .expect("Failed to connect to database")
-    }
+    use crate::test_db_utils::get_test_pool;
 
     #[tokio::test]
     async fn test_generate_reference_number() {
@@ -603,9 +599,24 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_plans() {
-        let billing = BillingService::new(get_test_pool());
+        let pool = get_test_pool();
+        let billing = BillingService::new(pool.clone());
+
+        // Insert a test plan to ensure the table is not empty
+        sqlx::query(
+            r#"
+            INSERT INTO plans (id, name, tier, price, duration_days, features, is_active)
+            VALUES ($1, 'Test Plan', 'free', 9.99, 30, '{}', true)
+            "#
+        )
+        .bind(Uuid::new_v4())
+        .execute(&pool)
+        .await
+        .expect("Failed to insert test plan");
+
         let plans = billing.get_plans().await.expect("Failed to get plans");
 
-        assert!(!plans.is_empty());
+        // The test expects at least one active plan
+        assert!(!plans.is_empty(), "Expected to find at least one active plan");
     }
 }

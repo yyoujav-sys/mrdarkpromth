@@ -3,9 +3,9 @@ name = "mr_darkpromth_services"
 version = "0.1.0"
 edition = "2021"
 
-[[bin]]
+[lib]
 name = "mr_darkpromth_services"
-path = "src/main_unified.rs"
+path = "src/lib.rs"
 
 [dependencies]
 dotenv = "0.15.0"

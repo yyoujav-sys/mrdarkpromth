@@ -62,4 +62,8 @@ export class ApiClient {
     getEndpoint(): string {
         return this.apiEndpoint;
     }
+
+    async healthCheck(): Promise<AxiosResponse> {
+        return this.client.get('/health');
+    }
 }

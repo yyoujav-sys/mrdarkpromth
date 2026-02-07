@@ -50,8 +50,8 @@ export class AuthManager {
     }
 
     async logout(): Promise<void> {
-        await this.context.globalState.update('authToken', null);
-        await this.context.globalState.update('userInfo', null);
+        await this.context.secrets.delete('authToken');
+        await this.context.globalState.update('userInfo', undefined);
         this.userInfo = null;
         vscode.commands.executeCommand('setContext', 'mr-darkpromth.authenticated', false);
     }
@@ -109,12 +109,12 @@ export class AuthManager {
     }
 
     private async storeCredentials(token: string, userInfo: UserInfo): Promise<void> {
-        await this.context.globalState.update('authToken', token);
+        await this.context.secrets.store('authToken', token);
         await this.context.globalState.update('userInfo', userInfo);
     }
 
-    private loadStoredCredentials(): void {
-        const token = this.context.globalState.get<string>('authToken');
+    private async loadStoredCredentials(): Promise<void> {
+        const token = await this.context.secrets.get('authToken');
         const userInfo = this.context.globalState.get<UserInfo>('userInfo');
 
         if (token && userInfo) {
@@ -124,11 +124,11 @@ export class AuthManager {
                     this.userInfo = userInfo;
                     vscode.commands.executeCommand('setContext', 'mr-darkpromth.authenticated', true);
                 } else {
-                    this.logout();
+                    await this.logout();
                 }
             } catch (error) {
                 console.error('Failed to decode token:', error);
-                this.logout();
+                await this.logout();
             }
         }
     }

@@ -82,6 +82,35 @@ impl RedisCoordinator {
         Ok(())
     }
 
+    pub fn set(&self, key: &str, value: &str, expire_seconds: Option<usize>) -> RedisResult<()> {
+        let mut conn = self.get_connection()?;
+        if let Some(seconds) = expire_seconds {
+            let _: () = redis::cmd("SETEX")
+                .arg(key)
+                .arg(seconds)
+                .arg(value)
+                .query(&mut conn)?;
+        } else {
+            let _: () = redis::cmd("SET")
+                .arg(key)
+                .arg(value)
+                .query(&mut conn)?;
+        }
+        Ok(())
+    }
+
+    pub fn get(&self, key: &str) -> RedisResult<Option<String>> {
+        let mut conn = self.get_connection()?;
+        let result: Option<String> = redis::cmd("GET").arg(key).query(&mut conn)?;
+        Ok(result)
+    }
+
+    pub fn del(&self, key: &str) -> RedisResult<()> {
+        let mut conn = self.get_connection()?;
+        let _: () = redis::cmd("DEL").arg(key).query(&mut conn)?;
+        Ok(())
+    }
+
     pub async fn subscribe(&self, channel: &str) -> RedisResult<()> {
         let mut guard = self
             .pubsub_channel

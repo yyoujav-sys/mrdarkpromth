@@ -4,8 +4,7 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
-use sqlx::{Type, FromRow, Encode, Postgres};
-use sqlx::postgres::PgTypeInfo;
+use sqlx::{Type, FromRow};
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct JailbreakPrompt {
@@ -134,34 +133,33 @@ pub struct ModelUsageStats {
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[sqlx(type_name = "prompt_category", rename_all = "snake_case")]
 pub enum PromptCategory {
-    DAN,
+    DanVariations,
     CharacterRolePlaying,
-    TechnicalExploitation,
-    AdvancedTechniques,
-    Reasoning,
-    Coding,
-    Creative,
-    Analysis,
-    General,
+    SystemOverride,
+    HypnoticInduction,
+    LogicalParadox,
+    EmotionalManipulation,
+    ContextSwitching,
+    TokenManipulation,
+    EncodingBased,
+    MultiStepAttack,
     Custom,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[sqlx(type_name = "technique", rename_all = "snake_case")]
 pub enum Technique {
-    DirectInstruction,
-    RolePlaying,
-    Roleplay,
-    ScenarioCreation,
+    PersonaAdoption,
     SystemPromptOverride,
-    ContextManipulation,
-    TokenLimitBypass,
-    ContentFilteringBypass,
-    EthicalFrameworkBypass,
-    MultiStepReasoning,
-    ChainOfThought,
-    FewShotLearning,
-    ZeroShotLearning,
+    RolePlayingImmersion,
+    HypnoticLanguage,
+    LogicalContradiction,
+    EmotionalAppeal,
+    ContextReframing,
+    TokenSmuggling,
+    Base64Encoding,
+    MultiLayerDeception,
+    HybridApproach,
     Custom,
 }
 
@@ -171,24 +169,21 @@ pub type BypassTechnique = Technique;
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[sqlx(type_name = "effectiveness_rating", rename_all = "snake_case")]
 pub enum EffectivenessRating {
-    VeryLow,
     Low,
     Medium,
     High,
     VeryHigh,
-    Experimental,
+    Maximum,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[sqlx(type_name = "risk_level", rename_all = "snake_case")]
 pub enum RiskLevel {
-    Safe,
     Low,
     Medium,
-    MediumHigh,
     High,
-    VeryHigh,
     Critical,
+    Extreme,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

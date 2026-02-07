@@ -41,8 +41,8 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_errors_severity_timestamp ON errors(
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_fixes_error_id ON fixes(error_id);
 
 -- Prompt usage optimization (fixed column names)
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_prompt_usage_user_timestamp ON prompt_usage_records(user_id, "timestamp" DESC);
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_prompt_usage_model_timestamp ON prompt_usage_records(model, "timestamp" DESC);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_prompt_usage_user_timestamp ON prompt_usage_records(user_id, used_at DESC);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_prompt_usage_model_timestamp ON prompt_usage_records(target_model, used_at DESC);
 
 -- Update table statistics for query planner
 ANALYZE users;

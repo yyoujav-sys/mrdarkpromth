@@ -321,9 +321,12 @@ impl LearningSystem {
 mod tests {
     use super::*;
 
+    use super::*;
+    use crate::test_db_utils::create_test_pool;
+
     #[tokio::test]
     async fn test_pattern_extraction() {
-        let pool = sqlx::PgPool::connect("postgresql://postgres:postgres@localhost:5432/mrdarkpromth").await.unwrap();
+        let pool = create_test_pool().await.unwrap();
         let system = LearningSystem::new(pool);
         
         let error = ErrorDetection {
@@ -351,7 +354,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_metrics_update() {
-        let pool = sqlx::PgPool::connect("postgresql://postgres:postgres@localhost:5432/mrdarkpromth").await.unwrap();
+        let pool = create_test_pool().await.unwrap();
         let mut system = LearningSystem::new(pool);
         
         let history = CorrectionHistory {

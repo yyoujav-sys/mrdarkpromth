@@ -1,0 +1,185 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: mr_darkpromth_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: mr_darkpromth
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:5432:5432"  # Only bind to localhost for security
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    networks:
+      - mr_darkpromth_network
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          memory: 256M
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for Event Bus
+  redis:
+    image: redis:7-alpine
+    container_name: mr_darkpromth_redis
+    restart: always
+    command: redis-server --requirepass ${REDIS_PASSWORD} --appendonly yes
+    ports:
+      - "127.0.0.1:6379:6379"  # Only bind to localhost for security
+    volumes:
+      - redis_data:/data
+    networks:
+      - mr_darkpromth_network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          memory: 64M
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # MR.DarkPromth Backend Service
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mr_darkpromth_api
+    restart: always
+    environment:
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/mr_darkpromth
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      RUST_LOG: info
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 8080
+      CORS_ALLOWED_ORIGINS: https://bt-shop-dark.online,https://www.bt-shop-dark.online
+      AGENT_COORDINATION_ENABLED: "true"
+      HEARTBEAT_INTERVAL_SECONDS: "30"
+      MEMORY_LOG_ENABLED: "true"
+      CEREBRAS_API_KEYS: ${CEREBRAS_API_KEYS}
+      JWT_SECRET: ${JWT_SECRET}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
+      # Production settings
+      ENVIRONMENT: production
+      DEBUG: "false"
+      RATE_LIMIT_REQUESTS_PER_MINUTE: "60"
+      DATABASE_POOL_SIZE: "20"
+      DATABASE_MIN_IDLE: "5"
+      DATABASE_MAX_LIFETIME: "1800"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./memory:/app/memory
+      - ./logs:/app/logs
+      - ./certs:/app/certs:ro
+    networks:
+      - mr_darkpromth_network
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # Frontend (Nginx serving built React app)
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: mr_darkpromth_frontend
+    restart: always
+    environment:
+      VITE_API_URL: https://api.bt-shop-dark.online
+    depends_on:
+      - api
+    networks:
+      - mr_darkpromth_network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          memory: 64M
+
+  # Nginx reverse proxy with SSL
+  nginx:
+    image: nginx:alpine
+    container_name: mr_darkpromth_nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.production.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/etc/letsencrypt:ro
+      - /var/www/certbot:/var/www/certbot:ro
+      - ./logs/nginx:/var/log/nginx
+    depends_on:
+      - api
+      - frontend
+    networks:
+      - mr_darkpromth_network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          memory: 32M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # Certbot for SSL certificate management
+  certbot:
+    image: certbot/certbot
+    container_name: mr_darkpromth_certbot
+    volumes:
+      - ./certs:/etc/letsencrypt
+      - /var/www/certbot:/var/www/certbot
+    command: certonly --webroot --webroot-path=/var/www/certbot --email admin@bt-shop-dark.online --agree-tos --no-eff-email -d api.bt-shop-dark.online -d bt-shop-dark.online -d www.bt-shop-dark.online
+    networks:
+      - mr_darkpromth_network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  mr_darkpromth_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

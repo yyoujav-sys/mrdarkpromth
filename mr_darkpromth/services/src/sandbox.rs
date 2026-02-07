@@ -418,7 +418,7 @@ trait WaitTimeout {
 #[cfg(unix)]
 impl WaitTimeout for std::process::Child {
     fn wait_timeout(&mut self, timeout: Duration) -> Result<std::process::ExitStatus, std::io::Error> {
-        use std::os::unix::process::ExitStatusExt;
+        
         
         let start = std::time::Instant::now();
         

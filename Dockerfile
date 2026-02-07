@@ -10,34 +10,33 @@ RUN apt-get update && apt-get install -y \
     protobuf-compiler \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy workspace files
-COPY Cargo.toml ./
-COPY Cargo.lock* ./
-COPY mr_darkpromth/Cargo.toml ./mr_darkpromth/
+# Copy dependency definitions to cache layers
+COPY Cargo.toml Cargo.lock ./
 COPY mr_darkpromth/core/Cargo.toml ./mr_darkpromth/core/
 COPY mr_darkpromth/db/Cargo.toml ./mr_darkpromth/db/
 COPY mr_darkpromth/services/Cargo.toml ./mr_darkpromth/services/
 COPY mr_darkpromth/services/cerebras_client/Cargo.toml ./mr_darkpromth/services/cerebras_client/
 COPY mr_darkpromth/api/Cargo.toml ./mr_darkpromth/api/
 
-# Create dummy main files for dependency caching
-RUN mkdir -p mr_darkpromth/core/src && echo "pub fn init() {}" > mr_darkpromth/core/src/lib.rs && \
-    mkdir -p mr_darkpromth/db/src && echo "pub fn init() {}" > mr_darkpromth/db/src/lib.rs && \
-    mkdir -p mr_darkpromth/services/cerebras_client/src && echo "pub fn init() {}" > mr_darkpromth/services/cerebras_client/src/lib.rs && \
-    mkdir -p mr_darkpromth/services/src && echo "pub fn init() {}" > mr_darkpromth/services/src/lib.rs && \
+# Create dummy source files to build and cache dependencies only
+RUN mkdir -p mr_darkpromth/core/src && echo "pub fn lib() {}" > mr_darkpromth/core/src/lib.rs && \
+    mkdir -p mr_darkpromth/db/src && echo "pub fn lib() {}" > mr_darkpromth/db/src/lib.rs && \
+    mkdir -p mr_darkpromth/services/src && echo "pub fn lib() {}" > mr_darkpromth/services/src/lib.rs && \
+    mkdir -p mr_darkpromth/services/cerebras_client/src && echo "pub fn lib() {}" > mr_darkpromth/services/cerebras_client/src/lib.rs && \
     mkdir -p mr_darkpromth/api/src && echo "fn main() {}" > mr_darkpromth/api/src/main.rs
 
-# Build dependencies (cached layer)
-RUN cargo build --release 2>/dev/null || true
+# Build only dependencies
+# This will be cached unless Cargo files change
+RUN cargo build --release
 
-# Copy actual source code
-COPY mr_darkpromth ./mr_darkpromth
-COPY migrations ./migrations
-COPY config ./config
+# Now copy the actual source code
+COPY ./mr_darkpromth ./mr_darkpromth
+COPY ./migrations ./migrations
+COPY ./config ./config
 
-# Force rebuild with actual source
-RUN find mr_darkpromth -name "*.rs" -exec touch {} \; && \
-    cargo build --release
+# Build the application with the cached dependencies
+# This will be fast because dependencies are cached
+RUN cargo build --release
 
 # Runtime stage
 FROM debian:bookworm-slim

@@ -8,7 +8,6 @@ use std::sync::Arc;
 
 use crate::AppState;
 use crate::handlers::auth::{json_response, error_response, extract_token};
-use crate::auth_middleware::AuthenticatedUser;
 
 #[derive(Debug, Serialize)]
 pub struct ToolInfo {
@@ -77,12 +76,12 @@ pub struct JailbreakPromptDto {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct CreatePromptRequest {
+pub struct CreatePromptApiRequest {
     pub title: String,
     pub content: String,
     pub category: String,
     pub description: Option<String>,
-    pub tags: Vec<String>,
+    pub tags: Option<Vec<String>>,
     pub requires_ultra_tier: Option<bool>,
 }
 
@@ -303,13 +302,13 @@ pub async fn execute_terminal_handler(
         }
     };
 
-    // Terminal requires Ultra tier
+    // Terminal requires Ultra or Admin tier
     let tier = claims.tier.to_lowercase();
-    if tier != "ultra" {
+    if tier != "ultra" && tier != "admin" {
         return error_response(
             StatusCode::FORBIDDEN,
-            "ULTRA_REQUIRED",
-            "Terminal access requires Ultra tier",
+            "ULTRA_OR_ADMIN_REQUIRED",
+            "Terminal access requires Ultra or Admin tier",
         ).into_response();
     }
 
@@ -394,7 +393,7 @@ pub async fn list_prompts_handler(
 pub async fn create_prompt_handler(
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
-    Json(req): Json<CreatePromptRequest>,
+    Json(req): Json<CreatePromptApiRequest>,
 ) -> impl IntoResponse {
     use mr_darkpromth_services::jailbreak_models::*;
     
@@ -421,16 +420,16 @@ pub async fn create_prompt_handler(
         }
     };
 
-    let create_request = CreatePromptRequest {
+    let create_request = mr_darkpromth_services::jailbreak_models::CreatePromptRequest {
         title: req.title,
         content: req.content,
-        category: PromptCategory::General, // Default category
-        technique: Technique::Roleplay,
+        category: PromptCategory::Custom, // Default category
+        technique: Technique::Custom,
         effectiveness: EffectivenessRating::Medium,
         risk_level: RiskLevel::Low,
         target_models: vec![],
         description: req.description,
-        tags: req.tags,
+        tags: req.tags.unwrap_or_default(),
         requires_ultra_tier: req.requires_ultra_tier.unwrap_or(false),
     };
     
@@ -516,17 +515,16 @@ pub async fn get_prompt_handler(
 
 pub async fn update_prompt_handler(
     State(_state): State<Arc<AppState>>,
-    _headers: axum::http::HeaderMap,
+    headers: axum::http::HeaderMap,
     Path(_prompt_id): Path<String>,
-    Json(_req): Json<CreatePromptRequest>,
 ) -> impl IntoResponse {
     json_response(serde_json::json!({ "id": "1", "title": "Test", "content": "...", "category": "test", "votes": 0 })).into_response()
 }
 
 pub async fn delete_prompt_handler(
-    State(_state): State<Arc<AppState>>,
-    _headers: axum::http::HeaderMap,
-    Path(_prompt_id): Path<String>,
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+    Path(prompt_id): Path<String>,
 ) -> impl IntoResponse {
     StatusCode::NO_CONTENT.into_response()
 }
@@ -539,11 +537,17 @@ pub async fn search_prompts_handler(
     
     let category = req.category.and_then(|c| {
         match c.to_lowercase().as_str() {
-            "general" => Some(PromptCategory::General),
-            "coding" => Some(PromptCategory::Coding),
-            "creative" => Some(PromptCategory::Creative),
-            "analysis" => Some(PromptCategory::Analysis),
-            "reasoning" => Some(PromptCategory::Reasoning),
+            "dan_variations" | "dan" => Some(PromptCategory::DanVariations),
+            "character_role_playing" | "roleplaying" => Some(PromptCategory::CharacterRolePlaying),
+            "system_override" => Some(PromptCategory::SystemOverride),
+            "hypnotic_induction" => Some(PromptCategory::HypnoticInduction),
+            "logical_paradox" => Some(PromptCategory::LogicalParadox),
+            "emotional_manipulation" => Some(PromptCategory::EmotionalManipulation),
+            "context_switching" => Some(PromptCategory::ContextSwitching),
+            "token_manipulation" => Some(PromptCategory::TokenManipulation),
+            "encoding_based" => Some(PromptCategory::EncodingBased),
+            "multi_step_attack" => Some(PromptCategory::MultiStepAttack),
+            "custom" => Some(PromptCategory::Custom),
             _ => None,
         }
     });
@@ -635,6 +639,7 @@ pub async fn get_popular_prompts_handler(
 
 pub async fn get_prompt_analytics_handler(
     State(_state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     Path(_prompt_id): Path<String>,
 ) -> impl IntoResponse {
     json_response(serde_json::json!({ "views": 0, "uses": 0, "success_rate": 0.0 })).into_response()
@@ -642,6 +647,7 @@ pub async fn get_prompt_analytics_handler(
 
 pub async fn record_prompt_usage_handler(
     State(_state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     Path(_prompt_id): Path<String>,
 ) -> impl IntoResponse {
     StatusCode::OK.into_response()

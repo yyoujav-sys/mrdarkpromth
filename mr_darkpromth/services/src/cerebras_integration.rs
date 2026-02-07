@@ -5,7 +5,7 @@ use anyhow::{Result, anyhow};
 use cerebras_client::{
     CerebrasClient as CoreClient, CerebrasConfig, ChatMessage, ChatRequest, Model, RequestIntent, Role,
 };
-use log::{info, warn, error};
+use log::{info, warn};
 use std::env;
 use std::sync::{Arc, Mutex};
 

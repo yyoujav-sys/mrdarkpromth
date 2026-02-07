@@ -266,8 +266,8 @@ impl Default for ToolRegistry {
 static mut GLOBAL_REGISTRY: Option<Arc<ToolRegistry>> = None;
 static REGISTRY_INIT: std::sync::Once = std::sync::Once::new();
 
+#[allow(static_mut_refs)]
 pub fn get_global_registry() -> Option<Arc<ToolRegistry>> {
-    #[allow(dead_code)]
     unsafe {
         REGISTRY_INIT.call_once(|| {
             GLOBAL_REGISTRY = Some(Arc::new(ToolRegistry::default()));

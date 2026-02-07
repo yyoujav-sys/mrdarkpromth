@@ -276,6 +276,29 @@ impl TierManagementService {
                     trial_days: 7,
                 }),
             },
+            UserTier::Admin => TierBenefits {
+                tier,
+                features: vec![
+                    "Unlimited AI chat".to_string(),
+                    "Unlimited API requests".to_string(),
+                    "Jailbreak access".to_string(),
+                    "Priority support".to_string(),
+                    "Advanced AI models".to_string(),
+                    "Custom prompts".to_string(),
+                    "API key management".to_string(),
+                    "Concurrent sessions".to_string(),
+                    "User management".to_string(),
+                    "System administration".to_string(),
+                ],
+                limits: TierLimits {
+                    api_requests_per_day: -1, // Unlimited
+                    jailbreak_access: true,
+                    concurrent_sessions: 10,
+                    storage_mb: 50000,
+                    support_level: "Admin".to_string(),
+                },
+                pricing: None, // Admin tier has no cost
+            },
         }
     }
 
@@ -306,9 +329,10 @@ impl TierManagementService {
         // Check if user is already at or above target tier
         match (&user.tier, &target_tier) {
             (UserTier::Ultra, _) => Ok(user.is_active), // Ultra tier has access to everything
+            (UserTier::Admin, _) => Ok(user.is_active), // Admin tier has access to everything
             (UserTier::Premium, _) => Ok(user.is_active),
             (UserTier::Free, UserTier::Free) => Ok(user.is_active),
-            (UserTier::Free, UserTier::Premium | UserTier::Ultra) => Ok(user.is_active),
+            (UserTier::Free, UserTier::Premium | UserTier::Ultra | UserTier::Admin) => Ok(user.is_active),
         }
     }
 
@@ -391,9 +415,12 @@ impl TierManagementService {
 mod tests {
     use super::*;
 
+    use super::*;
+    use crate::test_db_utils::create_test_pool;
+
     #[tokio::test]
     async fn test_validate_tier_transition() {
-        let pool = sqlx::PgPool::connect("postgresql://postgres:postgres@localhost:5432/mrdarkpromth").await.unwrap();
+        let pool = create_test_pool().await.unwrap();
         let service = TierManagementService::new(UserRepository::new(pool));
 
         assert!(service.validate_tier_transition(&UserTier::Free, &UserTier::Ultra));
@@ -404,7 +431,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_validate_promo_code() {
-        let pool = sqlx::PgPool::connect("postgresql://postgres:postgres@localhost:5432/mrdarkpromth").await.unwrap();
+        let pool = create_test_pool().await.unwrap();
         let service = TierManagementService::new(UserRepository::new(pool));
 
         assert!(service.validate_promo_code("LAUNCH2026").await);
@@ -415,7 +442,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_tier_benefits() {
-        let pool = sqlx::PgPool::connect("postgresql://postgres:postgres@localhost:5432/mrdarkpromth").await.unwrap();
+        let pool = create_test_pool().await.unwrap();
         let service = TierManagementService::new(UserRepository::new(pool));
 
         let free_benefits = service.get_tier_benefits(UserTier::Free).await;

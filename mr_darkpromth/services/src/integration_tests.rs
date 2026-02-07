@@ -44,8 +44,7 @@ impl IntegrationTestSuite {
             "Test Key".to_string()
         ).await;
         
-        let test_db_url = std::env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5432/mrdarkpromth".to_string());
+        let test_db_url = crate::test_db_utils::get_test_database_url();
         let pool = sqlx::PgPool::connect(&test_db_url).await
             .expect("Failed to create test database pool");
         let jailbreak_service = Arc::new(JailbreakPromptService::new(pool));

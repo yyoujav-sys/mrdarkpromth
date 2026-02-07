@@ -412,39 +412,72 @@ impl EmailService {
 mod tests {
     use super::*;
 
+    use super::*;
+    use crate::test_db_utils::create_test_pool;
+
     #[tokio::test]
     async fn test_create_verification_token() {
-        let pool = sqlx::PgPool::connect("postgresql://postgres:postgres@localhost:5432/mrdarkpromth").await.unwrap();
+        let pool = create_test_pool().await.unwrap();
         
-        // Use existing admin user
-        let admin_user: (Uuid,) = sqlx::query_as("SELECT id FROM users WHERE username = 'admin' LIMIT 1")
-            .fetch_one(&pool)
-            .await
-            .expect("Admin user should exist");
+        // Create a unique user for this test
+        let user_id = Uuid::new_v4();
+        let email = format!("verify_{}@example.com", user_id);
+        let username = format!("verify_user_{}", user_id);
+        let api_key = format!("api_key_verify_{}", user_id);
         
-        let service = EmailService::new_from_env(pool).unwrap();
-        let token = service.create_verification_token(admin_user.0, "admin@mrdarkpromth.ai").await.unwrap();
+        // Insert the user first
+        sqlx::query(
+            r#"
+            INSERT INTO users (id, username, email, password_hash, tier, api_key)
+            VALUES ($1, $2, $3, 'hash', 'free', $4)
+            "#
+        )
+        .bind(user_id)
+        .bind(&username)
+        .bind(&email)
+        .bind(&api_key)
+        .execute(&pool)
+        .await
+        .expect("Failed to insert test user");
 
-        assert_eq!(token.user_id, admin_user.0);
-        assert_eq!(token.email, "admin@mrdarkpromth.ai");
+        let service = EmailService::new_from_env(pool).unwrap();
+        let token = service.create_verification_token(user_id, &email).await.unwrap();
+
+        assert_eq!(token.user_id, user_id);
+        assert_eq!(token.email, email);
         assert!(!token.used);
         assert!(token.expires_at > Utc::now());
     }
 
     #[tokio::test]
     async fn test_create_password_reset_token() {
-        let pool = sqlx::PgPool::connect("postgresql://postgres:postgres@localhost:5432/mrdarkpromth").await.unwrap();
+        let pool = create_test_pool().await.unwrap();
         
-        // Use existing admin user
-        let admin_user: (Uuid,) = sqlx::query_as("SELECT id FROM users WHERE username = 'admin' LIMIT 1")
-            .fetch_one(&pool)
-            .await
-            .expect("Admin user should exist");
+        // Create a unique user for this test
+        let user_id = Uuid::new_v4();
+        let email = format!("reset_{}@example.com", user_id);
+        let username = format!("reset_user_{}", user_id);
+        let api_key = format!("api_key_reset_{}", user_id);
         
-        let service = EmailService::new_from_env(pool).unwrap();
-        let token = service.create_password_reset_token(admin_user.0).await.unwrap();
+        // Insert the user first
+        sqlx::query(
+            r#"
+            INSERT INTO users (id, username, email, password_hash, tier, api_key)
+            VALUES ($1, $2, $3, 'hash', 'free', $4)
+            "#
+        )
+        .bind(user_id)
+        .bind(&username)
+        .bind(&email)
+        .bind(&api_key)
+        .execute(&pool)
+        .await
+        .expect("Failed to insert test user");
 
-        assert_eq!(token.user_id, admin_user.0);
+        let service = EmailService::new_from_env(pool).unwrap();
+        let token = service.create_password_reset_token(user_id).await.unwrap();
+
+        assert_eq!(token.user_id, user_id);
         assert!(!token.used);
         assert!(token.expires_at > Utc::now());
     }

@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use std::net::IpAddr;
 use async_trait::async_trait;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
@@ -22,11 +23,14 @@ impl DatabaseAuditService {
 #[async_trait]
 impl crate::audit::AuditService for DatabaseAuditService {
     async fn log_audit(&self, audit_log: AuditLog) -> Result<()> {
+        let ip_address: Option<String> = audit_log
+            .ip_address
+            .and_then(|value| value.parse::<IpAddr>().ok().map(|_| value));
         let query = r#"
             INSERT INTO audit_logs (
                 id, user_id, action, severity, user_tier, ip_address, user_agent,
                 request_id, details, timestamp, success, error_message
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            ) VALUES ($1, $2, $3, $4, $5, $6::inet, $7, $8, $9, $10, $11, $12)
         "#;
 
         sqlx::query(query)
@@ -35,7 +39,7 @@ impl crate::audit::AuditService for DatabaseAuditService {
             .bind(audit_log.action.to_string())
             .bind(audit_log.severity.to_string())
             .bind(audit_log.user_tier.map(|t| t.as_str().to_string()))
-            .bind(audit_log.ip_address)
+            .bind(ip_address)
             .bind(audit_log.user_agent)
             .bind(audit_log.request_id)
             .bind(serde_json::to_value(&audit_log.details)?)

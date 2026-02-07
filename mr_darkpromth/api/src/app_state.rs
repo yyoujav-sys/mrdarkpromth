@@ -3,6 +3,8 @@ use mr_darkpromth_services::{
     BillingService, CerebrasClient, EmailService, JailbreakPromptService, MasterToolExecutor,
     RedisCoordinator, SandboxedExecutor, ToolRegistry, UltraTierLogic, UserService,
 };
+use mr_darkpromth_services::audit::AuditLogger;
+use mr_darkpromth_services::database_audit::DatabaseAuditService;
 use mr_darkpromth_db::UserRepository;
 
 #[derive(Clone)]
@@ -17,6 +19,7 @@ pub struct AppState {
     pub jailbreak_service: Arc<JailbreakPromptService>,
     pub billing_service: Arc<BillingService>,
     pub email_service: Arc<EmailService>,
+    pub audit_logger: Arc<AuditLogger>,
     pub metrics: Arc<Metrics>,
 }
 
@@ -80,16 +83,47 @@ impl AppState {
         
         let jwt_secret = std::env::var("JWT_SECRET").unwrap_or_default();
         let user_repo = UserRepository::new(pool.clone());
-        let user_service = Arc::new(UserService::new(user_repo, jwt_secret));
+        let redis_coordinator = {
+            let redis_url = std::env::var("REDIS_URL").ok();
+            if let Some(url) = redis_url {
+                match RedisCoordinator::new(&url, "api_server".to_string()) {
+                    Ok(coordinator) => Some(Arc::new(Mutex::new(coordinator))),
+                    Err(e) => {
+                        log::error!("Failed to connect to Redis: {}", e);
+                        None
+                    }
+                }
+            } else {
+                log::warn!("REDIS_URL not set, Redis features will be disabled.");
+                None
+            }
+        };
+
+        let user_service = Arc::new(UserService::new(user_repo, jwt_secret, redis_coordinator.clone()));
         let cerebras_client = CerebrasClient::new(); // Reads from env internally
         let jailbreak_service = Arc::new(JailbreakPromptService::new(pool.clone()));
         let billing_service = Arc::new(BillingService::new(pool.clone()));
         let email_service = Arc::new(EmailService::new_from_env(pool.clone()).expect("EmailService failed"));
+        let audit_logger = Arc::new(AuditLogger::new(Box::new(DatabaseAuditService::new(pool.clone()))));
         
         Self {
             user_service,
             cerebras_client,
-            redis_coordinator: None,
+            redis_coordinator: {
+                let redis_url = std::env::var("REDIS_URL").ok();
+                if let Some(url) = redis_url {
+                    match RedisCoordinator::new(&url, "api_server".to_string()) {
+                        Ok(coordinator) => Some(Arc::new(Mutex::new(coordinator))),
+                        Err(e) => {
+                            log::error!("Failed to connect to Redis: {}", e);
+                            None
+                        }
+                    }
+                } else {
+                    log::warn!("REDIS_URL not set, Redis features will be disabled.");
+                    None
+                }
+            },
             tool_registry: Arc::new(ToolRegistry::new(Default::default())),
             tool_executor: Arc::new(MasterToolExecutor::new(Default::default())),
             ultra_tier_logic: Arc::new(RwLock::new(UltraTierLogic::with_config("./memory/ultra_tier_audit.log", Arc::new(mr_darkpromth_services::KeyPool::new()), jailbreak_service.clone()))),
@@ -97,6 +131,7 @@ impl AppState {
             jailbreak_service,
             billing_service,
             email_service,
+            audit_logger,
             metrics: Arc::new(Metrics::default()),
         }
     }

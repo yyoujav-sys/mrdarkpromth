@@ -3,9 +3,12 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
+use log::warn;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use std::time::Instant;
 use uuid::Uuid;
+use mr_darkpromth_services::UserTier;
 
 use crate::AppState;
 use crate::handlers::auth::{json_response, error_response, extract_token};
@@ -41,11 +44,48 @@ pub struct VerifySlipRequest {
 
 // ==================== Chat Handler ====================
 
+use axum::extract::ConnectInfo;
+use std::net::SocketAddr;
+
 pub async fn chat_handler(
     State(state): State<Arc<AppState>>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     headers: axum::http::HeaderMap,
     Json(req): Json<ChatRequest>,
 ) -> impl IntoResponse {
+    // Rate Limiting Logic
+    if let Some(redis_coordinator) = &state.redis_coordinator {
+        if let Ok(mut locked_coordinator) = redis_coordinator.lock() {
+            if let Ok(mut conn) = locked_coordinator.get_connection() {
+                let ip = addr.ip().to_string();
+                let key = format!("rate_limit:{}", ip);
+                const MAX_REQUESTS: i64 = 30; // 30 requests
+                const WINDOW_SECS: usize = 60; // per 60 seconds
+
+                let result: redis::RedisResult<i64> = redis::cmd("INCR").arg(&key).query(&mut conn);
+
+                if let Ok(count) = result {
+                    if count == 1 {
+                        let _: redis::RedisResult<()> = redis::cmd("EXPIRE").arg(&key).arg(WINDOW_SECS).query(&mut conn);
+                    }
+                    if count > MAX_REQUESTS {
+                        return error_response(
+                            StatusCode::TOO_MANY_REQUESTS,
+                            "RATE_LIMIT_EXCEEDED",
+                            "You have made too many requests. Please try again later.",
+                        ).into_response();
+                    }
+                } else {
+                    warn!("RATE_LIMIT: Redis INCR failed. Allowing request.");
+                }
+            } else {
+                warn!("RATE_LIMIT: Failed to get Redis connection. Allowing request.");
+            }
+        } else {
+            warn!("RATE_LIMIT: Redis coordinator lock was poisoned. Allowing request.");
+        }
+    }
+
     let token = match extract_token(&headers) {
         Some(t) => t,
         None => {
@@ -73,6 +113,51 @@ pub async fn chat_handler(
         Uuid::new_v4().to_string()
     });
 
+    let request_id = Uuid::new_v4();
+    let request_id_for_response = request_id.clone();
+    let ip_address = headers
+        .get("x-real-ip")
+        .and_then(|value| value.to_str().ok())
+        .map(|value| value.to_string())
+        .or_else(|| {
+            headers
+                .get("x-forwarded-for")
+                .and_then(|value| value.to_str().ok())
+                .and_then(|value| value.split(',').next())
+                .map(|value| value.trim().to_string())
+        });
+    let user_agent = headers
+        .get(axum::http::header::USER_AGENT)
+        .and_then(|value| value.to_str().ok())
+        .map(|value| value.to_string());
+    let audit_context = match (
+        Uuid::parse_str(&claims.sub),
+        UserTier::from_str(&claims.tier),
+    ) {
+        (Ok(user_id), Ok(user_tier)) => Some((user_id, user_tier)),
+        _ => {
+            warn!("CHAT_AUDIT: Unable to parse user_id or tier for audit logging");
+            None
+        }
+    };
+    if let Some((user_id, user_tier)) = audit_context.as_ref() {
+        if let Err(err) = state
+            .audit_logger
+            .log_prompt_request(
+                user_id.clone(),
+                *user_tier,
+                request_id,
+                &req.message,
+                matches!(*user_tier, UserTier::Ultra),
+                ip_address.clone(),
+                user_agent.clone(),
+            )
+            .await
+        {
+            warn!("CHAT_AUDIT: Failed to log prompt request: {}", err);
+        }
+    }
+
     // Apply tier-specific system prompt
     let system_prompt = match claims.tier.as_str() {
         "free" => "You are a helpful AI assistant. You have limited access to advanced features.",
@@ -81,9 +166,28 @@ pub async fn chat_handler(
         _ => "You are a helpful AI assistant.",
     };
 
+    let start_time = Instant::now();
+
     // Call Cerebras API
     match state.cerebras_client.chat_completion_with_system(system_prompt, &req.message).await {
         Ok(response_text) => {
+            if let Some((user_id, user_tier)) = audit_context.as_ref() {
+                let processing_time_ms = start_time.elapsed().as_millis() as u64;
+                if let Err(err) = state
+                    .audit_logger
+                    .log_prompt_response(
+                        user_id.clone(),
+                        *user_tier,
+                        request_id_for_response,
+                        processing_time_ms,
+                        0,
+                        "cerebras",
+                    )
+                    .await
+                {
+                    warn!("CHAT_AUDIT: Failed to log prompt response: {}", err);
+                }
+            }
             let chat_response = ChatResponse {
                 response: response_text,
                 conversation_id,

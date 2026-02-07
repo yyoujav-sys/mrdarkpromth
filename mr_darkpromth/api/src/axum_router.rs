@@ -1,4 +1,5 @@
 use axum::{
+    middleware,
     routing::{get, post, put, delete},
     Router,
 };
@@ -11,15 +12,19 @@ use std::time::Duration;
 
 use crate::AppState;
 use crate::handlers;
+use crate::middleware::auth_middleware;
 
 /// Create the main Axum router with all routes
 pub fn create_router(state: Arc<AppState>) -> Router {
-    // CORS layer - In production, this should be more restrictive
+    // Dynamic CORS layer
+    let origins = std::env::var("CORS_ALLOWED_ORIGINS")
+        .unwrap_or_else(|_| "https://bt-shop-dark.online,https://www.bt-shop-dark.online".to_string())
+        .split(',')
+        .map(|s| s.parse().unwrap())
+        .collect::<Vec<_>>();
+
     let cors = CorsLayer::new()
-        .allow_origin([
-            "https://bt-shop-dark.online".parse().unwrap(),
-            "https://www.bt-shop-dark.online".parse().unwrap(),
-        ])
+        .allow_origin(origins)
         .allow_methods([
             axum::http::Method::GET,
             axum::http::Method::POST,
@@ -34,23 +39,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         ])
         .max_age(Duration::from_secs(3600));
 
-    // Build the router with all routes
-    Router::new()
-        // Public routes
-        .route("/", get(handlers::root_handler))
-        .route("/health", get(handlers::health_handler))
-        .route("/api/auth/register", post(handlers::register_handler))
-        .route("/api/auth/login", post(handlers::login_handler))
-        .route("/api/auth/logout", post(handlers::logout_handler))
-        .route("/api/auth/verify-email", post(handlers::verify_email_handler))
-        .route("/api/auth/resend-verification", post(handlers::resend_verification_handler))
-        .route("/api/auth/request-password-reset", post(handlers::request_password_reset_handler))
-        .route("/api/auth/reset-password", post(handlers::reset_password_handler))
-        .route("/api/users/:id", get(handlers::get_user_info_handler))
-        .route("/api/billing/plans", get(handlers::list_plans_handler))
-        .route("/api/billing/plans/:id", get(handlers::get_plan_handler))
-        .route("/metrics", get(handlers::metrics_handler))
-        // Protected routes (auth handled within handlers for now)
+    let protected_routes = Router::new()
         .route("/api/auth/me", get(handlers::get_me_handler).put(handlers::update_profile_handler))
         .route("/api/users/me/password", put(handlers::change_password_handler))
         .route("/api/users/me/api-key", post(handlers::regenerate_api_key_handler))
@@ -80,6 +69,26 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/admin/users/:id", delete(handlers::admin_delete_user_handler))
         .route("/api/admin/users/:id/status", put(handlers::admin_update_user_status_handler))
         .route("/api/admin/metrics", get(handlers::admin_metrics_handler))
+        .route_layer(middleware::from_fn_with_state(state.clone(), auth_middleware));
+
+    // Build the router with all routes
+    Router::new()
+        // Public routes
+        .route("/", get(handlers::root_handler))
+        .route("/health", get(handlers::health_handler))
+        .route("/api/auth/register", post(handlers::register_handler))
+        .route("/api/auth/login", post(handlers::login_handler))
+        .route("/api/auth/logout", post(handlers::logout_handler))
+        .route("/api/auth/verify-email", post(handlers::verify_email_handler))
+        .route("/api/auth/resend-verification", post(handlers::resend_verification_handler))
+        .route("/api/auth/request-password-reset", post(handlers::request_password_reset_handler))
+        .route("/api/auth/reset-password", post(handlers::reset_password_handler))
+        .route("/api/users/:id", get(handlers::get_user_info_handler))
+        .route("/api/billing/plans", get(handlers::list_plans_handler))
+        .route("/api/billing/plans/:id", get(handlers::get_plan_handler))
+        .route("/metrics", get(handlers::metrics_handler))
+        // Merge protected routes
+        .merge(protected_routes)
         .with_state(state)
         .layer(cors)
         .layer(TraceLayer::new_for_http())

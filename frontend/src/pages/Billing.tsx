@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { CreditCard, QrCode, Upload, CheckCircle, AlertCircle, Loader } from 'lucide-react'
 import { apiClient } from '../lib/api'
 
@@ -21,71 +21,9 @@ interface QRPaymentData {
   expires_at: string
 }
 
-const PLANS: Plan[] = [
-  {
-    id: 'premium-monthly',
-    name: 'Premium',
-    tier: 'premium',
-    price: 9.99,
-    features: [
-      'Advanced AI features',
-      'Higher rate limits',
-      'Priority support',
-      'Custom models',
-      '10 concurrent requests',
-    ],
-    duration: 'month',
-  },
-  {
-    id: 'premium-yearly',
-    name: 'Premium (Yearly)',
-    tier: 'premium',
-    price: 99.99,
-    features: [
-      'Advanced AI features',
-      'Higher rate limits',
-      'Priority support',
-      'Custom models',
-      '10 concurrent requests',
-      '2 months free',
-    ],
-    duration: 'year',
-  },
-  {
-    id: 'ultra-monthly',
-    name: 'Ultra',
-    tier: 'ultra',
-    price: 29.99,
-    features: [
-      'All Premium features',
-      'Jailbreak prompt access',
-      'Unlimited rate limits',
-      '50 concurrent requests',
-      'API access',
-      'Dedicated support',
-    ],
-    duration: 'month',
-  },
-  {
-    id: 'ultra-yearly',
-    name: 'Ultra (Yearly)',
-    tier: 'ultra',
-    price: 299.99,
-    features: [
-      'All Premium features',
-      'Jailbreak prompt access',
-      'Unlimited rate limits',
-      '50 concurrent requests',
-      'API access',
-      'Dedicated support',
-      '3 months free',
-    ],
-    duration: 'year',
-  },
-]
-
 export const Billing: React.FC = () => {
   const [step, setStep] = useState<BillingStep>('select-plan')
+  const [plans, setPlans] = useState<Plan[]>([])
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null)
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'qr-code'>('qr-code')
   const [qrData, setQrData] = useState<QRPaymentData | null>(null)
@@ -94,6 +32,32 @@ export const Billing: React.FC = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+
+  // Fetch plans from backend on component mount
+  useEffect(() => {
+    const fetchPlans = async () => {
+      try {
+        setLoading(true)
+        const response = await apiClient.getPlans()
+        // Transform backend plans to frontend format
+        const transformedPlans: Plan[] = response.plans.map((plan: any) => ({
+          id: plan.id,
+          name: plan.name,
+          tier: plan.tier.toLowerCase() as 'premium' | 'ultra',
+          price: parseFloat(plan.price),
+          features: Array.isArray(plan.features) ? plan.features : [],
+          duration: 'month', // Default to month, can be enhanced later
+        }))
+        setPlans(transformedPlans)
+      } catch (err: any) {
+        setError(err.response?.data?.message || 'Failed to load plans')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchPlans()
+  }, [])
 
   const handleSelectPlan = (plan: Plan) => {
     setSelectedPlan(plan)
@@ -206,8 +170,19 @@ export const Billing: React.FC = () => {
       {step === 'select-plan' && (
         <div>
           <h2 className="text-2xl font-bold text-white mb-6">Choose Your Plan</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {PLANS.map((plan) => (
+          {loading ? (
+            <div className="flex justify-center items-center py-12">
+              <Loader className="h-8 w-8 text-neon-purple animate-spin" />
+              <span className="ml-3 text-gray-400">Loading plans...</span>
+            </div>
+          ) : plans.length === 0 ? (
+            <div className="text-center py-12">
+              <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-400">No plans available at the moment.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {plans.map((plan) => (
               <div
                 key={plan.id}
                 className={`rounded-lg border p-6 transition-all cursor-pointer ${
@@ -238,7 +213,8 @@ export const Billing: React.FC = () => {
                 </button>
               </div>
             ))}
-          </div>
+            </div>
+          )}
 
           {selectedPlan && (
             <div className="mt-6 flex justify-end">

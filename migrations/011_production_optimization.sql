@@ -7,15 +7,15 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_users_created_at_tier ON users(creat
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_users_email_active ON users(email, is_active) WHERE is_active = true;
 
 -- Audit logs optimization for security monitoring
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_audit_logs_user_timestamp ON audit_logs(user_id, timestamp DESC);
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_audit_logs_action_timestamp ON audit_logs(action, timestamp DESC);
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_audit_logs_severity_timestamp ON audit_logs(severity, timestamp DESC);
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_audit_logs_success_timestamp ON audit_logs(success, timestamp DESC) WHERE success = false;
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_audit_logs_user_timestamp ON audit_logs(user_id, "timestamp" DESC);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_audit_logs_action_timestamp ON audit_logs(action, "timestamp" DESC);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_audit_logs_severity_timestamp ON audit_logs(severity, "timestamp" DESC);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_audit_logs_success_timestamp ON audit_logs(success, "timestamp" DESC) WHERE success = false;
 
 -- Chat sessions and messages optimization
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_chat_sessions_user_created ON chat_sessions(user_id, created_at DESC);
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_chat_messages_session_timestamp ON chat_messages(session_id, timestamp DESC);
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_chat_messages_session_created ON chat_messages(session_id, created_at DESC);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_chat_messages_user_created ON chat_messages(user_id, created_at DESC);
 
 -- Payment and billing optimization
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_payments_user_status_created ON payments(user_id, status, created_at DESC);
@@ -28,7 +28,7 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_email_tokens_user_expires ON email_v
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_password_tokens_user_expires ON password_reset_tokens(user_id, expires_at);
 
 -- Jailbreak prompts optimization
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_jailbreak_prompts_category_effectiveness ON jailbreak_prompts(category, effectiveness_rating);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_jailbreak_prompts_category_effectiveness ON jailbreak_prompts(category, effectiveness);
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_jailbreak_prompts_risk_level ON jailbreak_prompts(risk_level) WHERE risk_level IN ('high', 'critical');
 
 -- Ultra tier optimization
@@ -41,8 +41,8 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_errors_severity_timestamp ON errors(
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_fixes_error_id ON fixes(error_id);
 
 -- Prompt usage optimization
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_prompt_usage_user_timestamp ON prompt_usage_records(user_id, timestamp DESC);
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_prompt_usage_model_timestamp ON prompt_usage_records(model_used, timestamp DESC);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_prompt_usage_user_timestamp ON prompt_usage_records(user_id, used_at DESC);
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_prompt_usage_model_timestamp ON prompt_usage_records(target_model, used_at DESC);
 
 -- Partitioning strategy for audit logs (for high-volume production)
 -- Uncomment if you expect high audit log volume
@@ -90,7 +90,7 @@ SELECT
     u.created_at as user_created_at,
     COUNT(DISTINCT cs.id) as session_count,
     COUNT(DISTINCT cm.id) as message_count,
-    MAX(cm.timestamp) as last_activity,
+    MAX(cm.created_at) as last_activity,
     COUNT(DISTINCT al.id) as audit_event_count
 FROM users u
 LEFT JOIN chat_sessions cs ON u.id = cs.user_id
@@ -122,7 +122,7 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_users_composite_tier_active_created
 ON users(tier, is_active, created_at DESC);
 
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_audit_logs_composite_severity_time 
-ON audit_logs(severity, timestamp DESC) WHERE severity IN ('high', 'critical');
+ON audit_logs(severity, "timestamp" DESC) WHERE severity IN ('high', 'critical');
 
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_payments_composite_status_time 
 ON payments(status, created_at DESC);

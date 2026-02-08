@@ -1,3 +1,4 @@
+use dotenvy::dotenv;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::net::TcpListener;
@@ -7,6 +8,7 @@ use mr_darkpromth_api::AppState;
 
 #[tokio::main]
 async fn main() {
+    dotenv().ok();
     env_logger::init();
     log::info!("🚀 Starting MR.DarkPromth Axum API Gateway");
 

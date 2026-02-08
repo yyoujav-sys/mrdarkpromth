@@ -1,4 +1,5 @@
-use std::sync::{Arc, Mutex, RwLock, atomic::AtomicU64};
+use std::sync::{Arc, RwLock, atomic::AtomicU64};
+use tokio::sync::Mutex;
 use mr_darkpromth_services::{
     BillingService, CerebrasClient, EmailService, JailbreakPromptService, MasterToolExecutor,
     RedisCoordinator, SandboxedExecutor, ToolRegistry, UltraTierLogic, UserService,

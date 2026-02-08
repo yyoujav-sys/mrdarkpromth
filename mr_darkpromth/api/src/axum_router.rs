@@ -17,11 +17,11 @@ use crate::middleware::auth_middleware;
 /// Create the main Axum router with all routes
 pub fn create_router(state: Arc<AppState>) -> Router {
     // Dynamic CORS layer
-    let origins = std::env::var("CORS_ALLOWED_ORIGINS")
-        .unwrap_or_else(|_| "https://bt-shop-dark.online,https://www.bt-shop-dark.online".to_string())
-        .split(',')
-        .map(|s| s.parse().unwrap())
-        .collect::<Vec<_>>();
+    let origins = [
+        "http://localhost:3000".parse().unwrap(),
+        "http://localhost:8080".parse().unwrap(),
+        "http://localhost:8081".parse().unwrap(),
+    ];
 
     let cors = CorsLayer::new()
         .allow_origin(origins)
@@ -78,6 +78,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/health", get(handlers::health_handler))
         .route("/api/auth/register", post(handlers::register_handler))
         .route("/api/auth/login", post(handlers::login_handler))
+        .route("/api/auth/refresh", post(handlers::refresh_handler))
         .route("/api/auth/logout", post(handlers::logout_handler))
         .route("/api/auth/verify-email", post(handlers::verify_email_handler))
         .route("/api/auth/resend-verification", post(handlers::resend_verification_handler))

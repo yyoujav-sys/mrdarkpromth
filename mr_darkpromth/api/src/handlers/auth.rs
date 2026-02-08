@@ -1,9 +1,11 @@
 use axum::{
     extract::{State, Json, Path},
     http::StatusCode,
-    response::IntoResponse,
+    response::{IntoResponse, Response},
+    debug_handler,
 };
 use serde::{Deserialize, Serialize};
+use tokio::sync::Mutex;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -27,7 +29,13 @@ pub struct LoginRequest {
 #[derive(Debug, Serialize)]
 pub struct AuthResponse {
     pub token: String,
+    pub refresh_token: String,
     pub user: UserResponse,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RefreshRequest {
+    pub refresh_token: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -135,6 +143,7 @@ pub async fn register_handler(
         Ok(auth_response) => {
             let response = AuthResponse {
                 token: auth_response.token,
+                refresh_token: auth_response.refresh_token,
                 user: UserResponse {
                     id: auth_response.user.id.to_string(),
                     email: auth_response.user.email,
@@ -167,6 +176,7 @@ pub async fn login_handler(
         Ok(auth_response) => {
             let response = AuthResponse {
                 token: auth_response.token,
+                refresh_token: auth_response.refresh_token,
                 user: UserResponse {
                     id: auth_response.user.id.to_string(),
                     email: auth_response.user.email,
@@ -181,6 +191,34 @@ pub async fn login_handler(
             StatusCode::UNAUTHORIZED,
             "INVALID_CREDENTIALS",
             "Invalid email or password",
+        ).into_response(),
+    }
+}
+
+#[debug_handler]
+pub async fn refresh_handler(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<RefreshRequest>,
+) -> Response {
+    match state.user_service.refresh_token(&req.refresh_token).await {
+        Ok(auth_response) => {
+            let response = AuthResponse {
+                token: auth_response.token,
+                refresh_token: auth_response.refresh_token,
+                user: UserResponse {
+                    id: auth_response.user.id.to_string(),
+                    email: auth_response.user.email,
+                    username: auth_response.user.username,
+                    tier: auth_response.user.tier.to_string(),
+                    verified: auth_response.user.is_active,
+                },
+            };
+            json_response(response).into_response()
+        }
+        Err(_) => error_response(
+            StatusCode::UNAUTHORIZED,
+            "INVALID_TOKEN",
+            "Invalid or expired refresh token",
         ).into_response(),
     }
 }
@@ -203,9 +241,10 @@ pub async fn logout_handler(
 
     if let Ok(claims) = state.user_service.validate_token(&token).await {
         if let Some(redis_coordinator) = &state.redis_coordinator {
-            let mut coordinator = redis_coordinator.lock().unwrap();
+            let mut coordinator = redis_coordinator.lock().await;
             let key = format!("jti:{}", claims.jti);
-            let _: Result<(), _> = coordinator.del(&key);
+            let _ = coordinator.del(&key);
+            drop(coordinator);
         }
     }
 

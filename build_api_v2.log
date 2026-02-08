@@ -1,0 +1,996 @@
+ Image mrdarkpromth-api Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 508B done
+#1 DONE 0.0s
+
+#2 [internal] load build definition from Dockerfile
+#2 transferring dockerfile: 2.52kB 0.0s done
+#2 WARN: FromAsCasing: 'as' and 'FROM' keywords' casing do not match (line 2)
+#2 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/rust:1.83-slim
+#3 ...
+
+#4 [internal] load metadata for docker.io/library/debian:bookworm-slim
+#4 DONE 0.9s
+
+#3 [internal] load metadata for docker.io/library/rust:1.83-slim
+#3 DONE 0.9s
+
+#5 [internal] load .dockerignore
+#5 transferring context: 390B done
+#5 DONE 0.0s
+
+#6 [builder  1/15] FROM docker.io/library/rust:1.83-slim@sha256:540c902e99c384163b688bbd8b5b8520e94e7731b27f7bd0eaa56ae1960627ab
+#6 DONE 0.0s
+
+#7 [internal] load build context
+#7 DONE 0.0s
+
+#8 [stage-1 1/8] FROM docker.io/library/debian:bookworm-slim@sha256:98f4b71de414932439ac6ac690d7060df1f27161073c5036a7553723881bffbe
+#8 DONE 0.0s
+
+#8 [stage-1 1/8] FROM docker.io/library/debian:bookworm-slim@sha256:98f4b71de414932439ac6ac690d7060df1f27161073c5036a7553723881bffbe
+#8 CACHED
+
+#9 [builder  2/15] WORKDIR /app
+#9 CACHED
+
+#7 [internal] load build context
+#7 transferring context: 12.03kB 0.1s done
+#7 DONE 0.1s
+
+#10 [builder  3/15] RUN apt-get update && apt-get install -y     pkg-config     libssl-dev     protobuf-compiler     && rm -rf /var/lib/apt/lists/*
+#10 1.232 Get:1 http://deb.debian.org/debian bookworm InRelease [151 kB]
+#10 1.310 Get:2 http://deb.debian.org/debian bookworm-updates InRelease [55.4 kB]
+#10 1.341 Get:3 http://deb.debian.org/debian-security bookworm-security InRelease [48.0 kB]
+#10 1.474 Get:4 http://deb.debian.org/debian bookworm/main amd64 Packages [8792 kB]
+#10 1.829 Get:5 http://deb.debian.org/debian bookworm-updates/main amd64 Packages [6924 B]
+#10 1.960 Get:6 http://deb.debian.org/debian-security bookworm-security/main amd64 Packages [293 kB]
+#10 3.537 Fetched 9346 kB in 2s (3941 kB/s)
+#10 3.537 Reading package lists...
+#10 4.699 Reading package lists...
+#10 5.891 Building dependency tree...
+#10 6.185 Reading state information...
+#10 6.766 The following additional packages will be installed:
+#10 6.766   libpkgconf3 libprotobuf-dev libprotobuf-lite32 libprotobuf32 libprotoc32
+#10 6.766   libssl3 openssl pkgconf pkgconf-bin zlib1g-dev
+#10 6.766 Suggested packages:
+#10 6.766   libssl-doc protobuf-mode-el
+#10 7.126 The following NEW packages will be installed:
+#10 7.129   libpkgconf3 libprotobuf-dev libprotobuf-lite32 libprotobuf32 libprotoc32
+#10 7.130   libssl-dev pkg-config pkgconf pkgconf-bin protobuf-compiler zlib1g-dev
+#10 7.134 The following packages will be upgraded:
+#10 7.135   libssl3 openssl
+#10 7.215 2 upgraded, 11 newly installed, 0 to remove and 57 not upgraded.
+#10 7.215 Need to get 10.3 MB of archives.
+#10 7.215 After this operation, 33.9 MB of additional disk space will be used.
+#10 7.215 Get:1 http://deb.debian.org/debian bookworm/main amd64 libpkgconf3 amd64 1.8.1-1 [36.1 kB]
+#10 7.248 Get:2 http://deb.debian.org/debian bookworm/main amd64 zlib1g-dev amd64 1:1.2.13.dfsg-1 [916 kB]
+#10 7.344 Get:3 http://deb.debian.org/debian bookworm/main amd64 libprotobuf32 amd64 3.21.12-3 [932 kB]
+#10 7.370 Get:4 http://deb.debian.org/debian bookworm/main amd64 libprotobuf-lite32 amd64 3.21.12-3 [261 kB]
+#10 7.374 Get:5 http://deb.debian.org/debian bookworm/main amd64 libprotobuf-dev amd64 3.21.12-3 [1283 kB]
+#10 7.400 Get:6 http://deb.debian.org/debian bookworm/main amd64 libprotoc32 amd64 3.21.12-3 [829 kB]
+#10 7.417 Get:7 http://deb.debian.org/debian-security bookworm-security/main amd64 libssl3 amd64 3.0.18-1~deb12u2 [2030 kB]
+#10 7.440 Get:8 http://deb.debian.org/debian-security bookworm-security/main amd64 libssl-dev amd64 3.0.18-1~deb12u2 [2444 kB]
+#10 7.462 Get:9 http://deb.debian.org/debian-security bookworm-security/main amd64 openssl amd64 3.0.18-1~deb12u2 [1433 kB]
+#10 7.471 Get:10 http://deb.debian.org/debian bookworm/main amd64 pkgconf-bin amd64 1.8.1-1 [29.5 kB]
+#10 7.475 Get:11 http://deb.debian.org/debian bookworm/main amd64 pkgconf amd64 1.8.1-1 [25.9 kB]
+#10 7.475 Get:12 http://deb.debian.org/debian bookworm/main amd64 pkg-config amd64 1.8.1-1 [13.7 kB]
+#10 7.475 Get:13 http://deb.debian.org/debian bookworm/main amd64 protobuf-compiler amd64 3.21.12-3 [83.9 kB]
+#10 7.928 debconf: delaying package configuration, since apt-utils is not installed
+#10 7.989 Fetched 10.3 MB in 0s (31.3 MB/s)
+#10 8.040 Selecting previously unselected package libpkgconf3:amd64.
+#10 8.041 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 9027 files and directories currently installed.)
+#10 8.106 Preparing to unpack .../00-libpkgconf3_1.8.1-1_amd64.deb ...
+#10 8.109 Unpacking libpkgconf3:amd64 (1.8.1-1) ...
+#10 8.151 Selecting previously unselected package zlib1g-dev:amd64.
+#10 8.151 Preparing to unpack .../01-zlib1g-dev_1%3a1.2.13.dfsg-1_amd64.deb ...
+#10 8.159 Unpacking zlib1g-dev:amd64 (1:1.2.13.dfsg-1) ...
+#10 8.262 Selecting previously unselected package libprotobuf32:amd64.
+#10 8.267 Preparing to unpack .../02-libprotobuf32_3.21.12-3_amd64.deb ...
+#10 8.271 Unpacking libprotobuf32:amd64 (3.21.12-3) ...
+#10 8.515 Selecting previously unselected package libprotobuf-lite32:amd64.
+#10 8.517 Preparing to unpack .../03-libprotobuf-lite32_3.21.12-3_amd64.deb ...
+#10 8.527 Unpacking libprotobuf-lite32:amd64 (3.21.12-3) ...
+#10 8.622 Selecting previously unselected package libprotobuf-dev:amd64.
+#10 8.624 Preparing to unpack .../04-libprotobuf-dev_3.21.12-3_amd64.deb ...
+#10 8.626 Unpacking libprotobuf-dev:amd64 (3.21.12-3) ...
+#10 9.016 Selecting previously unselected package libprotoc32:amd64.
+#10 9.020 Preparing to unpack .../05-libprotoc32_3.21.12-3_amd64.deb ...
+#10 9.024 Unpacking libprotoc32:amd64 (3.21.12-3) ...
+#10 9.244 Preparing to unpack .../06-libssl3_3.0.18-1~deb12u2_amd64.deb ...
+#10 9.251 Unpacking libssl3:amd64 (3.0.18-1~deb12u2) over (3.0.15-1~deb12u1) ...
+#10 ...
+
+#11 [stage-1 2/8] RUN apt-get update && apt-get install -y     ca-certificates     curl     libssl3     && rm -rf /var/lib/apt/lists/*
+#11 1.221 Get:1 http://deb.debian.org/debian bookworm InRelease [151 kB]
+#11 1.305 Get:2 http://deb.debian.org/debian bookworm-updates InRelease [55.4 kB]
+#11 1.337 Get:3 http://deb.debian.org/debian-security bookworm-security InRelease [48.0 kB]
+#11 1.463 Get:4 http://deb.debian.org/debian bookworm/main amd64 Packages [8792 kB]
+#11 1.788 Get:5 http://deb.debian.org/debian bookworm-updates/main amd64 Packages [6924 B]
+#11 1.953 Get:6 http://deb.debian.org/debian-security bookworm-security/main amd64 Packages [293 kB]
+#11 3.625 Fetched 9346 kB in 2s (3739 kB/s)
+#11 3.625 Reading package lists...
+#11 4.826 Reading package lists...
+#11 6.021 Building dependency tree...
+#11 6.388 Reading state information...
+#11 6.935 The following additional packages will be installed:
+#11 6.938   krb5-locales libbrotli1 libcurl4 libgssapi-krb5-2 libk5crypto3 libkeyutils1
+#11 6.938   libkrb5-3 libkrb5support0 libldap-2.5-0 libldap-common libnghttp2-14 libpsl5
+#11 6.938   librtmp1 libsasl2-2 libsasl2-modules libsasl2-modules-db libssh2-1 openssl
+#11 6.939   publicsuffix
+#11 6.944 Suggested packages:
+#11 6.944   krb5-doc krb5-user libsasl2-modules-gssapi-mit
+#11 6.944   | libsasl2-modules-gssapi-heimdal libsasl2-modules-ldap libsasl2-modules-otp
+#11 6.944   libsasl2-modules-sql
+#11 7.261 The following NEW packages will be installed:
+#11 7.261   ca-certificates curl krb5-locales libbrotli1 libcurl4 libgssapi-krb5-2
+#11 7.261   libk5crypto3 libkeyutils1 libkrb5-3 libkrb5support0 libldap-2.5-0
+#11 7.263   libldap-common libnghttp2-14 libpsl5 librtmp1 libsasl2-2 libsasl2-modules
+#11 7.264   libsasl2-modules-db libssh2-1 libssl3 openssl publicsuffix
+#11 7.355 0 upgraded, 22 newly installed, 0 to remove and 0 not upgraded.
+#11 7.355 Need to get 6111 kB of archives.
+#11 7.355 After this operation, 15.7 MB of additional disk space will be used.
+#11 7.355 Get:1 http://deb.debian.org/debian-security bookworm-security/main amd64 libssl3 amd64 3.0.18-1~deb12u2 [2030 kB]
+#11 7.527 Get:2 http://deb.debian.org/debian-security bookworm-security/main amd64 openssl amd64 3.0.18-1~deb12u2 [1433 kB]
+#11 7.540 Get:3 http://deb.debian.org/debian bookworm/main amd64 ca-certificates all 20230311+deb12u1 [155 kB]
+#11 7.569 Get:4 http://deb.debian.org/debian bookworm/main amd64 krb5-locales all 1.20.1-2+deb12u4 [63.4 kB]
+#11 7.573 Get:5 http://deb.debian.org/debian bookworm/main amd64 libbrotli1 amd64 1.0.9-2+b6 [275 kB]
+#11 7.577 Get:6 http://deb.debian.org/debian bookworm/main amd64 libkrb5support0 amd64 1.20.1-2+deb12u4 [33.2 kB]
+#11 7.579 Get:7 http://deb.debian.org/debian bookworm/main amd64 libk5crypto3 amd64 1.20.1-2+deb12u4 [79.8 kB]
+#11 7.582 Get:8 http://deb.debian.org/debian bookworm/main amd64 libkeyutils1 amd64 1.6.3-2 [8808 B]
+#11 7.583 Get:9 http://deb.debian.org/debian bookworm/main amd64 libkrb5-3 amd64 1.20.1-2+deb12u4 [334 kB]
+#11 7.588 Get:10 http://deb.debian.org/debian bookworm/main amd64 libgssapi-krb5-2 amd64 1.20.1-2+deb12u4 [135 kB]
+#11 7.591 Get:11 http://deb.debian.org/debian bookworm/main amd64 libsasl2-modules-db amd64 2.1.28+dfsg-10 [20.3 kB]
+#11 7.592 Get:12 http://deb.debian.org/debian bookworm/main amd64 libsasl2-2 amd64 2.1.28+dfsg-10 [59.7 kB]
+#11 7.594 Get:13 http://deb.debian.org/debian bookworm/main amd64 libldap-2.5-0 amd64 2.5.13+dfsg-5 [183 kB]
+#11 7.600 Get:14 http://deb.debian.org/debian bookworm/main amd64 libnghttp2-14 amd64 1.52.0-1+deb12u2 [73.0 kB]
+#11 7.622 Get:15 http://deb.debian.org/debian bookworm/main amd64 libpsl5 amd64 0.21.2-1 [58.7 kB]
+#11 7.625 Get:16 http://deb.debian.org/debian bookworm/main amd64 librtmp1 amd64 2.4+20151223.gitfa8646d.1-2+b2 [60.8 kB]
+#11 7.626 Get:17 http://deb.debian.org/debian bookworm/main amd64 libssh2-1 amd64 1.10.0-3+b1 [179 kB]
+#11 7.629 Get:18 http://deb.debian.org/debian bookworm/main amd64 libcurl4 amd64 7.88.1-10+deb12u14 [392 kB]
+#11 7.633 Get:19 http://deb.debian.org/debian bookworm/main amd64 curl amd64 7.88.1-10+deb12u14 [316 kB]
+#11 7.636 Get:20 http://deb.debian.org/debian bookworm/main amd64 libldap-common all 2.5.13+dfsg-5 [29.3 kB]
+#11 7.637 Get:21 http://deb.debian.org/debian bookworm/main amd64 libsasl2-modules amd64 2.1.28+dfsg-10 [66.6 kB]
+#11 7.639 Get:22 http://deb.debian.org/debian bookworm/main amd64 publicsuffix all 20230209.2326-1 [126 kB]
+#11 7.970 debconf: delaying package configuration, since apt-utils is not installed
+#11 8.029 Fetched 6111 kB in 0s (17.4 MB/s)
+#11 8.076 Selecting previously unselected package libssl3:amd64.
+#11 8.079 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 6096 files and directories currently installed.)
+#11 8.122 Preparing to unpack .../00-libssl3_3.0.18-1~deb12u2_amd64.deb ...
+#11 8.129 Unpacking libssl3:amd64 (3.0.18-1~deb12u2) ...
+#11 8.535 Selecting previously unselected package openssl.
+#11 8.537 Preparing to unpack .../01-openssl_3.0.18-1~deb12u2_amd64.deb ...
+#11 8.547 Unpacking openssl (3.0.18-1~deb12u2) ...
+#11 8.779 Selecting previously unselected package ca-certificates.
+#11 8.782 Preparing to unpack .../02-ca-certificates_20230311+deb12u1_all.deb ...
+#11 8.786 Unpacking ca-certificates (20230311+deb12u1) ...
+#11 8.950 Selecting previously unselected package krb5-locales.
+#11 8.954 Preparing to unpack .../03-krb5-locales_1.20.1-2+deb12u4_all.deb ...
+#11 8.963 Unpacking krb5-locales (1.20.1-2+deb12u4) ...
+#11 9.046 Selecting previously unselected package libbrotli1:amd64.
+#11 9.049 Preparing to unpack .../04-libbrotli1_1.0.9-2+b6_amd64.deb ...
+#11 9.053 Unpacking libbrotli1:amd64 (1.0.9-2+b6) ...
+#11 9.146 Selecting previously unselected package libkrb5support0:amd64.
+#11 9.149 Preparing to unpack .../05-libkrb5support0_1.20.1-2+deb12u4_amd64.deb ...
+#11 9.152 Unpacking libkrb5support0:amd64 (1.20.1-2+deb12u4) ...
+#11 9.213 Selecting previously unselected package libk5crypto3:amd64.
+#11 9.215 Preparing to unpack .../06-libk5crypto3_1.20.1-2+deb12u4_amd64.deb ...
+#11 9.217 Unpacking libk5crypto3:amd64 (1.20.1-2+deb12u4) ...
+#11 9.266 Selecting previously unselected package libkeyutils1:amd64.
+#11 9.268 Preparing to unpack .../07-libkeyutils1_1.6.3-2_amd64.deb ...
+#11 9.275 Unpacking libkeyutils1:amd64 (1.6.3-2) ...
+#11 9.315 Selecting previously unselected package libkrb5-3:amd64.
+#11 9.316 Preparing to unpack .../08-libkrb5-3_1.20.1-2+deb12u4_amd64.deb ...
+#11 9.320 Unpacking libkrb5-3:amd64 (1.20.1-2+deb12u4) ...
+#11 9.404 Selecting previously unselected package libgssapi-krb5-2:amd64.
+#11 9.406 Preparing to unpack .../09-libgssapi-krb5-2_1.20.1-2+deb12u4_amd64.deb ...
+#11 9.410 Unpacking libgssapi-krb5-2:amd64 (1.20.1-2+deb12u4) ...
+#11 9.475 Selecting previously unselected package libsasl2-modules-db:amd64.
+#11 9.481 Preparing to unpack .../10-libsasl2-modules-db_2.1.28+dfsg-10_amd64.deb ...
+#11 9.482 Unpacking libsasl2-modules-db:amd64 (2.1.28+dfsg-10) ...
+#11 9.519 Selecting previously unselected package libsasl2-2:amd64.
+#11 9.521 Preparing to unpack .../11-libsasl2-2_2.1.28+dfsg-10_amd64.deb ...
+#11 9.529 Unpacking libsasl2-2:amd64 (2.1.28+dfsg-10) ...
+#11 9.583 Selecting previously unselected package libldap-2.5-0:amd64.
+#11 9.587 Preparing to unpack .../12-libldap-2.5-0_2.5.13+dfsg-5_amd64.deb ...
+#11 9.594 Unpacking libldap-2.5-0:amd64 (2.5.13+dfsg-5) ...
+#11 9.682 Selecting previously unselected package libnghttp2-14:amd64.
+#11 9.688 Preparing to unpack .../13-libnghttp2-14_1.52.0-1+deb12u2_amd64.deb ...
+#11 ...
+
+#10 [builder  3/15] RUN apt-get update && apt-get install -y     pkg-config     libssl-dev     protobuf-compiler     && rm -rf /var/lib/apt/lists/*
+#10 9.602 Selecting previously unselected package libssl-dev:amd64.
+#10 9.606 Preparing to unpack .../07-libssl-dev_3.0.18-1~deb12u2_amd64.deb ...
+#10 9.608 Unpacking libssl-dev:amd64 (3.0.18-1~deb12u2) ...
+#10 10.12 Preparing to unpack .../08-openssl_3.0.18-1~deb12u2_amd64.deb ...
+#10 10.18 Unpacking openssl (3.0.18-1~deb12u2) over (3.0.15-1~deb12u1) ...
+#10 10.51 Selecting previously unselected package pkgconf-bin.
+#10 10.51 Preparing to unpack .../09-pkgconf-bin_1.8.1-1_amd64.deb ...
+#10 10.52 Unpacking pkgconf-bin (1.8.1-1) ...
+#10 10.55 Selecting previously unselected package pkgconf:amd64.
+#10 10.55 Preparing to unpack .../10-pkgconf_1.8.1-1_amd64.deb ...
+#10 10.56 Unpacking pkgconf:amd64 (1.8.1-1) ...
+#10 10.61 Selecting previously unselected package pkg-config:amd64.
+#10 10.61 Preparing to unpack .../11-pkg-config_1.8.1-1_amd64.deb ...
+#10 10.62 Unpacking pkg-config:amd64 (1.8.1-1) ...
+#10 10.66 Selecting previously unselected package protobuf-compiler.
+#10 10.66 Preparing to unpack .../12-protobuf-compiler_3.21.12-3_amd64.deb ...
+#10 10.67 Unpacking protobuf-compiler (3.21.12-3) ...
+#10 10.73 Setting up libssl3:amd64 (3.0.18-1~deb12u2) ...
+#10 10.74 Setting up libpkgconf3:amd64 (1.8.1-1) ...
+#10 10.75 Setting up libssl-dev:amd64 (3.0.18-1~deb12u2) ...
+#10 10.76 Setting up pkgconf-bin (1.8.1-1) ...
+#10 10.76 Setting up zlib1g-dev:amd64 (1:1.2.13.dfsg-1) ...
+#10 10.77 Setting up libprotobuf32:amd64 (3.21.12-3) ...
+#10 10.78 Setting up libprotobuf-lite32:amd64 (3.21.12-3) ...
+#10 10.79 Setting up openssl (3.0.18-1~deb12u2) ...
+#10 10.80 Setting up libprotoc32:amd64 (3.21.12-3) ...
+#10 10.81 Setting up protobuf-compiler (3.21.12-3) ...
+#10 10.82 Setting up pkgconf:amd64 (1.8.1-1) ...
+#10 10.82 Setting up libprotobuf-dev:amd64 (3.21.12-3) ...
+#10 10.83 Setting up pkg-config:amd64 (1.8.1-1) ...
+#10 10.83 Processing triggers for libc-bin (2.36-9+deb12u9) ...
+#10 DONE 11.1s
+
+#11 [stage-1 2/8] RUN apt-get update && apt-get install -y     ca-certificates     curl     libssl3     && rm -rf /var/lib/apt/lists/*
+#11 9.694 Unpacking libnghttp2-14:amd64 (1.52.0-1+deb12u2) ...
+#11 9.742 Selecting previously unselected package libpsl5:amd64.
+#11 9.748 Preparing to unpack .../14-libpsl5_0.21.2-1_amd64.deb ...
+#11 9.751 Unpacking libpsl5:amd64 (0.21.2-1) ...
+#11 9.809 Selecting previously unselected package librtmp1:amd64.
+#11 9.812 Preparing to unpack .../15-librtmp1_2.4+20151223.gitfa8646d.1-2+b2_amd64.deb ...
+#11 9.816 Unpacking librtmp1:amd64 (2.4+20151223.gitfa8646d.1-2+b2) ...
+#11 9.855 Selecting previously unselected package libssh2-1:amd64.
+#11 9.860 Preparing to unpack .../16-libssh2-1_1.10.0-3+b1_amd64.deb ...
+#11 9.864 Unpacking libssh2-1:amd64 (1.10.0-3+b1) ...
+#11 10.12 Selecting previously unselected package libcurl4:amd64.
+#11 10.13 Preparing to unpack .../17-libcurl4_7.88.1-10+deb12u14_amd64.deb ...
+#11 10.16 Unpacking libcurl4:amd64 (7.88.1-10+deb12u14) ...
+#11 10.29 Selecting previously unselected package curl.
+#11 10.30 Preparing to unpack .../18-curl_7.88.1-10+deb12u14_amd64.deb ...
+#11 10.31 Unpacking curl (7.88.1-10+deb12u14) ...
+#11 10.42 Selecting previously unselected package libldap-common.
+#11 10.42 Preparing to unpack .../19-libldap-common_2.5.13+dfsg-5_all.deb ...
+#11 10.43 Unpacking libldap-common (2.5.13+dfsg-5) ...
+#11 10.49 Selecting previously unselected package libsasl2-modules:amd64.
+#11 10.49 Preparing to unpack .../20-libsasl2-modules_2.1.28+dfsg-10_amd64.deb ...
+#11 10.51 Unpacking libsasl2-modules:amd64 (2.1.28+dfsg-10) ...
+#11 10.55 Selecting previously unselected package publicsuffix.
+#11 10.56 Preparing to unpack .../21-publicsuffix_20230209.2326-1_all.deb ...
+#11 10.56 Unpacking publicsuffix (20230209.2326-1) ...
+#11 10.63 Setting up libkeyutils1:amd64 (1.6.3-2) ...
+#11 10.64 Setting up libpsl5:amd64 (0.21.2-1) ...
+#11 10.65 Setting up libbrotli1:amd64 (1.0.9-2+b6) ...
+#11 10.66 Setting up libssl3:amd64 (3.0.18-1~deb12u2) ...
+#11 10.67 Setting up libnghttp2-14:amd64 (1.52.0-1+deb12u2) ...
+#11 10.68 Setting up krb5-locales (1.20.1-2+deb12u4) ...
+#11 10.68 Setting up libldap-common (2.5.13+dfsg-5) ...
+#11 10.69 Setting up libkrb5support0:amd64 (1.20.1-2+deb12u4) ...
+#11 10.70 Setting up libsasl2-modules-db:amd64 (2.1.28+dfsg-10) ...
+#11 10.70 Setting up librtmp1:amd64 (2.4+20151223.gitfa8646d.1-2+b2) ...
+#11 10.71 Setting up libk5crypto3:amd64 (1.20.1-2+deb12u4) ...
+#11 10.72 Setting up libsasl2-2:amd64 (2.1.28+dfsg-10) ...
+#11 10.72 Setting up libssh2-1:amd64 (1.10.0-3+b1) ...
+#11 10.73 Setting up libkrb5-3:amd64 (1.20.1-2+deb12u4) ...
+#11 10.74 Setting up openssl (3.0.18-1~deb12u2) ...
+#11 10.75 Setting up publicsuffix (20230209.2326-1) ...
+#11 10.75 Setting up libsasl2-modules:amd64 (2.1.28+dfsg-10) ...
+#11 10.78 Setting up libldap-2.5-0:amd64 (2.5.13+dfsg-5) ...
+#11 10.79 Setting up ca-certificates (20230311+deb12u1) ...
+#11 10.97 debconf: unable to initialize frontend: Dialog
+#11 10.97 debconf: (TERM is not set, so the dialog frontend is not usable.)
+#11 10.97 debconf: falling back to frontend: Readline
+#11 10.97 debconf: unable to initialize frontend: Readline
+#11 10.97 debconf: (Can't locate Term/ReadLine.pm in @INC (you may need to install the Term::ReadLine module) (@INC contains: /etc/perl /usr/local/lib/x86_64-linux-gnu/perl/5.36.0 /usr/local/share/perl/5.36.0 /usr/lib/x86_64-linux-gnu/perl5/5.36 /usr/share/perl5 /usr/lib/x86_64-linux-gnu/perl-base /usr/lib/x86_64-linux-gnu/perl/5.36 /usr/share/perl/5.36 /usr/local/lib/site_perl) at /usr/share/perl5/Debconf/FrontEnd/Readline.pm line 7.)
+#11 10.97 debconf: falling back to frontend: Teletype
+#11 ...
+
+#12 [builder  4/15] COPY Cargo.toml Cargo.lock ./
+#12 DONE 0.1s
+
+#13 [builder  5/15] COPY mr_darkpromth/core/Cargo.toml ./mr_darkpromth/core/
+#13 DONE 0.2s
+
+#11 [stage-1 2/8] RUN apt-get update && apt-get install -y     ca-certificates     curl     libssl3     && rm -rf /var/lib/apt/lists/*
+#11 ...
+
+#14 [builder  6/15] COPY mr_darkpromth/db/Cargo.toml ./mr_darkpromth/db/
+#14 DONE 0.1s
+
+#15 [builder  7/15] COPY mr_darkpromth/services/Cargo.toml ./mr_darkpromth/services/
+#15 DONE 0.1s
+
+#16 [builder  8/15] COPY mr_darkpromth/services/cerebras_client/Cargo.toml ./mr_darkpromth/services/cerebras_client/
+#16 DONE 0.1s
+
+#11 [stage-1 2/8] RUN apt-get update && apt-get install -y     ca-certificates     curl     libssl3     && rm -rf /var/lib/apt/lists/*
+#11 ...
+
+#17 [builder  9/15] COPY mr_darkpromth/api/Cargo.toml ./mr_darkpromth/api/
+#17 DONE 0.1s
+
+#11 [stage-1 2/8] RUN apt-get update && apt-get install -y     ca-certificates     curl     libssl3     && rm -rf /var/lib/apt/lists/*
+#11 11.99 Updating certificates in /etc/ssl/certs...
+#11 ...
+
+#18 [builder 10/15] RUN mkdir -p mr_darkpromth/core/src && echo "pub fn lib() {}" > mr_darkpromth/core/src/lib.rs &&     mkdir -p mr_darkpromth/db/src && echo "pub fn lib() {}" > mr_darkpromth/db/src/lib.rs &&     mkdir -p mr_darkpromth/services/src && echo "pub fn lib() {}" > mr_darkpromth/services/src/lib.rs &&     mkdir -p mr_darkpromth/services/cerebras_client/src && echo "pub fn lib() {}" > mr_darkpromth/services/cerebras_client/src/lib.rs &&     mkdir -p mr_darkpromth/api/src && echo "fn main() {}" > mr_darkpromth/api/src/main.rs
+#18 DONE 0.5s
+
+#19 [builder 11/15] RUN cargo build --release
+#19 1.159     Updating crates.io index
+#19 ...
+
+#11 [stage-1 2/8] RUN apt-get update && apt-get install -y     ca-certificates     curl     libssl3     && rm -rf /var/lib/apt/lists/*
+#11 13.47 142 added, 0 removed; done.
+#11 13.51 Setting up libgssapi-krb5-2:amd64 (1.20.1-2+deb12u4) ...
+#11 13.52 Setting up libcurl4:amd64 (7.88.1-10+deb12u14) ...
+#11 13.52 Setting up curl (7.88.1-10+deb12u14) ...
+#11 13.53 Processing triggers for libc-bin (2.36-9+deb12u13) ...
+#11 13.59 Processing triggers for ca-certificates (20230311+deb12u1) ...
+#11 13.59 Updating certificates in /etc/ssl/certs...
+#11 14.45 0 added, 0 removed; done.
+#11 14.45 Running hooks in /etc/ca-certificates/update.d...
+#11 14.46 done.
+#11 DONE 14.5s
+
+#20 [stage-1 3/8] RUN useradd -m -u 1000 appuser
+#20 DONE 0.5s
+
+#19 [builder 11/15] RUN cargo build --release
+#19 ...
+
+#21 [stage-1 4/8] WORKDIR /app
+#21 DONE 0.1s
+
+#19 [builder 11/15] RUN cargo build --release
+#19 6.094      Locking 7 packages to latest compatible versions
+#19 6.095       Adding axum-macros v0.4.2
+#19 6.096       Adding forwarded-header-value v0.1.1
+#19 6.097     Updating jsonwebtoken v8.3.0 -> v9.3.1 (available: v10.3.0, requires Rust 1.85.0)
+#19 6.097       Adding nonempty v0.7.0
+#19 6.098     Updating pem v1.1.1 -> v3.0.6
+#19 6.098       Adding tower_governor v0.4.3 (available: v0.8.0)
+#19 6.099     Updating utoipa-swagger-ui v4.0.0 -> v5.0.0 (available: v9.0.2)
+#19 6.155  Downloading crates ...
+#19 6.549   Downloaded actix-codec v0.5.2
+#19 6.558   Downloaded alloc-stdlib v0.2.2
+#19 6.566   Downloaded openssl-macros v0.1.1
+#19 6.570   Downloaded opaque-debug v0.3.1
+#19 6.576   Downloaded crossbeam-deque v0.8.6
+#19 6.585   Downloaded displaydoc v0.2.5
+#19 6.599   Downloaded once_cell v1.21.3
+#19 6.608   Downloaded crypto-common v0.1.7
+#19 6.612   Downloaded bitflags v2.10.0
+#19 6.624   Downloaded event-listener v2.5.3
+#19 6.634   Downloaded http-body v1.0.1
+#19 6.640   Downloaded http-body v0.4.6
+#19 6.689   Downloaded itoa v1.0.17
+#19 6.710   Downloaded nu-ansi-term v0.50.3
+#19 6.734   Downloaded tower v0.4.13
+#19 6.795   Downloaded version_check v0.9.5
+#19 6.816   Downloaded want v0.3.1
+#19 6.834   Downloaded stable_deref_trait v1.2.1
+#19 6.854   Downloaded sqlx-rt v0.6.3
+#19 6.872   Downloaded sqlx v0.6.3
+#19 6.917   Downloaded tower_governor v0.4.3
+#19 6.927   Downloaded tower-http v0.5.2
+#19 6.958   Downloaded regex-automata v0.4.13
+#19 7.038   Downloaded tracing v0.1.44
+#19 7.103   Downloaded native-tls v0.2.14
+#19 7.112   Downloaded num-iter v0.1.45
+#19 7.122   Downloaded tinyvec_macros v0.1.1
+#19 7.126   Downloaded tokio-rustls v0.23.4
+#19 7.134   Downloaded tokio-native-tls v0.3.1
+#19 7.144   Downloaded sysinfo v0.29.11
+#19 7.174   Downloaded time v0.3.45
+#19 7.226   Downloaded half v2.7.1
+#19 7.234   Downloaded heck v0.4.1
+#19 7.240   Downloaded hashlink v0.8.4
+#19 7.244   Downloaded hmac v0.12.1
+#19 7.262   Downloaded hex v0.4.3
+#19 7.265   Downloaded hashbrown v0.12.3
+#19 7.280   Downloaded hashbrown v0.16.1
+#19 7.297   Downloaded httpdate v1.0.3
+#19 7.302   Downloaded webpki-roots v0.25.4
+#19 7.313   Downloaded governor v0.6.3
+#19 7.322   Downloaded humantime v2.3.0
+#19 7.326   Downloaded httparse v1.10.1
+#19 7.332   Downloaded hkdf v0.12.4
+#19 7.338   Downloaded http v0.2.12
+#19 7.349   Downloaded h2 v0.3.27
+#19 7.372   Downloaded webpki-roots v0.22.6
+#19 7.383   Downloaded zerocopy v0.8.35
+#19 7.450   Downloaded http v1.4.0
+#19 7.463   Downloaded hostname v0.3.1
+#19 7.469   Downloaded hyper v1.8.1
+#19 7.493   Downloaded hyper v0.14.32
+#19 7.510   Downloaded tokio v1.49.0
+#19 7.623   Downloaded hashbrown v0.14.5
+#19 7.635   Downloaded zerocopy-derive v0.8.35
+#19 7.660   Downloaded tracing-subscriber v0.3.22
+#19 7.684   Downloaded winnow v0.7.14
+#19 7.703   Downloaded tracing-core v0.1.36
+#19 7.709   Downloaded tracing-attributes v0.1.31
+#19 7.715   Downloaded tracing-appender v0.2.4
+#19 7.718   Downloaded gif v0.13.3
+#19 7.722   Downloaded futures-executor v0.3.31
+#19 7.725   Downloaded futures-core v0.3.31
+#19 7.728   Downloaded untrusted v0.7.1
+#19 7.732   Downloaded universal-hash v0.5.1
+#19 7.732   Downloaded try-lock v0.2.5
+#19 7.733   Downloaded tiff v0.9.1
+#19 7.765   Downloaded tracing-serde v0.2.0
+#19 7.768   Downloaded tracing-log v0.2.0
+#19 7.778   Downloaded futures-task v0.3.31
+#19 7.786   Downloaded futures-sink v0.3.31
+#19 7.792   Downloaded futures-macro v0.3.31
+#19 7.795   Downloaded futures-io v0.3.31
+#19 7.797   Downloaded zerofrom-derive v0.1.6
+#19 7.801   Downloaded zerofrom v0.1.6
+#19 7.804   Downloaded yoke-derive v0.8.1
+#19 7.807   Downloaded yoke v0.8.1
+#19 7.811   Downloaded wyz v0.5.1
+#19 7.814   Downloaded writeable v0.6.2
+#19 7.820   Downloaded whoami v1.6.1
+#19 7.823   Downloaded weezl v0.1.12
+#19 7.827   Downloaded ring v0.16.20
+#19 8.061   Downloaded ghash v0.5.1
+#19 8.064   Downloaded syn v2.0.114
+#19 8.096   Downloaded syn v1.0.109
+#19 8.120   Downloaded tokio-macros v2.6.0
+#19 8.122   Downloaded tinyvec v1.10.0
+#19 8.128   Downloaded tinystr v0.8.2
+#19 8.133   Downloaded time-macros v0.2.25
+#19 8.138   Downloaded time-core v0.1.7
+#19 8.140   Downloaded thread_local v1.1.9
+#19 8.144   Downloaded thiserror-impl v2.0.18
+#19 8.150   Downloaded synstructure v0.13.2
+#19 8.152   Downloaded sync_wrapper v0.1.2
+#19 8.154   Downloaded subtle v2.6.1
+#19 8.159   Downloaded stringprep v0.1.5
+#19 8.163   Downloaded tap v1.0.1
+#19 8.166   Downloaded sync_wrapper v1.0.2
+#19 8.169   Downloaded nix v0.27.1
+#19 8.201   Downloaded miniz_oxide v0.8.9
+#19 8.207   Downloaded memchr v2.7.6
+#19 8.220   Downloaded image v0.23.14
+#19 8.238   Downloaded idna v1.1.0
+#19 8.249   Downloaded ring v0.17.14
+#19 8.384   Downloaded num-integer v0.1.46
+#19 8.387   Downloaded num-conv v0.1.0
+#19 8.389   Downloaded mio v1.1.1
+#19 8.402   Downloaded minimal-lexical v0.2.1
+#19 8.411   Downloaded mime_guess v2.0.5
+#19 8.414   Downloaded mime v0.3.17
+#19 8.417   Downloaded idna v0.3.0
+#19 8.430   Downloaded icu_provider v2.1.1
+#19 8.437   Downloaded icu_properties_data v2.1.2
+#19 8.465   Downloaded idna_adapter v1.2.1
+#19 8.469   Downloaded icu_properties v2.1.2
+#19 8.476   Downloaded icu_collections v2.1.1
+#19 8.491   Downloaded iana-time-zone v0.1.65
+#19 8.498   Downloaded hyper-util v0.1.20
+#19 8.512   Downloaded hyper-tls v0.5.0
+#19 8.515   Downloaded hyper-rustls v0.24.2
+#19 8.522   Downloaded utoipa-swagger-ui v5.0.0
+#19 8.599   Downloaded rust-embed v8.11.0
+#19 8.631   Downloaded tower v0.5.3
+#19 8.661   Downloaded tokio-util v0.7.18
+#19 8.721   Downloaded sqlx-core v0.6.3
+#19 8.808   Downloaded tower-service v0.3.3
+#19 8.810   Downloaded tower-layer v0.3.3
+#19 8.812   Downloaded tokio-stream v0.1.18
+#19 8.822   Downloaded tokio-rustls v0.24.1
+#19 8.827   Downloaded vcpkg v0.2.15
+#19 8.953   Downloaded uuid v1.20.0
+#19 8.968   Downloaded utoipa-gen v4.3.1
+#19 8.993   Downloaded utoipa v4.2.3
+#19 9.003   Downloaded utf8_iter v1.0.4
+#19 9.009   Downloaded urlencoding v2.1.3
+#19 9.015   Downloaded url v2.5.8
+#19 9.024   Downloaded untrusted v0.9.0
+#19 9.028   Downloaded linux-raw-sys v0.11.0
+#19 9.257   Downloaded rustix v1.1.3
+#19 9.376   Downloaded regex-syntax v0.8.8
+#19 9.400   Downloaded rustls v0.21.12
+#19 9.426   Downloaded rustls v0.20.9
+#19 9.451   Downloaded openssl v0.10.75
+#19 9.481   Downloaded sqlx-macros v0.6.3
+#19 9.488   Downloaded sqlformat v0.2.6
+#19 9.491   Downloaded num-rational v0.3.2
+#19 9.495   Downloaded libc v0.2.180
+#19 9.597   Downloaded serde_json v1.0.149
+#19 9.616   Downloaded rustls-webpki v0.101.7
+#19 9.656   Downloaded rust_decimal v1.40.0
+#19 9.689   Downloaded reqwest v0.11.27
+#19 9.698   Downloaded regex v1.12.2
+#19 9.719   Downloaded redis v0.24.0
+#19 9.746   Downloaded rayon v1.11.0
+#19 9.790   Downloaded portable-atomic v1.13.0
+#19 9.806   Downloaded png v0.17.16
+#19 9.815   Downloaded webpki v0.22.4
+#19 9.835   Downloaded md-5 v0.10.6
+#19 9.840   Downloaded matchit v0.7.3
+#19 9.843   Downloaded matchers v0.2.0
+#19 9.847   Downloaded match_cfg v0.1.0
+#19 9.851   Downloaded lock_api v0.4.14
+#19 9.852   Downloaded local-waker v0.1.4
+#19 9.854   Downloaded local-channel v0.1.5
+#19 9.856   Downloaded litemap v0.8.1
+#19 9.864   Downloaded lettre v0.10.4
+#19 9.895   Downloaded lebe v0.5.3
+#19 9.899   Downloaded lazy_static v1.5.0
+#19 9.903   Downloaded language-tags v0.3.2
+#19 9.908   Downloaded jsonwebtoken v9.3.1
+#19 9.918   Downloaded indexmap v1.9.3
+#19 9.926   Downloaded impl-more v0.1.9
+#19 9.940   Downloaded zstd-sys v2.0.16+zstd.1.5.7
+#19 10.01   Downloaded num-bigint v0.4.6
+#19 10.02   Downloaded serde v1.0.228
+#19 10.03   Downloaded rkyv v0.7.46
+#19 10.06   Downloaded regex-lite v0.1.8
+#19 10.08   Downloaded raw-cpuid v11.6.0
+#19 10.10   Downloaded rand v0.9.2
+#19 10.12   Downloaded encoding_rs v0.8.35
+#19 10.21   Downloaded walkdir v2.5.0
+#19 10.22   Downloaded log v0.4.29
+#19 10.23   Downloaded futures-channel v0.3.31
+#19 10.24   Downloaded funty v2.0.0
+#19 10.24   Downloaded forwarded-header-value v0.1.1
+#19 10.24   Downloaded form_urlencoded v1.2.2
+#19 10.25   Downloaded zune-inflate v0.2.54
+#19 10.26   Downloaded zstd-safe v7.2.4
+#19 10.27   Downloaded zstd v0.13.3
+#19 10.28   Downloaded zmij v1.0.17
+#19 10.29   Downloaded zip v0.6.6
+#19 10.31   Downloaded zerovec-derive v0.11.2
+#19 10.31   Downloaded zerovec v0.11.5
+#19 10.33   Downloaded zerotrie v0.2.3
+#19 10.34   Downloaded unicode_categories v0.1.1
+#19 10.35   Downloaded unicode-segmentation v1.12.0
+#19 10.36   Downloaded unicode-normalization v0.1.25
+#19 10.39   Downloaded jpeg-decoder v0.3.2
+#19 10.43   Downloaded getrandom v0.3.4
+#19 10.44   Downloaded getrandom v0.2.17
+#19 10.44   Downloaded spinning_top v0.3.0
+#19 10.45   Downloaded socket2 v0.6.2
+#19 10.46   Downloaded socket2 v0.5.10
+#19 10.46   Downloaded shellexpand v3.1.1
+#19 10.48   Downloaded sharded-slab v0.1.7
+#19 10.51   Downloaded serde_derive v1.0.228
+#19 10.53   Downloaded serde_core v1.0.228
+#19 10.54   Downloaded ryu v1.0.22
+#19 10.56   Downloaded rayon-core v1.13.0
+#19 10.57   Downloaded rand v0.8.5
+#19 10.59   Downloaded quanta v0.12.6
+#19 10.60   Downloaded qrcode v0.12.0
+#19 10.61   Downloaded qoi v0.4.1
+#19 10.62   Downloaded proc-macro2 v1.0.106
+#19 10.63   Downloaded pin-project v1.1.10
+#19 10.67   Downloaded password-hash v0.4.2
+#19 10.71   Downloaded parking_lot_core v0.9.12
+#19 10.71   Downloaded parking_lot_core v0.8.6
+#19 10.73   Downloaded parking_lot v0.12.5
+#19 10.74   Downloaded parking_lot v0.11.2
+#19 10.74   Downloaded num-traits v0.2.19
+#19 10.75   Downloaded brotli v8.0.2
+#19 10.80   Downloaded md5 v0.7.0
+#19 10.81   Downloaded unicode-xid v0.2.6
+#19 10.81   Downloaded unicode-properties v0.1.4
+#19 10.81   Downloaded unicode-ident v1.0.22
+#19 10.82   Downloaded unicode-bidi v0.3.18
+#19 10.83   Downloaded unicase v2.9.0
+#19 10.83   Downloaded typenum v1.19.0
+#19 10.84   Downloaded http-body-util v0.1.3
+#19 10.84   Downloaded socket2 v0.4.10
+#19 10.85   Downloaded smallvec v1.15.1
+#19 10.89   Downloaded slab v0.4.11
+#19 10.89   Downloaded simple_asn1 v0.6.3
+#19 10.89   Downloaded simdutf8 v0.1.5
+#19 10.89   Downloaded simd-adler32 v0.3.8
+#19 10.89   Downloaded signal-hook-registry v1.4.8
+#19 10.89   Downloaded shlex v1.3.0
+#19 10.89   Downloaded sha2 v0.10.9
+#19 10.90   Downloaded serde_path_to_error v0.1.20
+#19 10.90   Downloaded semver v1.0.27
+#19 10.91   Downloaded seahash v4.1.0
+#19 10.91   Downloaded sct v0.7.1
+#19 10.93   Downloaded scopeguard v1.2.0
+#19 10.93   Downloaded rustversion v1.0.22
+#19 10.93   Downloaded rustls-pemfile v1.0.4
+#19 10.94   Downloaded rkyv_derive v0.7.46
+#19 10.95   Downloaded rand_core v0.9.5
+#19 10.96   Downloaded rand_core v0.6.4
+#19 10.96   Downloaded rand_chacha v0.9.0
+#19 10.97   Downloaded quote v1.0.44
+#19 10.98   Downloaded proc-macro-error-attr v1.0.4
+#19 10.98   Downloaded proc-macro-error v1.0.4
+#19 10.99   Downloaded potential_utf v0.1.4
+#19 11.00   Downloaded polyval v0.6.2
+#19 11.00   Downloaded pkg-config v0.3.32
+#19 11.01   Downloaded pin-project-internal v1.1.10
+#19 11.02   Downloaded pem v3.0.6
+#19 11.02   Downloaded paste v1.0.15
+#19 11.03   Downloaded password-hash v0.5.0
+#19 11.04   Downloaded exr v1.74.0
+#19 11.09   Downloaded bitvec v1.0.1
+#19 11.17   Downloaded actix-web v4.12.1
+#19 11.21   Downloaded toml_parser v1.0.6+spec-1.1.0
+#19 11.22   Downloaded toml_edit v0.23.10+spec-1.0.0
+#19 11.23   Downloaded toml_datetime v0.7.5+spec-1.1.0
+#19 11.24   Downloaded thiserror-impl v1.0.69
+#19 11.24   Downloaded thiserror v2.0.18
+#19 11.27   Downloaded thiserror v1.0.69
+#19 11.30   Downloaded termcolor v1.4.1
+#19 11.31   Downloaded tempfile v3.24.0
+#19 11.32   Downloaded nom v7.1.3
+#19 11.34   Downloaded indexmap v2.13.0
+#19 11.36   Downloaded futures-util v0.3.31
+#19 11.43   Downloaded sha1 v0.10.6
+#19 11.43   Downloaded rustc_version v0.4.1
+#19 11.44   Downloaded rust-embed-impl v8.11.0
+#19 11.44   Downloaded rend v0.4.2
+#19 11.44   Downloaded rand_chacha v0.3.1
+#19 11.45   Downloaded radium v0.7.0
+#19 11.45   Downloaded quoted_printable v0.4.8
+#19 11.45   Downloaded proc-macro-crate v3.4.0
+#19 11.46   Downloaded percent-encoding v2.3.2
+#19 11.46   Downloaded derive_more-impl v2.1.1
+#19 11.48   Downloaded derive_more v2.1.1
+#19 11.51   Downloaded crossbeam-channel v0.5.15
+#19 11.53   Downloaded combine v4.6.7
+#19 11.54   Downloaded chrono v0.4.43
+#19 11.58   Downloaded brotli-decompressor v5.0.0
+#19 11.60   Downloaded borsh v1.6.0
+#19 11.62   Downloaded axum v0.7.9
+#19 11.64   Downloaded aho-corasick v1.1.4
+#19 11.66   Downloaded aes-gcm v0.10.3
+#19 11.67   Downloaded nonzero_ext v0.3.0
+#19 11.69   Downloaded nonempty v0.7.0
+#19 11.69   Downloaded no-std-compat v0.4.1
+#19 11.70   Downloaded jobserver v0.1.34
+#19 11.70   Downloaded ipnet v2.11.0
+#19 11.71   Downloaded icu_normalizer_data v2.1.1
+#19 11.72   Downloaded icu_normalizer v2.1.1
+#19 11.73   Downloaded icu_locale_core v2.1.1
+#19 11.75   Downloaded futures-intrusive v0.4.2
+#19 11.77   Downloaded futures v0.3.31
+#19 11.79   Downloaded spin v0.5.2
+#19 11.80   Downloaded serde_urlencoded v0.7.1
+#19 11.80   Downloaded ppv-lite86 v0.2.21
+#19 11.80   Downloaded powerfmt v0.2.0
+#19 11.81   Downloaded pin-utils v0.1.0
+#19 11.81   Downloaded pin-project-lite v0.2.16
+#19 11.82   Downloaded openssl-probe v0.1.6
+#19 11.83   Downloaded flate2 v1.1.8
+#19 11.84   Downloaded derive_more v0.99.20
+#19 11.87   Downloaded crossbeam-epoch v0.9.18
+#19 11.87   Downloaded cc v1.2.54
+#19 11.87   Downloaded bytes v1.11.0
+#19 11.88   Downloaded bytemuck v1.25.0
+#19 11.90   Downloaded bitflags v1.3.2
+#19 11.90   Downloaded base64 v0.22.1
+#19 11.91   Downloaded base64 v0.21.7
+#19 11.92   Downloaded base64 v0.13.1
+#19 11.93   Downloaded anyhow v1.0.100
+#19 11.94   Downloaded allocator-api2 v0.2.21
+#19 11.95   Downloaded aes v0.8.4
+#19 11.97   Downloaded is-terminal v0.4.17
+#19 11.97   Downloaded instant v0.1.13
+#19 11.98   Downloaded inout v0.1.4
+#19 11.98   Downloaded futures-timer v3.0.3
+#19 11.99   Downloaded sha1_smol v1.0.1
+#19 11.99   Downloaded same-file v1.0.6
+#19 11.99   Downloaded rust-embed-utils v8.11.0
+#19 12.00   Downloaded ptr_meta_derive v0.1.4
+#19 12.00   Downloaded env_logger v0.10.2
+#19 12.01   Downloaded crc32fast v1.5.0
+#19 12.01   Downloaded cookie v0.16.2
+#19 12.02   Downloaded blake2 v0.10.6
+#19 12.02   Downloaded ptr_meta v0.1.4
+#19 12.02   Downloaded foldhash v0.1.5
+#19 12.02   Downloaded find-msvc-tools v0.1.8
+#19 12.03   Downloaded fdeflate v0.3.7
+#19 12.03   Downloaded equivalent v1.0.2
+#19 12.03   Downloaded email_address v0.2.9
+#19 12.04   Downloaded either v1.15.0
+#19 12.04   Downloaded dotenvy v0.15.7
+#19 12.05   Downloaded digest v0.10.7
+#19 12.05   Downloaded deranged v0.5.5
+#19 12.05   Downloaded ctr v0.9.2
+#19 12.06   Downloaded convert_case v0.10.0
+#19 12.07   Downloaded byteorder v1.5.0
+#19 12.07   Downloaded borsh-derive v1.6.0
+#19 12.08   Downloaded base64ct v1.6.0
+#19 12.09   Downloaded axum-macros v0.4.2
+#19 12.12   Downloaded async-trait v0.1.89
+#19 12.13   Downloaded ahash v0.8.12
+#19 12.14   Downloaded generic-array v0.14.7
+#19 12.14   Downloaded openssl-sys v0.9.111
+#19 12.17   Downloaded foreign-types v0.3.2
+#19 12.18   Downloaded fnv v1.0.7
+#19 12.18   Downloaded fastrand v2.3.0
+#19 12.19   Downloaded fastrand v1.9.0
+#19 12.19   Downloaded errno v0.3.14
+#19 12.19   Downloaded dashmap v5.5.3
+#19 12.20   Downloaded cipher v0.4.4
+#19 12.20   Downloaded axum-core v0.4.5
+#19 12.21   Downloaded arrayvec v0.7.6
+#19 12.21   Downloaded argon2 v0.5.3
+#19 12.22   Downloaded dotenv v0.15.0
+#19 12.22   Downloaded dirs-sys v0.3.7
+#19 12.22   Downloaded dirs v4.0.0
+#19 12.22   Downloaded cpufeatures v0.2.17
+#19 12.23   Downloaded color_quant v1.1.0
+#19 12.23   Downloaded cfg-if v1.0.4
+#19 12.23   Downloaded bytestring v1.5.0
+#19 12.23   Downloaded bytecheck v0.6.12
+#19 12.24   Downloaded argon2 v0.4.1
+#19 12.24   Downloaded ahash v0.7.8
+#19 12.24   Downloaded actix-web-codegen v4.3.0
+#19 12.25   Downloaded crossbeam-queue v0.3.12
+#19 12.26   Downloaded convert_case v0.4.0
+#19 12.26   Downloaded bytecheck_derive v0.6.12
+#19 12.26   Downloaded atoi v1.0.0
+#19 12.27   Downloaded checked_int_cast v1.0.0
+#19 12.27   Downloaded cfg_aliases v0.2.1
+#19 12.27   Downloaded bit_field v0.10.3
+#19 12.27   Downloaded atomic-waker v1.1.2
+#19 12.28   Downloaded adler2 v2.0.1
+#19 12.28   Downloaded crossbeam-utils v0.8.21
+#19 12.29   Downloaded autocfg v1.5.0
+#19 12.30   Downloaded alloc-no-stdlib v2.0.4
+#19 12.30   Downloaded aead v0.5.2
+#19 12.30   Downloaded actix-server v2.6.0
+#19 12.31   Downloaded actix-router v0.5.3
+#19 12.31   Downloaded actix-cors v0.6.5
+#19 12.31   Downloaded actix-service v2.0.3
+#19 12.32   Downloaded actix-rt v2.11.0
+#19 12.32   Downloaded actix-macros v0.2.4
+#19 12.33   Downloaded actix-http v3.11.2
+#19 12.35   Downloaded foreign-types-shared v0.1.1
+#19 12.35   Downloaded email-encoding v0.2.1
+#19 12.36   Downloaded block-buffer v0.10.4
+#19 12.36   Downloaded actix-utils v3.0.1
+#19 12.38   Downloaded image v0.24.9
+#19 12.84    Compiling proc-macro2 v1.0.106
+#19 12.84    Compiling unicode-ident v1.0.22
+#19 13.58    Compiling quote v1.0.44
+#19 14.15    Compiling cfg-if v1.0.4
+#19 14.22    Compiling libc v0.2.180
+#19 16.26    Compiling syn v2.0.114
+#19 21.26    Compiling version_check v0.9.5
+#19 21.70    Compiling jobserver v0.1.34
+#19 22.20    Compiling find-msvc-tools v0.1.8
+#19 22.52    Compiling shlex v1.3.0
+#19 22.77    Compiling cc v1.2.54
+#19 26.34    Compiling getrandom v0.2.17
+#19 26.68    Compiling typenum v1.19.0
+#19 27.22    Compiling pin-project-lite v0.2.16
+#19 27.31    Compiling smallvec v1.15.1
+#19 27.40    Compiling generic-array v0.14.7
+#19 27.70    Compiling once_cell v1.21.3
+#19 27.70    Compiling log v0.4.29
+#19 28.12    Compiling synstructure v0.13.2
+#19 28.16    Compiling memchr v2.7.6
+#19 29.58    Compiling bytes v1.11.0
+#19 30.60    Compiling zerofrom-derive v0.1.6
+#19 31.01    Compiling scopeguard v1.2.0
+#19 31.10    Compiling lock_api v0.4.14
+#19 31.44    Compiling futures-core v0.3.31
+#19 31.60    Compiling yoke-derive v0.8.1
+#19 33.21    Compiling itoa v1.0.17
+#19 33.51    Compiling parking_lot_core v0.9.12
+#19 33.67    Compiling autocfg v1.5.0
+#19 34.44    Compiling rand_core v0.6.4
+#19 34.59    Compiling parking_lot v0.12.5
+#19 34.83    Compiling zerovec-derive v0.11.2
+#19 35.76    Compiling errno v0.3.14
+#19 35.99    Compiling signal-hook-registry v1.4.8
+#19 36.56    Compiling mio v1.1.1
+#19 37.29    Compiling tokio-macros v2.6.0
+#19 37.50    Compiling socket2 v0.6.2
+#19 38.43    Compiling futures-sink v0.3.31
+#19 38.53    Compiling serde_core v1.0.228
+#19 38.56    Compiling tokio v1.49.0
+#19 39.92    Compiling displaydoc v0.2.5
+#19 47.89    Compiling serde v1.0.228
+#19 48.26    Compiling crypto-common v0.1.7
+#19 48.41    Compiling futures-channel v0.3.31
+#19 48.77    Compiling num-traits v0.2.19
+#19 49.02    Compiling serde_derive v1.0.228
+#19 55.92    Compiling pin-utils v0.1.0
+#19 56.04    Compiling tracing-core v0.1.36
+#19 57.50    Compiling futures-macro v0.3.31
+#19 57.79    Compiling futures-task v0.3.31
+#19 57.99    Compiling slab v0.4.11
+#19 58.24    Compiling futures-io v0.3.31
+#19 58.44    Compiling subtle v2.6.1
+#19 58.65    Compiling tracing-attributes v0.1.31
+#19 58.99    Compiling futures-util v0.3.31
+#19 61.21    Compiling zerocopy v0.8.35
+#19 61.71    Compiling icu_normalizer_data v2.1.1
+#19 61.94    Compiling icu_properties_data v2.1.2
+#19 62.14    Compiling zmij v1.0.17
+#19 62.49    Compiling tracing v0.1.44
+#19 63.09    Compiling zerofrom v0.1.6
+#19 63.32    Compiling zerocopy-derive v0.8.35
+#19 64.93    Compiling stable_deref_trait v1.2.1
+#19 65.00    Compiling pkg-config v0.3.32
+#19 65.89    Compiling yoke v0.8.1
+#19 66.22    Compiling crossbeam-utils v0.8.21
+#19 66.55    Compiling serde_json v1.0.149
+#19 67.91    Compiling ring v0.17.14
+#19 69.03    Compiling bitflags v2.10.0
+#19 76.21    Compiling zerovec v0.11.5
+#19 77.22    Compiling block-buffer v0.10.4
+#19 78.36    Compiling digest v0.10.7
+#19 79.00    Compiling ring v0.16.20
+#19 80.28    Compiling untrusted v0.9.0
+#19 81.92    Compiling ahash v0.8.12
+#19 82.24    Compiling cpufeatures v0.2.17
+#19 82.31    Compiling percent-encoding v2.3.2
+#19 90.23    Compiling tinystr v0.8.2
+#19 90.99    Compiling httparse v1.10.1
+#19 91.62    Compiling crc32fast v1.5.0
+#19 92.01    Compiling writeable v0.6.2
+#19 92.39    Compiling litemap v0.8.1
+#19 94.41    Compiling icu_locale_core v2.1.1
+#19 100.6    Compiling potential_utf v0.1.4
+#19 100.6    Compiling zerotrie v0.2.3
+#19 101.0    Compiling httpdate v1.0.3
+#19 101.4    Compiling icu_provider v2.1.1
+#19 101.8    Compiling icu_collections v2.1.1
+#19 102.8    Compiling form_urlencoded v1.2.2
+#19 103.2    Compiling rustls v0.20.9
+#19 103.2    Compiling getrandom v0.3.4
+#19 103.6    Compiling parking_lot_core v0.8.6
+#19 103.8    Compiling tower-service v0.3.3
+#19 104.6    Compiling ppv-lite86 v0.2.21
+#19 105.6    Compiling tokio-util v0.7.18
+#19 107.6    Compiling hashbrown v0.16.1
+#19 108.1    Compiling thiserror v1.0.69
+#19 108.7    Compiling equivalent v1.0.2
+#19 108.8    Compiling vcpkg v0.2.15
+#19 110.1    Compiling fnv v1.0.7
+#19 110.2    Compiling http v0.2.12
+#19 110.7    Compiling openssl-sys v0.9.111
+#19 112.0    Compiling indexmap v2.13.0
+#19 113.7    Compiling icu_properties v2.1.2
+#19 116.8    Compiling icu_normalizer v2.1.1
+#19 118.9    Compiling sct v0.7.1
+#19 119.7    Compiling mime v0.3.17
+#19 122.3    Compiling idna_adapter v1.2.1
+#19 124.9    Compiling num-integer v0.1.46
+#19 126.5    Compiling thiserror-impl v1.0.69
+#19 129.5    Compiling simd-adler32 v0.3.8
+#19 129.9    Compiling unicode-segmentation v1.12.0
+#19 130.6    Compiling utf8_iter v1.0.4
+#19 130.7    Compiling idna v1.1.0
+#19 134.2    Compiling indexmap v1.9.3
+#19 134.4    Compiling http v1.4.0
+#19 136.7    Compiling aho-corasick v1.1.4
+#19 137.5    Compiling ahash v0.7.8
+#19 137.7    Compiling dirs-sys v0.3.7
+#19 138.1    Compiling rust_decimal v1.40.0
+#19 138.6    Compiling ryu v1.0.22
+#19 138.9    Compiling syn v1.0.109
+#19 139.3    Compiling regex-syntax v0.8.8
+#19 143.7    Compiling regex-automata v0.4.13
+#19 148.7    Compiling dirs v4.0.0
+#19 148.8    Compiling http-body v1.0.1
+#19 149.6    Compiling url v2.5.8
+#19 153.0    Compiling sha2 v0.10.9
+#19 153.9    Compiling webpki v0.22.4
+#19 154.5    Compiling h2 v0.3.27
+#19 169.5    Compiling socket2 v0.5.10
+#19 170.6    Compiling byteorder v1.5.0
+#19 171.1    Compiling foreign-types-shared v0.1.1
+#19 171.2    Compiling powerfmt v0.2.0
+#19 171.6    Compiling spin v0.5.2
+#19 171.8    Compiling num-conv v0.1.0
+#19 172.0    Compiling adler2 v2.0.1
+#19 172.1    Compiling untrusted v0.7.1
+#19 172.2    Compiling openssl v0.10.75
+#19 172.6    Compiling allocator-api2 v0.2.21
+#19 172.7    Compiling tinyvec_macros v0.1.1
+#19 172.8    Compiling either v1.15.0
+#19 173.1    Compiling time-core v0.1.7
+#19 173.3    Compiling hashbrown v0.14.5
+#19 173.3    Compiling time-macros v0.2.25
+#19 174.6    Compiling tinyvec v1.10.0
+#19 175.8    Compiling miniz_oxide v0.8.9
+#19 178.0    Compiling deranged v0.5.5
+#19 178.6    Compiling foreign-types v0.3.2
+#19 188.4    Compiling serde_urlencoded v0.7.1
+#19 191.3    Compiling uuid v1.20.0
+#19 191.9    Compiling crossbeam-epoch v0.9.18
+#19 191.9    Compiling zstd-sys v2.0.16+zstd.1.5.7
+#19 192.6    Compiling instant v0.1.13
+#19 192.7    Compiling openssl-macros v0.1.1
+#19 192.7    Compiling paste v1.0.15
+#19 193.5    Compiling base64 v0.21.7
+#19 194.0    Compiling tower-layer v0.3.3
+#19 194.2    Compiling native-tls v0.2.14
+#19 194.3    Compiling rayon-core v1.13.0
+#19 194.5    Compiling base64 v0.22.1
+#19 199.0    Compiling time v0.3.45
+#19 205.5    Compiling crossbeam-deque v0.8.6
+#19 212.4    Compiling unicode-normalization v0.1.25
+#19 214.2    Compiling rand_chacha v0.3.1
+#19 217.6    Compiling sha1 v0.10.6
+#19 218.0    Compiling async-trait v0.1.89
+#19 221.3    Compiling unicode-bidi v0.3.18
+#19 222.9    Compiling try-lock v0.2.5
+#19 223.6    Compiling rustls v0.21.12
+#19 223.7    Compiling rustversion v1.0.22
+#19 224.5    Compiling openssl-probe v0.1.6
+#19 224.9    Compiling minimal-lexical v0.2.1
+#19 225.7    Compiling nom v7.1.3
+#19 234.7    Compiling want v0.3.1
+#19 239.0    Compiling rand v0.8.5
+#19 257.5    Compiling tokio-rustls v0.23.4
+#19 258.2    Compiling flate2 v1.1.8
+#19 260.9    Compiling parking_lot v0.11.2
+#19 264.3    Compiling rustls-pemfile v1.0.4
+#19 264.7    Compiling http-body-util v0.1.3
+#19 266.1    Compiling num-bigint v0.4.6
+#19 270.7    Compiling http-body v0.4.6
+#19 271.3    Compiling hmac v0.12.1
+#19 275.4    Compiling rustls-webpki v0.101.7
+#19 278.4    Compiling encoding_rs v0.8.35
+#19 284.6    Compiling alloc-no-stdlib v2.0.4
+#19 284.8    Compiling local-waker v0.1.4
+#19 285.1    Compiling arrayvec v0.7.6
+#19 285.5    Compiling sync_wrapper v1.0.2
+#19 291.2    Compiling thiserror v2.0.18
+#19 291.8    Compiling unicode_categories v0.1.1
+#19 292.0    Compiling hashbrown v0.12.3
+#19 292.8    Compiling iana-time-zone v0.1.65
+#19 293.5    Compiling unicode-properties v0.1.4
+#19 293.9    Compiling zstd-safe v7.2.4
+#19 294.1    Compiling bitflags v1.3.2
+#19 294.2    Compiling atomic-waker v1.1.2
+#19 294.3    Compiling hyper v1.8.1
+#19 302.7    Compiling stringprep v0.1.5
+#19 303.0    Compiling chrono v0.4.43
+#19 304.1    Compiling sqlformat v0.2.6
+#19 312.4    Compiling alloc-stdlib v0.2.2
+#19 314.1    Compiling hkdf v0.12.4
+#19 314.3    Compiling hyper v0.14.32
+#19 326.1    Compiling crossbeam-queue v0.3.12
+#19 326.2    Compiling futures-intrusive v0.4.2
+#19 327.0    Compiling sqlx-rt v0.6.3
+#19 328.5    Compiling hashlink v0.8.4
+#19 329.9    Compiling tokio-native-tls v0.3.1
+#19 330.1    Compiling tokio-stream v0.1.18
+#19 330.5    Compiling webpki-roots v0.22.6
+#19 330.6    Compiling regex v1.12.2
+#19 331.2    Compiling atoi v1.0.0
+#19 331.7    Compiling convert_case v0.10.0
+#19 332.1    Compiling rand_core v0.9.5
+#19 332.4    Compiling md-5 v0.10.6
+#19 332.6    Compiling inout v0.1.4
+#19 332.8    Compiling thiserror-impl v2.0.18
+#19 332.8    Compiling proc-macro-error-attr v1.0.4
+#19 333.8    Compiling event-listener v2.5.3
+#19 334.1    Compiling unicode-xid v0.2.6
+#19 336.2    Compiling base64 v0.13.1
+#19 336.6    Compiling hex v0.4.3
+#19 337.1    Compiling dotenvy v0.15.7
+#19 337.7    Compiling base64ct v1.6.0
+#19 337.9    Compiling whoami v1.6.1
+#19 338.3    Compiling sqlx-core v0.6.3
+#19 350.3    Compiling derive_more-impl v2.1.1
+#19 356.7    Compiling cipher v0.4.4
+#19 357.3    Compiling rand_chacha v0.9.0
+#19 358.7    Compiling axum-core v0.4.5
+#19 363.3    Compiling tokio-rustls v0.24.1
+#19 363.4    Compiling brotli-decompressor v5.0.0
+#19 364.7    Compiling hyper-util v0.1.20
+#19 365.8    Compiling tower v0.5.3
+#19 366.7    Compiling actix-utils v3.0.1
+#19 366.9    Compiling rayon v1.11.0
+

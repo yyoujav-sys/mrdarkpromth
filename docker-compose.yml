@@ -62,7 +62,7 @@ services:
     environment:
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/mr_darkpromth
       REDIS_URL: redis://redis:6379
-      RUST_LOG: info
+      RUST_LOG: debug
       SERVER_HOST: 0.0.0.0
       SERVER_PORT: 8080
       CORS_ALLOWED_ORIGINS: https://bt-shop-dark.online,https://www.bt-shop-dark.online

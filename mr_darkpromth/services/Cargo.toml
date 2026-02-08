@@ -41,7 +41,7 @@ md5 = "0.7"
 
 # Authentication dependencies
 argon2 = "0.4"
-jsonwebtoken = "8.3"
+jsonwebtoken = "9.3"
 mr_darkpromth_db = { path = "../db" }
 mr_darkpromth_core = { path = "../core" }
 sqlx = { version = "0.6", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "decimal"], default-features = false }
@@ -53,11 +53,11 @@ image = "0.24"
 base64 = "0.21"
 
 # Web framework dependencies for API
-axum = "0.6"
+axum = { version = "0.7", features = ["json", "macros"] }
 actix-web = "4.4"
 actix-cors = "0.6"
 tower = "0.4"
-tower-http = { version = "0.4", features = ["cors", "trace"] }
+tower-http = { version = "0.5", features = ["cors", "trace"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

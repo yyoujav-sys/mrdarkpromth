@@ -38,6 +38,7 @@ pub struct RegisterRequest {
 pub struct AuthResponse {
     pub user: UserResponse,
     pub token: String,
+    pub refresh_token: String,
     pub expires_in: i64,
 }
 
@@ -125,11 +126,13 @@ impl UserService {
 
         // Generate JWT token
         let token = self.generate_token(&user).await?;
+        let refresh_token = self.generate_refresh_token(&user).await?;
 
         Ok(AuthResponse {
             user: user.into(),
             token,
-            expires_in: 24 * 60 * 60, // 24 hours
+            refresh_token,
+            expires_in: 3600, // 1 hour
         })
     }
 
@@ -177,12 +180,47 @@ impl UserService {
 
         // Generate JWT token
         let token = self.generate_token(&user).await?;
+        let refresh_token = self.generate_refresh_token(&user).await?;
 
         Ok(AuthResponse {
             user: user.into(),
             token,
-            expires_in: 24 * 60 * 60, // 24 hours
+            refresh_token,
+            expires_in: 3600, // 1 hour
         })
+    }
+
+    pub async fn refresh_token(&self, refresh_token: &str) -> Result<AuthResponse, AuthError> {
+        let claims = self.validate_token(refresh_token).await?;
+        
+        // Verify it's a refresh token (by checking jti prefix or a specific field if added)
+        if let Some(redis_coordinator) = &self.redis_coordinator {
+            let is_valid = {
+                let mut coordinator = redis_coordinator.lock().map_err(|_| AuthError::InternalError("Redis lock failed".to_string()))?;
+                let key = format!("refresh:{}", claims.jti);
+                coordinator.get(&key).unwrap_or(None).is_some()
+            };
+
+            if !is_valid {
+                return Err(AuthError::InvalidToken);
+            }
+            
+            // Optionally rotate refresh token
+            // For now, just generate a new access token
+            let user_id = Uuid::parse_str(&claims.sub).map_err(|_| AuthError::InvalidToken)?;
+            let user = self.repository.get_user_by_id(user_id).await?.ok_or(AuthError::UserNotFound)?;
+            
+            let token = self.generate_token(&user).await?;
+            
+            Ok(AuthResponse {
+                user: user.into(),
+                token,
+                refresh_token: refresh_token.to_string(),
+                expires_in: 3600,
+            })
+        } else {
+            Err(AuthError::InternalError("Redis required for refresh tokens".to_string()))
+        }
     }
 
     pub async fn get_user_by_id(&self, user_id: Uuid) -> Result<Option<UserResponse>, AuthError> {
@@ -282,7 +320,7 @@ impl UserService {
 
     async fn generate_token(&self, user: &User) -> Result<String, AuthError> {
         let now = Utc::now();
-        let exp = now + Duration::hours(24); // 24 hour expiration
+        let exp = now + Duration::hours(1); // 1 hour expiration for access token
         let jti = Uuid::new_v4().to_string();
 
         let claims = Claims {
@@ -302,10 +340,45 @@ impl UserService {
         )?;
 
         if let Some(redis_coordinator) = &self.redis_coordinator {
-            let mut coordinator = redis_coordinator.lock().map_err(|_| AuthError::InternalError("Redis lock failed".to_string()))?;
-            let key = format!("jti:{}", jti);
-            let exp_seconds = Duration::hours(24).num_seconds() as usize;
-            coordinator.set(&key, &user.id.to_string(), Some(exp_seconds)).map_err(|e| AuthError::InternalError(e.to_string()))?;
+            {
+                let mut coordinator = redis_coordinator.lock().map_err(|_| AuthError::InternalError("Redis lock failed".to_string()))?;
+                let key = format!("jti:{}", jti);
+                let exp_seconds = Duration::hours(1).num_seconds() as usize;
+                coordinator.set(&key, &user.id.to_string(), Some(exp_seconds)).map_err(|e| AuthError::InternalError(e.to_string()))?;
+            }
+        }
+
+        Ok(token)
+    }
+
+    async fn generate_refresh_token(&self, user: &User) -> Result<String, AuthError> {
+        let now = Utc::now();
+        let exp = now + Duration::days(7); // 7 days for refresh token
+        let jti = Uuid::new_v4().to_string();
+
+        let claims = Claims {
+            sub: user.id.to_string(),
+            username: user.username.clone(),
+            email: user.email.clone(),
+            tier: user.tier.to_string(),
+            exp: exp.timestamp(),
+            iat: now.timestamp(),
+            jti: jti.clone(),
+        };
+
+        let token = encode(
+            &Header::default(),
+            &claims,
+            &EncodingKey::from_secret(self.jwt_secret.as_ref()),
+        )?;
+
+        if let Some(redis_coordinator) = &self.redis_coordinator {
+            {
+                let mut coordinator = redis_coordinator.lock().map_err(|_| AuthError::InternalError("Redis lock failed".to_string()))?;
+                let key = format!("refresh:{}", jti);
+                let exp_seconds = Duration::days(7).num_seconds() as usize;
+                coordinator.set(&key, &user.id.to_string(), Some(exp_seconds)).map_err(|e| AuthError::InternalError(e.to_string()))?;
+            }
         }
 
         Ok(token)

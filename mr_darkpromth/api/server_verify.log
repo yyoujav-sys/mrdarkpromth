@@ -1,0 +1,124 @@
+warning: variable does not need to be mutable
+   --> services/src/user_service.rs:199:21
+    |
+199 |                 let mut coordinator = redis_coordinator.lock().map_err(|_| AuthError::InternalError("Redis lock failed".to_string()))?;
+    |                     ----^^^^^^^^^^^
+    |                     |
+    |                     help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+   --> services/src/user_service.rs:344:21
+    |
+344 |                 let mut coordinator = redis_coordinator.lock().map_err(|_| AuthError::InternalError("Redis lock failed".to_string()))?;
+    |                     ----^^^^^^^^^^^
+    |                     |
+    |                     help: remove this `mut`
+
+warning: variable does not need to be mutable
+   --> services/src/user_service.rs:377:21
+    |
+377 |                 let mut coordinator = redis_coordinator.lock().map_err(|_| AuthError::InternalError("Redis lock failed".to_string()))?;
+    |                     ----^^^^^^^^^^^
+    |                     |
+    |                     help: remove this `mut`
+
+warning: `mr_darkpromth_services` (lib) generated 3 warnings (run `cargo fix --lib -p mr_darkpromth_services` to apply 3 suggestions)
+warning: variable does not need to be mutable
+   --> api/src/handlers/auth.rs:243:17
+    |
+243 |             let mut coordinator = redis_coordinator.lock().unwrap();
+    |                 ----^^^^^^^^^^^
+    |                 |
+    |                 help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: variable does not need to be mutable
+  --> api/src/handlers/chat_billing.rs:58:19
+   |
+58 |         if let Ok(mut locked_coordinator) = redis_coordinator.lock() {
+   |                   ----^^^^^^^^^^^^^^^^^^
+   |                   |
+   |                   help: remove this `mut`
+
+warning: variable does not need to be mutable
+  --> api/src/middleware.rs:38:21
+   |
+38 |                 let mut coordinator = redis_coordinator.lock().unwrap();
+   |                     ----^^^^^^^^^^^
+   |                     |
+   |                     help: remove this `mut`
+
+warning: unused variable: `headers`
+   --> api/src/handlers/auth.rs:296:5
+    |
+296 |     headers: axum::http::HeaderMap,
+    |     ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_headers`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `headers`
+   --> api/src/handlers/auth.rs:468:5
+    |
+468 |     headers: axum::http::HeaderMap,
+    |     ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_headers`
+
+warning: unused variable: `headers`
+   --> api/src/handlers/auth.rs:648:5
+    |
+648 |     headers: axum::http::HeaderMap,
+    |     ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_headers`
+
+warning: unused variable: `headers`
+   --> api/src/handlers/auth.rs:660:5
+    |
+660 |     headers: axum::http::HeaderMap,
+    |     ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_headers`
+
+warning: unused variable: `headers`
+   --> api/src/handlers/tools_jailbreak.rs:518:5
+    |
+518 |     headers: axum::http::HeaderMap,
+    |     ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_headers`
+
+warning: unused variable: `state`
+   --> api/src/handlers/tools_jailbreak.rs:525:11
+    |
+525 |     State(state): State<Arc<AppState>>,
+    |           ^^^^^ help: if this is intentional, prefix it with an underscore: `_state`
+
+warning: unused variable: `headers`
+   --> api/src/handlers/tools_jailbreak.rs:526:5
+    |
+526 |     headers: axum::http::HeaderMap,
+    |     ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_headers`
+
+warning: unused variable: `prompt_id`
+   --> api/src/handlers/tools_jailbreak.rs:527:10
+    |
+527 |     Path(prompt_id): Path<String>,
+    |          ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_prompt_id`
+
+warning: unused variable: `headers`
+   --> api/src/handlers/tools_jailbreak.rs:642:5
+    |
+642 |     headers: axum::http::HeaderMap,
+    |     ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_headers`
+
+warning: unused variable: `headers`
+   --> api/src/handlers/tools_jailbreak.rs:650:5
+    |
+650 |     headers: axum::http::HeaderMap,
+    |     ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_headers`
+
+warning: `mr_darkpromth_api` (lib) generated 13 warnings (run `cargo fix --lib -p mr_darkpromth_api` to apply 13 suggestions)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 6.06s
+warning: the following packages contain code that will be rejected by a future version of Rust: redis v0.24.0, sqlx-core v0.6.3
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+     Running `/opt/mrdarkpromth/mr_darkpromth/target/debug/mr_darkpromth_api`
+
+thread 'main' (2705505) panicked at api/src/main.rs:19:33:
+DB connect failed: Database(PgDatabaseError { severity: Fatal, code: "28P01", message: "password authentication failed for user \"postgres\"", detail: None, hint: None, position: None, where: None, schema: None, table: None, column: None, data_type: None, constraint: None, file: Some("auth.c"), line: Some(334), routine: Some("auth_failed") })
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

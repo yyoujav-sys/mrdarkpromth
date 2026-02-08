@@ -4,6 +4,7 @@ use axum::{
     middleware::Next,
     response::Response,
 };
+use tokio::sync::Mutex;
 use std::sync::Arc;
 use crate::AppState;
 
@@ -35,9 +36,12 @@ pub async fn auth_middleware(
     match state.user_service.validate_token(token).await {
         Ok(claims) => {
             if let Some(redis_coordinator) = &state.redis_coordinator {
-                let mut coordinator = redis_coordinator.lock().unwrap();
+                let mut coordinator = redis_coordinator.lock().await;
                 let key = format!("jti:{}", claims.jti);
-                if coordinator.get(&key).unwrap_or(None).is_none() {
+                let is_revoked = coordinator.get(&key).unwrap_or(None).is_none();
+                drop(coordinator);
+                
+                if is_revoked {
                     // Token jti not found in Redis, so it's considered revoked/invalid
                     return Err(StatusCode::UNAUTHORIZED);
                 }

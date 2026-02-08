@@ -3,8 +3,9 @@ use axum::{
     http::{header, Request, StatusCode},
     middleware::Next,
     response::{IntoResponse, Response},
-    Json,
+    body::Body,
 };
+use axum::Json;
 use mr_darkpromth_db::UserTier;
 use serde_json::json;
 use std::sync::Arc;
@@ -47,8 +48,8 @@ fn has_required_tier(current: &UserTier, required: &UserTier) -> bool {
 
 pub async fn auth_middleware(
     State(state): State<AuthState>,
-    mut request: Request<axum::body::Body>,
-    next: Next<axum::body::Body>,
+    mut request: Request<Body>,
+    next: Next,
 ) -> Response {
     let auth_header = request.headers().get(header::AUTHORIZATION).and_then(|h| h.to_str().ok());
 
@@ -72,8 +73,8 @@ pub async fn auth_middleware(
 
 pub async fn api_key_middleware(
     State(state): State<AuthState>,
-    mut request: Request<axum::body::Body>,
-    next: Next<axum::body::Body>,
+    mut request: Request<Body>,
+    next: Next,
 ) -> Response {
     if let Some(api_key) = request.headers().get("X-API-Key").and_then(|h| h.to_str().ok()) {
         if let Ok(Some(user)) = state.user_service.validate_api_key(api_key).await {
@@ -91,7 +92,7 @@ pub async fn api_key_middleware(
 
 // This is the new, simplified middleware function for checking tiers.
 async fn require_tier_level(
-    request: &Request<axum::body::Body>,
+    request: &Request<Body>,
     required_tier: &UserTier,
 ) -> Result<(), Response> {
     let extensions = request.extensions();
@@ -111,8 +112,8 @@ async fn require_tier_level(
 }
 
 pub async fn require_premium_tier(
-    request: Request<axum::body::Body>,
-    next: Next<axum::body::Body>,
+    request: Request<Body>,
+    next: Next,
 ) -> Response {
     match require_tier_level(&request, &UserTier::Premium).await {
         Ok(_) => next.run(request).await,
@@ -121,8 +122,8 @@ pub async fn require_premium_tier(
 }
 
 pub async fn require_ultra_tier(
-    request: Request<axum::body::Body>,
-    next: Next<axum::body::Body>,
+    request: Request<Body>,
+    next: Next,
 ) -> Response {
     match require_tier_level(&request, &UserTier::Ultra).await {
         Ok(_) => next.run(request).await,
@@ -131,8 +132,8 @@ pub async fn require_ultra_tier(
 }
 
 pub async fn require_admin_tier(
-    request: Request<axum::body::Body>,
-    next: Next<axum::body::Body>,
+    request: Request<Body>,
+    next: Next,
 ) -> Response {
     match require_tier_level(&request, &UserTier::Admin).await {
         Ok(_) => next.run(request).await,
@@ -141,13 +142,13 @@ pub async fn require_admin_tier(
 }
 
 // Helper function to extract authenticated user from request
-pub fn extract_auth_user(request: &Request<axum::body::Body>) -> Result<&AuthenticatedUser, StatusCode> {
+pub fn extract_auth_user(request: &Request<Body>) -> Result<&AuthenticatedUser, StatusCode> {
     request.extensions().get::<AuthenticatedUser>()
         .ok_or(StatusCode::UNAUTHORIZED)
 }
 
 // Helper function to check if user has specific tier
-pub fn check_user_tier(request: &Request<axum::body::Body>, required_tier: UserTier) -> Result<bool, StatusCode> {
+pub fn check_user_tier(request: &Request<Body>, required_tier: UserTier) -> Result<bool, StatusCode> {
     let auth_user = extract_auth_user(request)?;
     Ok(has_required_tier(&auth_user.tier, &required_tier))
 }
@@ -155,8 +156,8 @@ pub fn check_user_tier(request: &Request<axum::body::Body>, required_tier: UserT
 // Middleware for optional authentication (doesn't fail if no auth)
 pub async fn optional_auth_middleware(
     State(state): State<AuthState>,
-    mut request: Request<axum::body::Body>,
-    next: Next<axum::body::Body>,
+    mut request: Request<Body>,
+    next: Next,
 ) -> Response {
     // Try to extract token from Authorization header
     if let Some(auth_header) = request

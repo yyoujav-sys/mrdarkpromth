@@ -154,6 +154,12 @@ impl Default for AuditFilter {
     }
 }
 
+impl Default for AuditAnalytics {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AuditAnalytics {
     pub fn new() -> Self {
         Self {
@@ -201,15 +207,15 @@ impl AuditAnalytics {
         }
 
         if let Some(ip_address) = &filter.ip_address {
-            filtered_logs.retain(|log| log.ip_address.as_ref().map_or(false, |ip| ip.contains(ip_address)));
+            filtered_logs.retain(|log| log.ip_address.as_ref().is_some_and(|ip| ip.contains(ip_address)));
         }
 
         if let Some(model_used) = &filter.model_used {
-            filtered_logs.retain(|log| log.model_used.as_ref().map_or(false, |model| model.contains(model_used)));
+            filtered_logs.retain(|log| log.model_used.as_ref().is_some_and(|model| model.contains(model_used)));
         }
 
         if let Some(jailbreak_prompt_id) = &filter.jailbreak_prompt_id {
-            filtered_logs.retain(|log| log.jailbreak_prompt_id.as_ref().map_or(false, |id| id == jailbreak_prompt_id));
+            filtered_logs.retain(|log| log.jailbreak_prompt_id.as_ref() == Some(jailbreak_prompt_id));
         }
 
         if let Some(safety_triggered) = &filter.safety_filter_triggered {
@@ -364,7 +370,7 @@ impl AuditAnalytics {
             let entry = user_data.entry(log.user_id.clone()).or_insert_with(|| UserActivity {
                 user_id: log.user_id.clone(),
                 username: None, // Would need to be populated from user service
-                tier: log.user_tier.clone(),
+                tier: log.user_tier,
                 request_count: 0,
                 total_processing_time_ms: 0,
                 jailbreak_attempts: 0,

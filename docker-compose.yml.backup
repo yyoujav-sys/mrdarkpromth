@@ -1,0 +1,172 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: mr_darkpromth_postgres
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    env_file: .env
+    environment:
+      POSTGRES_DB: mr_darkpromth
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    expose:
+      - "5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    networks:
+      - mr_darkpromth_network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+        reservations:
+          memory: 128M
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for Event Bus
+  redis:
+    image: redis:7-alpine
+    container_name: mr_darkpromth_redis
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    expose:
+      - "6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - mr_darkpromth_network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+        reservations:
+          memory: 64M
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MR.DarkPromth Backend Service
+  api:
+    image: mr_darkpromth_api:latest
+    container_name: mr_darkpromth_api
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    env_file: .env
+    environment:
+      CEREBRAS_API_KEYS: ${CEREBRAS_API_KEYS}
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/mr_darkpromth
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      RUST_LOG: info
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 8080
+      DOCKER_HOST: unix:///var/run/docker.sock
+      CORS_ALLOWED_ORIGINS: https://mrdarkpromth.online,https://www.mrdarkpromth.online
+      AGENT_COORDINATION_ENABLED: "true"
+      HEARTBEAT_INTERVAL_SECONDS: "30"
+      MEMORY_LOG_ENABLED: "true"
+      OPENROUTER_API_KEYS: ${OPENROUTER_API_KEYS}
+      JWT_SECRET: ${JWT_SECRET}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
+    ports:
+      - "8080:8080"
+    command: [ "/bin/sh", "-c", "sleep 10 && mr_darkpromth_api" ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./memory:/app/memory
+      - ./logs:/app/logs
+      - ./mr_darkpromth:/app/mr_darkpromth:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    user: root
+    networks:
+      - mr_darkpromth_network
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          memory: 256M
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/health" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # Frontend (Builds the static assets)
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: mr_darkpromth_frontend
+    volumes:
+      - frontend_build:/usr/share/nginx/html
+    command: [ "nginx", "-g", "daemon off;" ]
+
+  # Nginx reverse proxy with SSL
+  nginx:
+    image: nginx:alpine
+    container_name: mr_darkpromth_nginx
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.production.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/etc/letsencrypt:ro
+      - frontend_build:/usr/share/nginx/html:ro
+    depends_on:
+      - api
+    networks:
+      - mr_darkpromth_network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+        reservations:
+          memory: 32M
+
+volumes:
+  postgres_data:
+  redis_data:
+  frontend_build:
+  prometheus_data:
+  grafana_data:
+  elasticsearch_data:
+
+networks:
+  mr_darkpromth_network:
+    driver: bridge

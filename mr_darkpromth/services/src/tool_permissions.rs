@@ -32,22 +32,7 @@ pub struct PermissionRule {
     pub max_executions_per_hour: Option<u32>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub enum UserTier {
-    Free,
-    Premium,
-    Ultra,
-}
-
-impl std::fmt::Display for UserTier {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            UserTier::Free => write!(f, "free"),
-            UserTier::Premium => write!(f, "premium"),
-            UserTier::Ultra => write!(f, "ultra"),
-        }
-    }
-}
+pub use mr_darkpromth_core::tier::UserTier;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PermissionCheckResult {
@@ -148,6 +133,21 @@ impl ToolPermissionManager {
             risk_level: RiskLevel::Critical,
         });
 
+        // AI Features
+        self.register_permission(Permission {
+            name: "code.generate".to_string(),
+            description: "Generate code using AI models".to_string(),
+            category: "ai_features".to_string(),
+            risk_level: RiskLevel::Medium,
+        });
+
+        self.register_permission(Permission {
+            name: "model.select".to_string(),
+            description: "Select specific AI models (e.g., Llama 3.3 70B)".to_string(),
+            category: "ai_features".to_string(),
+            risk_level: RiskLevel::Medium,
+        });
+
         // Set up default permission rules
         self.register_rule(PermissionRule {
             permission: "file.read".to_string(),
@@ -195,6 +195,22 @@ impl ToolPermissionManager {
             allowed_roles: vec!["admin".to_string()],
             requires_approval: true,
             max_executions_per_hour: Some(10),
+        });
+
+        self.register_rule(PermissionRule {
+            permission: "code.generate".to_string(),
+            allowed_tiers: vec![UserTier::Premium, UserTier::Ultra],
+            allowed_roles: vec!["user".to_string(), "admin".to_string()],
+            requires_approval: false,
+            max_executions_per_hour: Some(200),
+        });
+
+        self.register_rule(PermissionRule {
+            permission: "model.select".to_string(),
+            allowed_tiers: vec![UserTier::Ultra],
+            allowed_roles: vec!["user".to_string(), "admin".to_string()],
+            requires_approval: false,
+            max_executions_per_hour: None,
         });
     }
 
@@ -342,12 +358,7 @@ impl ToolPermissionManager {
     }
 
     fn parse_tier(tier_str: &str) -> UserTier {
-        match tier_str.to_lowercase().as_str() {
-            "free" => UserTier::Free,
-            "premium" => UserTier::Premium,
-            "ultra" => UserTier::Ultra,
-            _ => UserTier::Free,
-        }
+        tier_str.parse().unwrap_or(UserTier::Free)
     }
 
     fn get_minimum_tier(tiers: &[UserTier]) -> String {

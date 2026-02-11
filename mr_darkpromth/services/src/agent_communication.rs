@@ -5,10 +5,12 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
+pub type MessageHandler = Box<dyn Fn(AgentMessage) -> AgentResult<()> + Send + Sync>;
+
 pub struct AgentCommunicationManager {
     redis_coordinator: Arc<RedisCoordinator>,
     agent_subscriptions: Arc<Mutex<HashMap<String, Vec<String>>>>,
-    message_handlers: Arc<Mutex<HashMap<String, Box<dyn Fn(AgentMessage) -> AgentResult<()> + Send + Sync>>>>,
+    message_handlers: Arc<Mutex<HashMap<String, MessageHandler>>>,
 }
 
 impl AgentCommunicationManager {
@@ -28,7 +30,7 @@ impl AgentCommunicationManager {
             .map_err(|e| AgentError::CommunicationError(e.to_string()))?;
         
         let mut subscriptions = self.agent_subscriptions.lock().unwrap();
-        subscriptions.entry(agent_id.to_string()).or_insert_with(Vec::new);
+        subscriptions.entry(agent_id.to_string()).or_default();
         
         Ok(())
     }

@@ -223,7 +223,7 @@ impl SessionManager {
         // Update user sessions mapping
         self.user_sessions
             .entry(user_id)
-            .or_insert_with(HashSet::new)
+            .or_default()
             .insert(session_id_str.clone());
 
         Ok((access_token, refresh_token, session))
@@ -275,13 +275,12 @@ impl SessionManager {
         }
 
         // IP binding check
-        if self.config.enable_ip_binding {
-            if session.ip_address.as_str() != ip_address {
+        if self.config.enable_ip_binding
+            && session.ip_address.as_str() != ip_address {
                 result.warnings.push("IP address mismatch detected".to_string());
                 // For security, we might want to invalidate the session
                 return Err(SessionError::SuspiciousActivity("IP address mismatch".to_string()));
             }
-        }
 
         // User agent binding check
         if self.config.enable_user_agent_binding {
@@ -367,8 +366,7 @@ impl SessionManager {
     }
 
     pub fn revoke_all_user_sessions(&mut self, user_id: &Uuid) -> Result<Vec<String>, SessionError> {
-        let session_ids = self.user_sessions.get(user_id)
-            .map(|sessions| sessions.clone())
+        let session_ids = self.user_sessions.get(user_id).cloned()
             .unwrap_or_default();
 
         let mut revoked_sessions = Vec::new();
@@ -407,7 +405,7 @@ impl SessionManager {
 
         self.sessions.retain(|session_id, session| {
             let is_expired = now > session.expires_at || 
-                           (session.locked_until.map_or(false, |locked| now < locked));
+                           (session.locked_until.is_some_and(|locked| now < locked));
 
             if is_expired {
                 expired_sessions.push(session_id.clone());

@@ -152,9 +152,9 @@ impl crate::audit::AuditService for DatabaseAuditService {
             logs.push(AuditLog {
                 id: row.get("id"),
                 user_id: row.get("user_id"),
-                action: AuditAction::from_str(&action_str).map_err(|e| anyhow::anyhow!(e))?,
-                severity: AuditSeverity::from_str(&severity_str).map_err(|e| anyhow::anyhow!(e))?,
-                user_tier: user_tier_str.map(|s| UserTier::from_str(&s).map_err(|e| anyhow::anyhow!(e))).transpose()?,
+                action: AuditAction::from_str(&action_str).map_err(|e| anyhow::anyhow!(e.to_string()))?,
+                severity: AuditSeverity::from_str(&severity_str).map_err(|e| anyhow::anyhow!(e.to_string()))?,
+                user_tier: user_tier_str.map(|s| s.parse::<UserTier>().map_err(|e| anyhow::anyhow!(e.to_string()))).transpose()?,
                 ip_address: row.get("ip_address"),
                 user_agent: row.get("user_agent"),
                 request_id: row.get("request_id"),
@@ -207,12 +207,10 @@ impl crate::audit::AuditService for DatabaseAuditService {
         }
 
         let most_active_users = user_counts.into_iter()
-            .map(|(id, count)| (id, count))
             .take(10)
             .collect();
 
         let most_common_actions = action_counts.into_iter()
-            .map(|(action, count)| (action, count))
             .take(10)
             .collect();
 

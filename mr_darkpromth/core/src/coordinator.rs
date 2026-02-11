@@ -13,6 +13,12 @@ pub struct CoordinatorAgent {
     completed_tasks: Vec<Task>,
 }
 
+impl Default for CoordinatorAgent {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CoordinatorAgent {
     pub fn new() -> Self {
         let context = AgentContext::new("coordinator".to_string());

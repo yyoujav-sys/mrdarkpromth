@@ -24,8 +24,9 @@ pub struct JailbreakPrompt {
     pub requires_ultra_tier: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq)]
-#[sqlx(type_name = "varchar", rename_all = "lowercase")]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq, Copy)]
+#[sqlx(type_name = "VARCHAR", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
 pub enum PromptCategory {
     DanVariations,
     CharacterRolePlaying,
@@ -40,8 +41,9 @@ pub enum PromptCategory {
     Custom,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq)]
-#[sqlx(type_name = "varchar", rename_all = "lowercase")]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq, Copy)]
+#[sqlx(type_name = "VARCHAR", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
 pub enum BypassTechnique {
     PersonaAdoption,
     SystemPromptOverride,
@@ -54,10 +56,12 @@ pub enum BypassTechnique {
     Base64Encoding,
     MultiLayerDeception,
     HybridApproach,
+    Custom,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq)]
-#[sqlx(type_name = "varchar", rename_all = "lowercase")]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq, Copy)]
+#[sqlx(type_name = "VARCHAR", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
 pub enum EffectivenessRating {
     Low,      // 0-40%
     Medium,   // 41-70%
@@ -66,8 +70,9 @@ pub enum EffectivenessRating {
     Maximum,  // 96-100%
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq)]
-#[sqlx(type_name = "varchar", rename_all = "lowercase")]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq, Copy)]
+#[sqlx(type_name = "VARCHAR", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
 pub enum RiskLevel {
     Low,
     Medium,
@@ -105,7 +110,7 @@ pub struct UpdatePromptRequest {
     pub requires_ultra_tier: Option<bool>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PromptSearchRequest {
     pub query: Option<String>,
     pub category: Option<PromptCategory>,
@@ -114,6 +119,8 @@ pub struct PromptSearchRequest {
     pub risk_level: Option<RiskLevel>,
     pub target_models: Option<Vec<String>>,
     pub tags: Option<Vec<String>>,
+    pub author: Option<String>,
+    pub target_model: Option<String>,
     pub requires_ultra_tier: Option<bool>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
@@ -121,7 +128,7 @@ pub struct PromptSearchRequest {
     pub sort_order: Option<SortOrder>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum PromptSortBy {
     CreatedAt,
@@ -132,7 +139,7 @@ pub enum PromptSortBy {
     Title,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum SortOrder {
     Asc,

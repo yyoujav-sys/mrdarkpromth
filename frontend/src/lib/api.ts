@@ -6,7 +6,7 @@ class ApiClient {
 
   constructor() {
     this.client = axios.create({
-      baseURL: import.meta.env.VITE_API_BASE_URL || 'https://bt-shop-dark.online',
+      baseURL: import.meta.env.VITE_API_BASE_URL || 'https://mrdarkpromth.online',
       timeout: 15000,
       headers: {
         'Content-Type': 'application/json',
@@ -32,7 +32,7 @@ class ApiClient {
       (response) => response,
       (error) => {
         const status = error.response?.status
-        
+
         if (status === 401) {
           // Token expired or invalid
           localStorage.removeItem('token')
@@ -46,7 +46,7 @@ class ApiClient {
         } else if (status >= 500) {
           console.error('Server error: Something went wrong on our end.')
         }
-        
+
         return Promise.reject(error)
       }
     )
@@ -140,8 +140,22 @@ class ApiClient {
   }
 
   // Jailbreak endpoints
-  async getJailbreakPrompts() {
-    const response = await this.client.get('/api/jailbreak/prompts')
+  async getJailbreakPrompts(category?: string, search?: string) {
+    const params = new URLSearchParams()
+    if (category && category !== 'all') {
+      params.append('category', category)
+    }
+    if (search) {
+      params.append('search', search)
+    }
+    const queryString = params.toString()
+    const url = `/api/jailbreak/prompts${queryString ? `?${queryString}` : ''}`
+    const response = await this.client.get(url)
+    return response.data
+  }
+
+  async getJailbreakCategories() {
+    const response = await this.client.get('/api/jailbreak/categories')
     return response.data
   }
 
@@ -168,8 +182,38 @@ class ApiClient {
     return response.data
   }
 
+  async getUserSubscription(userId: string) {
+    const response = await this.client.get(`/api/admin/users/${userId}/subscription`)
+    return response.data
+  }
+
+  async getUserPayments(userId: string) {
+    const response = await this.client.get(`/api/admin/users/${userId}/payments`)
+    return response.data
+  }
+
+  async updateUserTier(userId: string, tier: string) {
+    const response = await this.client.put(`/api/admin/users/${userId}/tier`, { tier })
+    return response.data
+  }
+
+  async getPendingVerifications() {
+    const response = await this.client.get('/api/admin/verifications/pending')
+    return response.data
+  }
+
+  async approveVerification(verificationId: string, approved: boolean, notes?: string) {
+    const response = await this.client.post(`/api/admin/verifications/${verificationId}/approve`, { approved, notes })
+    return response.data
+  }
+
   async getSystemMetrics() {
     const response = await this.client.get('/api/admin/metrics')
+    return response.data
+  }
+
+  async getDashboardSummary() {
+    const response = await this.client.get('/api/admin/dashboard/summary')
     return response.data
   }
 
@@ -177,6 +221,11 @@ class ApiClient {
     const response = await this.client.put(`/api/admin/users/${userId}/status`, {
       status,
     })
+    return response.data
+  }
+
+  async getTelemetryHistory() {
+    const response = await this.client.get('/api/admin/telemetry/history')
     return response.data
   }
 
@@ -213,7 +262,7 @@ class ApiClient {
   }
 
   async changePassword(currentPassword: string, newPassword: string) {
-    const response = await this.client.post('/api/auth/change-password', {
+    const response = await this.client.put('/api/users/me/password', {
       current_password: currentPassword,
       new_password: newPassword,
     })
@@ -243,14 +292,8 @@ class ApiClient {
     return response.data
   }
 
-  async processCreditCardPayment(data: {
-    plan_id: string
-    amount: number
-    card_token: string
-  }) {
-    const response = await this.client.post('/api/billing/credit-card-payment', data)
-    return response.data
-  }
+  // Note: Credit card payment will be added when backend endpoint is implemented
+  // async processCreditCardPayment(data: {...}) { ... }
 
   async getSubscriptionStatus() {
     const response = await this.client.get('/api/billing/subscription')
@@ -278,9 +321,14 @@ class ApiClient {
   }
 
   // Terminal endpoints
-  async executeTerminal(command: string) {
-    const response = await this.client.post('/api/terminal/execute', { command })
-    return response.data
+  async executeTerminal(command: string, args: string[] = []): Promise<any> {
+    const lang = localStorage.getItem('user_language') || 'en';
+    const response = await this.client.post('/api/terminal/execute', {
+      command,
+      args,
+      lang
+    });
+    return response.data;
   }
 
   async getApiKeyStatus() {

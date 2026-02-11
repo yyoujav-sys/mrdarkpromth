@@ -13,7 +13,7 @@ printf '%s\n' \
 '' \
 'SERVER_HOST=0.0.0.0' \
 'SERVER_PORT=8080' \
-'CORS_ALLOWED_ORIGINS=https://bt-shop-dark.online,https://www.bt-shop-dark.online' \
+'CORS_ALLOWED_ORIGINS=https://mrdarkpromth.online,https://www.mrdarkpromth.online' \
 '' \
 'JWT_SECRET=Fb3xK9mP2nQ7vL4wR8sT6yU1aB5cD0eH3jK8lM2nP4qR7sT9vW2xY5zA8bC1dE' \
 'JWT_EXPIRES_IN=24h' \
@@ -25,13 +25,13 @@ printf '%s\n' \
 '' \
 'GITHUB_CLIENT_ID=Ov23liZnNS4nh4RZg6gE' \
 'GITHUB_CLIENT_SECRET=13b74d235a20803bd7c43bc585916185f8fa08f4' \
-'GITHUB_REDIRECT_URI=https://bt-shop-dark.online/login/github' \
+'GITHUB_REDIRECT_URI=https://mrdarkpromth.online/login/github' \
 '' \
 'SMTP_HOST=smtp.gmail.com' \
 'SMTP_PORT=587' \
 'SMTP_USER=mrdarkpromth2@gmail.com' \
 'SMTP_PASSWORD=ldqeszoljdkjdric' \
-'SMTP_FROM=noreply@bt-shop-dark.online' \
+'SMTP_FROM=noreply@mrdarkpromth.online' \
 'SMTP_TLS=true' \
 '' \
 'SSL_CERT_PATH=/etc/nginx/certs/cert.pem' \

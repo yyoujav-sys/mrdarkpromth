@@ -60,41 +60,32 @@ impl Default for EmailConfig {
     }
 }
 
-pub struct EmailService {
-    config: EmailConfig,
-    smtp: Option<SmtpTransport>,
+#[async_trait::async_trait]
+pub trait EmailRepository: Send + Sync {
+    async fn create_verification_token(&self, user_id: Uuid, email: &str, token: &str, expires_at: DateTime<Utc>) -> Result<EmailVerificationToken>;
+    async fn create_password_reset_token(&self, user_id: Uuid, token: &str, expires_at: DateTime<Utc>) -> Result<PasswordResetToken>;
+    async fn find_verification_token(&self, token: &str) -> Result<Option<EmailVerificationToken>>;
+    async fn mark_verification_token_used(&self, token: &str) -> Result<EmailVerificationToken>;
+    async fn mark_user_email_verified(&self, user_id: Uuid) -> Result<()>;
+    async fn find_password_reset_token(&self, token: &str) -> Result<Option<PasswordResetToken>>;
+    async fn mark_password_reset_token_used(&self, token: &str) -> Result<PasswordResetToken>;
+}
+
+pub struct PostgresEmailRepository {
     pool: sqlx::PgPool,
 }
 
-impl EmailService {
-    pub fn new(config: EmailConfig, pool: sqlx::PgPool) -> Result<Self> {
-        let smtp = if !config.smtp_host.is_empty() && !config.smtp_username.is_empty() {
-            Some(
-                SmtpTransport::relay(&config.smtp_host)?
-                    .port(config.smtp_port)
-                    .credentials(lettre::transport::smtp::authentication::Credentials::new(
-                        config.smtp_username.clone().into(),
-                        config.smtp_password.clone().into(),
-                    ))
-                    .build(),
-            )
-        } else {
-            None
-        };
-
-        Ok(Self { config, smtp, pool })
+impl PostgresEmailRepository {
+    pub fn new(pool: sqlx::PgPool) -> Self {
+        Self { pool }
     }
+}
 
-    pub fn new_from_env(pool: sqlx::PgPool) -> Result<Self> {
-        Self::new(EmailConfig::default(), pool)
-    }
-
-    pub async fn create_verification_token(&self, user_id: Uuid, email: &str) -> Result<EmailVerificationToken> {
-        let token = Uuid::new_v4().to_string();
+#[async_trait::async_trait]
+impl EmailRepository for PostgresEmailRepository {
+    async fn create_verification_token(&self, user_id: Uuid, email: &str, token: &str, expires_at: DateTime<Utc>) -> Result<EmailVerificationToken> {
         let token_id = Uuid::new_v4();
-        let expires_at = Utc::now() + Duration::hours(self.config.verification_expiry_hours);
-
-        let verification_token = sqlx::query_as::<_, EmailVerificationToken>(
+        sqlx::query_as::<_, EmailVerificationToken>(
             r#"
             INSERT INTO email_verification_tokens (id, user_id, token, email, expires_at)
             VALUES ($1, $2, $3, $4, $5)
@@ -103,21 +94,17 @@ impl EmailService {
         )
         .bind(token_id)
         .bind(user_id)
-        .bind(&token)
+        .bind(token)
         .bind(email)
         .bind(expires_at)
         .fetch_one(&self.pool)
-        .await?;
-
-        Ok(verification_token)
+        .await
+        .map_err(|e| anyhow::anyhow!(e))
     }
 
-    pub async fn create_password_reset_token(&self, user_id: Uuid) -> Result<PasswordResetToken> {
-        let token = Uuid::new_v4().to_string();
+    async fn create_password_reset_token(&self, user_id: Uuid, token: &str, expires_at: DateTime<Utc>) -> Result<PasswordResetToken> {
         let token_id = Uuid::new_v4();
-        let expires_at = Utc::now() + Duration::hours(self.config.reset_expiry_hours);
-
-        let reset_token = sqlx::query_as::<_, PasswordResetToken>(
+        sqlx::query_as::<_, PasswordResetToken>(
             r#"
             INSERT INTO password_reset_tokens (id, user_id, token, expires_at)
             VALUES ($1, $2, $3, $4)
@@ -126,32 +113,25 @@ impl EmailService {
         )
         .bind(token_id)
         .bind(user_id)
-        .bind(&token)
+        .bind(token)
         .bind(expires_at)
         .fetch_one(&self.pool)
-        .await?;
-
-        Ok(reset_token)
+        .await
+        .map_err(|e| anyhow::anyhow!(e))
     }
 
-    pub async fn verify_email_token(&self, token: &str) -> Result<EmailVerificationToken> {
-        let mut verification_token: EmailVerificationToken = sqlx::query_as(
+    async fn find_verification_token(&self, token: &str) -> Result<Option<EmailVerificationToken>> {
+        sqlx::query_as(
             "SELECT * FROM email_verification_tokens WHERE token = $1"
         )
         .bind(token)
         .fetch_optional(&self.pool)
-        .await?
-        .ok_or_else(|| anyhow!("Invalid or expired token"))?;
+        .await
+        .map_err(|e| anyhow::anyhow!(e))
+    }
 
-        if verification_token.used {
-            return Err(anyhow!("Token already verified"));
-        }
-
-        if Utc::now() > verification_token.expires_at {
-            return Err(anyhow!("Token has expired"));
-        }
-
-        verification_token = sqlx::query_as(
+    async fn mark_verification_token_used(&self, token: &str) -> Result<EmailVerificationToken> {
+        sqlx::query_as(
             r#"
             UPDATE email_verification_tokens 
             SET used = true, used_at = NOW() 
@@ -161,34 +141,31 @@ impl EmailService {
         )
         .bind(token)
         .fetch_one(&self.pool)
-        .await?;
-
-        sqlx::query("UPDATE users SET email_verified = true WHERE id = $1")
-            .bind(verification_token.user_id)
-            .execute(&self.pool)
-            .await?;
-
-        Ok(verification_token)
+        .await
+        .map_err(|e| anyhow::anyhow!(e))
     }
 
-    pub async fn verify_password_reset_token(&self, token: &str) -> Result<PasswordResetToken> {
-        let mut reset_token: PasswordResetToken = sqlx::query_as(
+    async fn mark_user_email_verified(&self, user_id: Uuid) -> Result<()> {
+        sqlx::query("UPDATE users SET email_verified = true WHERE id = $1")
+            .bind(user_id)
+            .execute(&self.pool)
+            .await
+            .map(|_| ())
+            .map_err(|e| anyhow::anyhow!(e))
+    }
+
+    async fn find_password_reset_token(&self, token: &str) -> Result<Option<PasswordResetToken>> {
+        sqlx::query_as(
             "SELECT * FROM password_reset_tokens WHERE token = $1"
         )
         .bind(token)
         .fetch_optional(&self.pool)
-        .await?
-        .ok_or_else(|| anyhow!("Invalid or expired token"))?;
+        .await
+        .map_err(|e| anyhow::anyhow!(e))
+    }
 
-        if reset_token.used {
-            return Err(anyhow!("Token has already been used"));
-        }
-
-        if Utc::now() > reset_token.expires_at {
-            return Err(anyhow!("Token has expired"));
-        }
-
-        reset_token = sqlx::query_as(
+    async fn mark_password_reset_token_used(&self, token: &str) -> Result<PasswordResetToken> {
+        sqlx::query_as(
             r#"
             UPDATE password_reset_tokens 
             SET used = true, used_at = NOW() 
@@ -198,9 +175,87 @@ impl EmailService {
         )
         .bind(token)
         .fetch_one(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| anyhow::anyhow!(e))
+    }
+}
 
-        Ok(reset_token)
+pub struct EmailService {
+    config: EmailConfig,
+    smtp: Option<SmtpTransport>,
+    repository: std::sync::Arc<dyn EmailRepository>,
+}
+
+impl EmailService {
+    pub fn new(config: EmailConfig, repository: std::sync::Arc<dyn EmailRepository>) -> Result<Self> {
+        let smtp = if !config.smtp_host.is_empty() && !config.smtp_username.is_empty() {
+            Some(
+                SmtpTransport::relay(&config.smtp_host)?
+                    .port(config.smtp_port)
+                    .credentials(lettre::transport::smtp::authentication::Credentials::new(
+                        config.smtp_username.clone(),
+                        config.smtp_password.clone(),
+                    ))
+                    .build(),
+            )
+        } else {
+            None
+        };
+
+        Ok(Self { config, smtp, repository })
+    }
+
+    pub fn new_with_pool(config: EmailConfig, pool: sqlx::PgPool) -> Result<Self> {
+        Self::new(config, std::sync::Arc::new(PostgresEmailRepository::new(pool)))
+    }
+
+    pub fn new_from_env(pool: sqlx::PgPool) -> Result<Self> {
+        Self::new_with_pool(EmailConfig::default(), pool)
+    }
+
+    pub async fn create_verification_token(&self, user_id: Uuid, email: &str) -> Result<EmailVerificationToken> {
+        let token = Uuid::new_v4().to_string();
+        let expires_at = Utc::now() + Duration::hours(self.config.verification_expiry_hours);
+        self.repository.create_verification_token(user_id, email, &token, expires_at).await
+    }
+
+    pub async fn create_password_reset_token(&self, user_id: Uuid) -> Result<PasswordResetToken> {
+        let token = Uuid::new_v4().to_string();
+        let expires_at = Utc::now() + Duration::hours(self.config.reset_expiry_hours);
+        self.repository.create_password_reset_token(user_id, &token, expires_at).await
+    }
+
+    pub async fn verify_email_token(&self, token: &str) -> Result<EmailVerificationToken> {
+        let verification_token = self.repository.find_verification_token(token).await?
+            .ok_or_else(|| anyhow!("Invalid or expired token"))?;
+
+        if verification_token.used {
+            return Err(anyhow!("Token already verified"));
+        }
+
+        if Utc::now() > verification_token.expires_at {
+            return Err(anyhow!("Token has expired"));
+        }
+
+        let updated_token = self.repository.mark_verification_token_used(token).await?;
+        self.repository.mark_user_email_verified(updated_token.user_id).await?;
+
+        Ok(updated_token)
+    }
+
+    pub async fn verify_password_reset_token(&self, token: &str) -> Result<PasswordResetToken> {
+        let reset_token = self.repository.find_password_reset_token(token).await?
+            .ok_or_else(|| anyhow!("Invalid or expired token"))?;
+
+        if reset_token.used {
+            return Err(anyhow!("Token has already been used"));
+        }
+
+        if Utc::now() > reset_token.expires_at {
+            return Err(anyhow!("Token has expired"));
+        }
+
+        self.repository.mark_password_reset_token_used(token).await
     }
 
     pub fn send_verification_email(
@@ -411,37 +466,98 @@ impl EmailService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+    use std::collections::HashMap;
 
-    use super::*;
-    use crate::test_db_utils::create_test_pool;
+    struct MockEmailRepository {
+        verification_tokens: Mutex<HashMap<String, EmailVerificationToken>>,
+        password_reset_tokens: Mutex<HashMap<String, PasswordResetToken>>,
+    }
+
+    impl MockEmailRepository {
+        fn new() -> Self {
+            Self {
+                verification_tokens: Mutex::new(HashMap::new()),
+                password_reset_tokens: Mutex::new(HashMap::new()),
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl EmailRepository for MockEmailRepository {
+        async fn create_verification_token(&self, user_id: Uuid, email: &str, token: &str, expires_at: DateTime<Utc>) -> Result<EmailVerificationToken> {
+            let vt = EmailVerificationToken {
+                id: Uuid::new_v4(),
+                user_id,
+                token: token.to_string(),
+                email: email.to_string(),
+                used: false,
+                expires_at,
+                created_at: Utc::now(),
+                used_at: None,
+            };
+            self.verification_tokens.lock().unwrap().insert(token.to_string(), vt.clone());
+            Ok(vt)
+        }
+
+        async fn create_password_reset_token(&self, user_id: Uuid, token: &str, expires_at: DateTime<Utc>) -> Result<PasswordResetToken> {
+            let prt = PasswordResetToken {
+                id: Uuid::new_v4(),
+                user_id,
+                token: token.to_string(),
+                used: false,
+                expires_at,
+                created_at: Utc::now(),
+                used_at: None,
+            };
+            self.password_reset_tokens.lock().unwrap().insert(token.to_string(), prt.clone());
+            Ok(prt)
+        }
+
+        async fn find_verification_token(&self, token: &str) -> Result<Option<EmailVerificationToken>> {
+            Ok(self.verification_tokens.lock().unwrap().get(token).cloned())
+        }
+
+        async fn mark_verification_token_used(&self, token: &str) -> Result<EmailVerificationToken> {
+            let mut tokens = self.verification_tokens.lock().unwrap();
+            if let Some(vt) = tokens.get_mut(token) {
+                vt.used = true;
+                vt.used_at = Some(Utc::now());
+                Ok(vt.clone())
+            } else {
+                Err(anyhow!("Token not found"))
+            }
+        }
+
+        async fn mark_user_email_verified(&self, _user_id: Uuid) -> Result<()> {
+            Ok(())
+        }
+
+        async fn find_password_reset_token(&self, token: &str) -> Result<Option<PasswordResetToken>> {
+            Ok(self.password_reset_tokens.lock().unwrap().get(token).cloned())
+        }
+
+        async fn mark_password_reset_token_used(&self, token: &str) -> Result<PasswordResetToken> {
+            let mut tokens = self.password_reset_tokens.lock().unwrap();
+            if let Some(prt) = tokens.get_mut(token) {
+                prt.used = true;
+                prt.used_at = Some(Utc::now());
+                Ok(prt.clone())
+            } else {
+                Err(anyhow!("Token not found"))
+            }
+        }
+    }
 
     #[tokio::test]
     async fn test_create_verification_token() {
-        let pool = create_test_pool().await.unwrap();
+        let repo = std::sync::Arc::new(MockEmailRepository::new());
+        let service = EmailService::new(EmailConfig::default(), repo).unwrap();
         
-        // Create a unique user for this test
         let user_id = Uuid::new_v4();
-        let email = format!("verify_{}@example.com", user_id);
-        let username = format!("verify_user_{}", user_id);
-        let api_key = format!("api_key_verify_{}", user_id);
+        let email = "test@example.com";
         
-        // Insert the user first
-        sqlx::query(
-            r#"
-            INSERT INTO users (id, username, email, password_hash, tier, api_key)
-            VALUES ($1, $2, $3, 'hash', 'free', $4)
-            "#
-        )
-        .bind(user_id)
-        .bind(&username)
-        .bind(&email)
-        .bind(&api_key)
-        .execute(&pool)
-        .await
-        .expect("Failed to insert test user");
-
-        let service = EmailService::new_from_env(pool).unwrap();
-        let token = service.create_verification_token(user_id, &email).await.unwrap();
+        let token = service.create_verification_token(user_id, email).await.unwrap();
 
         assert_eq!(token.user_id, user_id);
         assert_eq!(token.email, email);
@@ -451,30 +567,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_password_reset_token() {
-        let pool = create_test_pool().await.unwrap();
+        let repo = std::sync::Arc::new(MockEmailRepository::new());
+        let service = EmailService::new(EmailConfig::default(), repo).unwrap();
         
-        // Create a unique user for this test
         let user_id = Uuid::new_v4();
-        let email = format!("reset_{}@example.com", user_id);
-        let username = format!("reset_user_{}", user_id);
-        let api_key = format!("api_key_reset_{}", user_id);
         
-        // Insert the user first
-        sqlx::query(
-            r#"
-            INSERT INTO users (id, username, email, password_hash, tier, api_key)
-            VALUES ($1, $2, $3, 'hash', 'free', $4)
-            "#
-        )
-        .bind(user_id)
-        .bind(&username)
-        .bind(&email)
-        .bind(&api_key)
-        .execute(&pool)
-        .await
-        .expect("Failed to insert test user");
-
-        let service = EmailService::new_from_env(pool).unwrap();
         let token = service.create_password_reset_token(user_id).await.unwrap();
 
         assert_eq!(token.user_id, user_id);

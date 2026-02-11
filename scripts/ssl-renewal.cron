@@ -1,0 +1,8 @@
+# SSL Certificate Auto-Renewal Cron Job
+# Runs twice daily as recommended by Let's Encrypt
+
+# Check and renew SSL certificates at 2:30 AM and 2:30 PM
+30 2,14 * * * root /opt/mrdarkpromth/scripts/ssl-renewal.sh check >> /var/log/ssl-renewal.log 2>&1
+
+# Weekly full status check (Sundays at 10:00 AM)
+0 10 * * 0 root /opt/mrdarkpromth/scripts/ssl-renewal.sh status >> /var/log/ssl-renewal.log 2>&1

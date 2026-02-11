@@ -1,3 +1,4 @@
+import * as vscode from 'vscode';
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 
 export class ApiClient {
@@ -16,6 +17,8 @@ export class ApiClient {
 
         this.client.interceptors.request.use(
             (config) => {
+                const lang = vscode.env.language || 'en';
+                config.headers['Accept-Language'] = lang;
                 return config;
             },
             (error) => {

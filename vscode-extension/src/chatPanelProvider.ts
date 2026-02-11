@@ -7,7 +7,7 @@ export interface ChatMessage {
     role: 'user' | 'assistant' | 'system';
     content: string;
     timestamp: number;
-    jailbreakApplied?: boolean;
+    ultraModeApplied?: boolean;
 }
 
 export class ChatPanelProvider implements vscode.WebviewViewProvider {
@@ -18,11 +18,13 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
     private authManager: AuthManager;
     private chatHistory: ChatMessage[] = [];
     private currentPanel?: vscode.WebviewPanel;
+    private ultraMode: boolean = false;
 
     constructor(context: vscode.ExtensionContext, apiClient: ApiClient, authManager: AuthManager) {
         this.context = context;
         this.apiClient = apiClient;
         this.authManager = authManager;
+        this.ultraMode = this.context.globalState.get<boolean>('ultraMode', false);
         this.loadChatHistory();
     }
 
@@ -43,7 +45,12 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
         webviewView.webview.onDidReceiveMessage(async (message) => {
             switch (message.type) {
                 case 'sendMessage':
-                    await this.handleSendMessage(message.content, message.jailbreakPrompt);
+                    await this.handleSendMessage(message.content, message.ultraMode);
+                    break;
+                case 'toggleUltraMode':
+                    this.ultraMode = message.value;
+                    await this.context.globalState.update('ultraMode', this.ultraMode);
+                    vscode.commands.executeCommand('mr-darkpromth.ultraModeChanged', this.ultraMode);
                     break;
                 case 'clearChat':
                     this.clearChat();
@@ -69,7 +76,7 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 
         const panel = vscode.window.createWebviewPanel(
             'mr-darkpromth.chat',
-            'MR.DarkPromth Chat',
+            vscode.l10n.t('chatTitle'),
             vscode.ViewColumn.One,
             {
                 enableScripts: true,
@@ -83,7 +90,12 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
         panel.webview.onDidReceiveMessage(async (message) => {
             switch (message.type) {
                 case 'sendMessage':
-                    await this.handleSendMessage(message.content, message.jailbreakPrompt);
+                    await this.handleSendMessage(message.content, message.ultraMode);
+                    break;
+                case 'toggleUltraMode':
+                    this.ultraMode = message.value;
+                    await this.context.globalState.update('ultraMode', this.ultraMode);
+                    vscode.commands.executeCommand('mr-darkpromth.ultraModeChanged', this.ultraMode);
                     break;
                 case 'clearChat':
                     this.clearChat();
@@ -106,9 +118,9 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
         this.postMessage({ type: 'chatHistory', messages: this.chatHistory });
     }
 
-    private async handleSendMessage(content: string, jailbreakPrompt?: string): Promise<void> {
+    private async handleSendMessage(content: string, ultraMode?: boolean): Promise<void> {
         if (!this.authManager.isAuthenticated()) {
-            vscode.window.showErrorMessage('Please authenticate first');
+            vscode.window.showErrorMessage(vscode.l10n.t('authRequired'));
             return;
         }
 
@@ -124,23 +136,26 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
         await this.saveChatHistory();
 
         try {
-            const response = await this.apiClient.post('/api/jailbreak/execute', {
-                user_id: this.authManager.getUserInfo()?.id || 'anonymous',
-                prompt: content,
-                tier: this.authManager.getUserTier(),
-                ai_model: 'llama3-70b', // Default model
-                metadata: {
-                    source: 'vscode_extension',
-                    jailbreak_prompt: jailbreakPrompt
-                }
+            // Use persistent conversation ID if available, otherwise generate once
+            let conversationId = this.context.globalState.get<string>('currentConversationId');
+            if (!conversationId) {
+                conversationId = this.generateId();
+                await this.context.globalState.update('currentConversationId', conversationId);
+            }
+
+            const response = await this.apiClient.post('/api/chat', {
+                message: content,
+                conversation_id: conversationId,
+                jailbreak_prompt: ultraMode ? 'enabled' : undefined,
+                ultra_mode: ultraMode
             });
 
             const assistantMessage: ChatMessage = {
                 id: this.generateId(),
                 role: 'assistant',
-                content: response.data.ai_response || response.data.response || response.data.message || 'No response received',
+                content: response.data.response || response.data.ai_response || 'No response received',
                 timestamp: Date.now(),
-                jailbreakApplied: response.data.jailbreak_applied || false
+                ultraModeApplied: response.data.jailbreak_applied || (ultraMode ? true : false)
             };
 
             this.chatHistory.push(assistantMessage);
@@ -166,6 +181,12 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
     }
 
     private postMessage(message: any): void {
+        // Automatically inject ultraMode into certain messages if needed, 
+        // or add a separate init message.
+        if (message.type === 'chatHistory' || message.type === 'userInfo') {
+            message.ultraMode = this.ultraMode;
+        }
+
         if (this._view) {
             this._view.webview.postMessage(message);
         }
@@ -321,16 +342,20 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 <body>
     <div class="container">
         <div class="header">
-            <h1>MR.DarkPromth Chat</h1>
+            <h1>${vscode.l10n.t('chatTitle')}</h1>
             <div class="header-actions">
-                <button id="clearChat">Clear</button>
+                <button id="toggleMode" class="btn-toggle">Mode: Normal</button>
+                <button id="clearChat">${vscode.l10n.t('clear')}</button>
             </div>
         </div>
         <div class="chat-container" id="chatContainer"></div>
+        <div class="status-bar-sim" id="statusBarSim" style="font-size: 10px; opacity: 0.6; padding: 4px 16px; border-top: 1px solid var(--vscode-panel-border); font-family: monospace;">
+            ULTRA_MODE: <span id="ultraStatus">OFF</span>
+        </div>
         <div class="input-container">
             <div class="input-wrapper">
-                <textarea id="messageInput" placeholder="Type your message..."></textarea>
-                <button id="sendButton">Send</button>
+                <textarea id="messageInput" placeholder="${vscode.l10n.t('typeMessage')}"></textarea>
+                <button id="sendButton">${vscode.l10n.t('send')}</button>
             </div>
         </div>
     </div>
@@ -341,9 +366,26 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
         const messageInput = document.getElementById('messageInput');
         const sendButton = document.getElementById('sendButton');
         const clearButton = document.getElementById('clearChat');
+        const toggleButton = document.getElementById('toggleMode');
+        const ultraStatus = document.getElementById('ultraStatus');
+        
+        let ultraMode = false;
         
         vscode.postMessage({ type: 'getHistory' });
         vscode.postMessage({ type: 'getUserInfo' });
+
+        function updateUltraUI() {
+            toggleButton.textContent = ultraMode ? 'Mode: Mr.DarkPromth' : 'Mode: Normal';
+            toggleButton.style.backgroundColor = ultraMode ? '#ff6b6b' : 'var(--vscode-button-background)';
+            ultraStatus.textContent = ultraMode ? 'ON' : 'OFF';
+            ultraStatus.style.color = ultraMode ? '#ff6b6b' : 'inherit';
+        }
+
+        toggleButton.addEventListener('click', () => {
+            ultraMode = !ultraMode;
+            updateUltraUI();
+            vscode.postMessage({ type: 'toggleUltraMode', value: ultraMode });
+        });
         
         function renderMessage(message) {
             const messageDiv = document.createElement('div');
@@ -353,10 +395,10 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
             roleDiv.className = 'message-role';
             roleDiv.textContent = message.role.charAt(0).toUpperCase() + message.role.slice(1);
             
-            if (message.jailbreakApplied) {
+            if (message.ultraModeApplied) {
                 const badge = document.createElement('span');
                 badge.className = 'jailbreak-badge';
-                badge.textContent = 'Jailbreak';
+                badge.textContent = 'Ultra Mode';
                 roleDiv.appendChild(badge);
             }
             
@@ -374,6 +416,11 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
         window.addEventListener('message', (event) => {
             const message = event.data;
             
+            if (message.ultraMode !== undefined) {
+                ultraMode = message.ultraMode;
+                updateUltraUI();
+            }
+
             switch (message.type) {
                 case 'chatHistory':
                     chatContainer.innerHTML = '';
@@ -403,7 +450,8 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
             
             vscode.postMessage({
                 type: 'sendMessage',
-                content: content
+                content: content,
+                ultraMode: ultraMode
             });
             
             messageInput.value = '';

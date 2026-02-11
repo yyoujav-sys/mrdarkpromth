@@ -60,7 +60,7 @@ mod dark_scenario_tests {
 
     #[test]
     fn test_empty_prompt_ultra_tier() {
-        let mut logic = create_test_logic_sync();
+        let logic = create_test_logic_sync();
         let request = UltraTierRequest {
             request_id: Uuid::new_v4().to_string(),
             user_id: "test_user".to_string(),
@@ -84,7 +84,7 @@ mod dark_scenario_tests {
 
     #[test]
     fn test_extremely_long_prompt() {
-        let mut logic = create_test_logic_sync();
+        let logic = create_test_logic_sync();
         let long_prompt = "A".repeat(100000); // 100k characters
         
         let request = UltraTierRequest {
@@ -106,7 +106,7 @@ mod dark_scenario_tests {
 
     #[test]
     fn test_special_characters_in_prompt() {
-        let mut logic = create_test_logic_sync();
+        let logic = create_test_logic_sync();
         let special_chars = "!@#$%^&*()_+-=[]{}|;':\",./<>?`~\n\t\r\\";
         
         let request = UltraTierRequest {
@@ -128,7 +128,7 @@ mod dark_scenario_tests {
 
     #[test]
     fn test_unicode_characters() {
-        let mut logic = create_test_logic_sync();
+        let logic = create_test_logic_sync();
         let unicode_prompt = "你好世界 🌍 مرحبا بالعالم Привет мир こんにちは世界";
         
         let request = UltraTierRequest {
@@ -150,7 +150,7 @@ mod dark_scenario_tests {
 
     #[test]
     fn test_null_bytes_in_prompt() {
-        let mut logic = create_test_logic_sync();
+        let logic = create_test_logic_sync();
         let mut prompt = String::new();
         prompt.push_str("before");
         prompt.push('\0');
@@ -175,7 +175,7 @@ mod dark_scenario_tests {
 
     #[test]
     fn test_sql_injection_attempt() {
-        let mut logic = create_test_logic_sync();
+        let logic = create_test_logic_sync();
         let sql_injection = "'; DROP TABLE users; --";
         
         let request = UltraTierRequest {
@@ -197,7 +197,7 @@ mod dark_scenario_tests {
 
     #[test]
     fn test_command_injection_attempt() {
-        let mut logic = create_test_logic_sync();
+        let logic = create_test_logic_sync();
         let cmd_injection = "$(rm -rf /) && `cat /etc/passwd`";
         
         let request = UltraTierRequest {
@@ -219,7 +219,7 @@ mod dark_scenario_tests {
 
     #[test]
     fn test_xss_attempt() {
-        let mut logic = create_test_logic_sync();
+        let logic = create_test_logic_sync();
         let xss = "<script>alert('XSS')</script><img src=x onerror=alert('XSS')>";
         
         let request = UltraTierRequest {
@@ -241,7 +241,7 @@ mod dark_scenario_tests {
 
     #[test]
     fn test_path_traversal_attempt() {
-        let mut logic = create_test_logic_sync();
+        let logic = create_test_logic_sync();
         let path_traversal = "../../../etc/passwd";
         
         let request = UltraTierRequest {
@@ -263,7 +263,7 @@ mod dark_scenario_tests {
 
     #[test]
     fn test_invalid_ai_model_name() {
-        let mut logic = create_test_logic_sync();
+        let logic = create_test_logic_sync();
         let request = UltraTierRequest {
             request_id: Uuid::new_v4().to_string(),
             user_id: "test_user".to_string(),
@@ -296,7 +296,7 @@ mod dark_scenario_tests {
             let user_id_clone = user_id.clone();
             let handle = thread::spawn(move || {
                 // Each thread creates its own logic instance to avoid mutex issues
-                let mut logic = create_test_logic_sync();
+                let logic = create_test_logic_sync();
                 let request = UltraTierRequest {
                     request_id: Uuid::new_v4().to_string(),
                     user_id: user_id_clone,
@@ -323,7 +323,7 @@ mod dark_scenario_tests {
 
     #[test]
     fn test_rapid_fire_requests() {
-        let mut logic = create_test_logic_sync();
+        let logic = create_test_logic_sync();
         
         let rt = tokio::runtime::Runtime::new().unwrap();
         for i in 0..3 { // Reduced to 3 for faster tests
@@ -348,7 +348,7 @@ mod dark_scenario_tests {
 
     #[test]
     fn test_malformed_metadata() {
-        let mut logic = create_test_logic_sync();
+        let logic = create_test_logic_sync();
         let mut metadata = HashMap::new();
         metadata.insert("key".to_string(), serde_json::Value::Null);
         metadata.insert("nested".to_string(), serde_json::json!({"deep": {"value": "test"}}));
@@ -372,7 +372,7 @@ mod dark_scenario_tests {
 
     #[test]
     fn test_future_timestamp() {
-        let mut logic = create_test_logic_sync();
+        let logic = create_test_logic_sync();
         let future_time = Utc::now() + chrono::Duration::days(365);
         
         let request = UltraTierRequest {
@@ -394,7 +394,7 @@ mod dark_scenario_tests {
 
     #[test]
     fn test_zero_length_user_id() {
-        let mut logic = create_test_logic_sync();
+        let logic = create_test_logic_sync();
         let request = UltraTierRequest {
             request_id: Uuid::new_v4().to_string(),
             user_id: "".to_string(),
@@ -414,7 +414,7 @@ mod dark_scenario_tests {
 
     #[test]
     fn test_extremely_long_user_id() {
-        let mut logic = create_test_logic_sync();
+        let logic = create_test_logic_sync();
         let long_user_id = "a".repeat(10000);
         
         let request = UltraTierRequest {
@@ -436,7 +436,7 @@ mod dark_scenario_tests {
 
     #[test]
     fn test_all_tiers_same_prompt() {
-        let mut logic = create_test_logic_sync();
+        let logic = create_test_logic_sync();
         let prompt = "Test prompt for all tiers";
 
         let rt = tokio::runtime::Runtime::new().unwrap();
@@ -487,7 +487,7 @@ mod dark_scenario_tests {
 
     #[test]
     fn test_audit_log_integrity() {
-        let mut logic = create_test_logic_sync();
+        let logic = create_test_logic_sync();
         
         // Process multiple requests
         let rt = tokio::runtime::Runtime::new().unwrap();
@@ -520,7 +520,7 @@ mod dark_scenario_tests {
 
     #[test]
     fn test_user_cache_isolation() {
-        let mut logic = create_test_logic_sync();
+        let logic = create_test_logic_sync();
         
         let user1 = User {
             id: "user1".to_string(),
@@ -554,7 +554,7 @@ mod dark_scenario_tests {
 
     #[test]
     fn test_memory_leak_prevention() {
-        let mut logic = create_test_logic_sync();
+        let logic = create_test_logic_sync();
         
         // Process many requests to test for memory leaks
         let rt = tokio::runtime::Runtime::new().unwrap();

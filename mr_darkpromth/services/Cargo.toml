@@ -9,8 +9,9 @@ path = "src/lib.rs"
 
 [dependencies]
 dotenv = "0.15.0"
+bigdecimal = { version = "0.4", features = ["serde"] }
 chrono = { version = "0.4", features = ["serde"] }
-redis = { version = "0.24", features = ["tokio-comp"] }
+redis = { version = "0.25", features = ["tokio-comp"] }
 reqwest = { version = "0.11", features = ["json", "rustls-tls", "stream", "blocking"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -38,13 +39,14 @@ governor = "0.6"
 sysinfo = "0.29"
 tempfile = "3.0"
 md5 = "0.7"
+walkdir = "2"
 
 # Authentication dependencies
 argon2 = "0.4"
 jsonwebtoken = "9.3"
 mr_darkpromth_db = { path = "../db" }
 mr_darkpromth_core = { path = "../core" }
-sqlx = { version = "0.6", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "decimal"], default-features = false }
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "bigdecimal", "macros"], default-features = false }
 
 # Email dependencies
 lettre = { version = "0.10", features = ["smtp-transport", "tokio1", "tokio1-native-tls"] }
@@ -53,18 +55,18 @@ image = "0.24"
 base64 = "0.21"
 
 # Web framework dependencies for API
-axum = { version = "0.7", features = ["json", "macros"] }
+axum = { version = "0.8", features = ["json", "macros"] }
 actix-web = "4.4"
 actix-cors = "0.6"
-tower = "0.4"
+tower = { version = "0.4", features = ["util"] }
 tower-http = { version = "0.5", features = ["cors", "trace"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
-redis = "0.24"
+redis = "0.25"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-uuid = { version = "1.0", features = ["v4"] }
+uuid = { version = "1.0", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 regex = "1.0"
 tempfile = "3.0"

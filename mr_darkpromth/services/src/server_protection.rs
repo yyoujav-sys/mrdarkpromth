@@ -64,10 +64,12 @@ impl Default for ProtectionConfig {
     }
 }
 
+type RateLimiterMap = HashMap<String, Arc<RateLimiter<NotKeyed, governor::state::InMemoryState, governor::clock::QuantaClock>>>;
+
 #[derive(Debug, Clone)]
 pub struct ServerProtection {
     config: ProtectionConfig,
-    rate_limiters: Arc<RwLock<HashMap<String, Arc<RateLimiter<NotKeyed, governor::state::InMemoryState, governor::clock::QuantaClock>>>>>,
+    rate_limiters: Arc<RwLock<RateLimiterMap>>,
     suspicious_regexes: Vec<Regex>,
     system: Arc<RwLock<System>>,
 }

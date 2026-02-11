@@ -1,7 +1,6 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
-use std::str::FromStr;
 use uuid::Uuid;
 
 pub type DbPool = sqlx::PgPool;
@@ -16,49 +15,12 @@ pub struct User {
     pub api_key: String,
     pub api_key_expires_at: Option<DateTime<Utc>>,
     pub is_active: bool,
+    pub language: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, sqlx::Type)]
-#[sqlx(type_name = "user_tier", rename_all = "lowercase")]
-pub enum UserTier {
-    Free,
-    Premium,
-    Ultra,
-    Admin,
-}
-
-impl Default for UserTier {
-    fn default() -> Self {
-        UserTier::Free
-    }
-}
-
-impl std::fmt::Display for UserTier {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            UserTier::Free => write!(f, "free"),
-            UserTier::Premium => write!(f, "premium"),
-            UserTier::Ultra => write!(f, "ultra"),
-            UserTier::Admin => write!(f, "admin"),
-        }
-    }
-}
-
-impl FromStr for UserTier {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "free" => Ok(UserTier::Free),
-            "premium" => Ok(UserTier::Premium),
-            "ultra" => Ok(UserTier::Ultra),
-            "admin" => Ok(UserTier::Admin),
-            _ => Err(format!("Invalid user tier: {}", s)),
-        }
-    }
-}
+pub use mr_darkpromth_core::tier::UserTier;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateUserRequest {
@@ -74,6 +36,7 @@ pub struct UpdateUserRequest {
     pub email: Option<String>,
     pub tier: Option<UserTier>,
     pub is_active: Option<bool>,
+    pub language: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -85,6 +48,7 @@ pub struct UserResponse {
     pub api_key: String,
     pub api_key_expires_at: Option<DateTime<Utc>>,
     pub is_active: bool,
+    pub language: Option<String>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -98,6 +62,7 @@ impl From<User> for UserResponse {
             api_key: user.api_key,
             api_key_expires_at: user.api_key_expires_at,
             is_active: user.is_active,
+            language: user.language,
             created_at: user.created_at,
         }
     }
@@ -177,8 +142,9 @@ impl UserRepository {
                 email = COALESCE($2, email),
                 tier = COALESCE($3, tier),
                 is_active = COALESCE($4, is_active),
+                language = COALESCE($5, language),
                 updated_at = NOW()
-            WHERE id = $5
+            WHERE id = $6
             RETURNING *
             "#,
         )
@@ -186,6 +152,7 @@ impl UserRepository {
         .bind(request.email)
         .bind(request.tier)
         .bind(request.is_active)
+        .bind(request.language)
         .bind(user_id)
         .fetch_optional(&self.pool)
         .await?;

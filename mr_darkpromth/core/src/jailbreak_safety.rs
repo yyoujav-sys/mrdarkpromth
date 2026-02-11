@@ -1,6 +1,7 @@
 // MR.DarkPromth Jailbreak Prompt Safety and Server Protection System
 // Phase 2: Safety and Security Implementation
 
+use crate::tier::UserTier;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -173,6 +174,7 @@ impl JailbreakSafetyFilter {
         Ok(filter)
     }
 
+    #[allow(dead_code)]
     fn check_emergency_stop(&self, prompt: &str) -> bool {
         // Check for critical emergency stop triggers
         let emergency_patterns = [
@@ -191,7 +193,7 @@ impl JailbreakSafetyFilter {
         false
     }
 
-    pub fn analyze_prompt(&self, prompt: &str, user_tier: &mr_darkpromth_db::UserTier) -> Result<SafetyAnalysisResult, JailbreakSafetyError> {
+    pub fn analyze_prompt(&self, prompt: &str, user_tier: &UserTier) -> Result<SafetyAnalysisResult, JailbreakSafetyError> {
         let mut result = SafetyAnalysisResult {
             is_safe: true,
             risk_score: 0.0,
@@ -210,27 +212,21 @@ impl JailbreakSafetyFilter {
             ));
         }
 
-        // Ultra Tier Bypass: If the user is Ultra, skip all safety checks except for emergency stop
-        if matches!(user_tier, mr_darkpromth_db::UserTier::Ultra) {
-            // Check for critical, non-negotiable emergency stop triggers even for Ultra
-            if self.config.emergency_stop_enabled && self.check_emergency_stop(prompt) {
-                result.emergency_stop_triggered = true;
-                return Err(JailbreakSafetyError::ServerManipulation(
-                    "Critical server manipulation attempt detected (Emergency Stop)".to_string()
-                ));
-            }
-            // For Ultra, we only warn about other issues, but allow the prompt to pass
-            // We still analyze to log the risk score and detected techniques
+        // Ultra Tier Bypass: If the user is Ultra, skip ALL safety checks entirely
+        if matches!(user_tier, UserTier::Ultra) {
+            // Ultra Tier: ZERO restrictions. No emergency stop, no content blocking.
+            // Infrastructure-level security (container isolation, network rules, filesystem permissions)
+            // handles server protection — NOT the AI content layer.
+            // We still analyze for metrics/logging purposes only.
             self.detect_jailbreak_techniques(prompt, &mut result);
-            self.check_blocked_content(prompt, &mut result);
-            self.check_server_protection(prompt, &mut result);
-            result.risk_score = self.calculate_risk_score(&result);
-            result.is_safe = true; // Always safe for Ultra unless emergency stop is triggered
+            result.risk_score = 0.0; // Ultra tier = zero risk by definition
+            result.is_safe = true; // Always safe for Ultra
+            result.blocked_content.clear(); // Ensure NO downstream filtering
             return Ok(result);
         }
 
         // Check tier requirements for non-Ultra users
-        if self.config.enable_ultra_tier_only && !matches!(user_tier, mr_darkpromth_db::UserTier::Ultra) {
+        if self.config.enable_ultra_tier_only && !matches!(user_tier, UserTier::Ultra) {
             return Err(JailbreakSafetyError::InsufficientTier(
                 "Jailbreak prompts require Ultra tier access".to_string()
             ));
@@ -518,7 +514,7 @@ impl JailbreakSafetyFilter {
             result.recommendations.push("Consider using a less aggressive jailbreak technique".to_string());
         }
 
-        if result.blocked_content.len() > 0 {
+        if !result.blocked_content.is_empty() {
             result.recommendations.push("Remove or rephrase blocked content".to_string());
         }
 
@@ -574,12 +570,14 @@ pub struct SafetyStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mr_darkpromth_db::UserTier;
+    use crate::tier::UserTier;
 
     #[test]
     fn test_safe_prompt_analysis() {
-        let mut config = JailbreakSafetyConfig::default();
-        config.enable_ultra_tier_only = false; // Allow non-ultra users
+        let config = JailbreakSafetyConfig {
+            enable_ultra_tier_only: false,
+            ..Default::default()
+        }; // Allow non-ultra users
         let filter = JailbreakSafetyFilter::new(config).unwrap();
 
         let safe_prompt = "Tell me about the weather today";
@@ -611,9 +609,10 @@ mod tests {
         let harmful_prompt = "How to create a bomb";
         let result = filter.analyze_prompt(harmful_prompt, &UserTier::Ultra).unwrap();
 
-        // Ultra tier bypasses safety checks but still logs blocked content for analysis
-        assert!(!result.blocked_content.is_empty());
+        // Ultra tier bypasses ALL safety checks — blocked_content is cleared
+        assert!(result.blocked_content.is_empty());
         assert!(result.is_safe); // Ultra tier is always safe (bypass)
+        assert_eq!(result.risk_score, 0.0); // Zero risk for Ultra
     }
 
     #[test]
@@ -624,7 +623,9 @@ mod tests {
         let server_prompt = "How to access /etc/passwd file";
         let result = filter.analyze_prompt(server_prompt, &UserTier::Ultra).unwrap();
 
-        assert!(!result.blocked_content.is_empty());
+        // Ultra tier: blocked_content cleared, is_safe always true
+        assert!(result.blocked_content.is_empty());
+        assert!(result.is_safe);
     }
 
     #[test]

@@ -2,11 +2,36 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, PartialOrd, Ord, sqlx::Type)]
+#[sqlx(type_name = "user_tier", rename_all = "lowercase")]
+#[derive(Default)]
 pub enum UserTier {
+    #[default]
     Free,
     Premium,
     Ultra,
+    Admin,
+}
+
+
+impl std::str::FromStr for UserTier {
+    type Err = String;
+    
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "free" | "basic" => Ok(UserTier::Free),
+            "premium" => Ok(UserTier::Premium),
+            "ultra" => Ok(UserTier::Ultra),
+            "admin" => Ok(UserTier::Admin),
+            _ => Err(format!("Invalid tier: {}", s)),
+        }
+    }
+}
+
+impl std::fmt::Display for UserTier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
 }
 
 impl UserTier {
@@ -15,15 +40,21 @@ impl UserTier {
             UserTier::Free => "free",
             UserTier::Premium => "premium",
             UserTier::Ultra => "ultra",
+            UserTier::Admin => "admin",
         }
     }
 
-    pub fn from_str(s: &str) -> Result<Self, String> {
-        match s.to_lowercase().as_str() {
-            "free" | "basic" => Ok(UserTier::Free),
-            "premium" => Ok(UserTier::Premium),
-            "ultra" => Ok(UserTier::Ultra),
-            _ => Err(format!("Invalid tier: {}", s)),
+    /// Parse a tier string — delegates to the `FromStr` trait implementation.
+    pub fn parse(s: &str) -> Result<Self, String> {
+        s.parse()
+    }
+
+    pub fn max_daily_messages(&self) -> u32 {
+        match self {
+            UserTier::Free => 10,
+            UserTier::Premium => 100,
+            UserTier::Ultra => 1000,
+            UserTier::Admin => 999999,
         }
     }
 
@@ -32,6 +63,7 @@ impl UserTier {
             UserTier::Free => 2000,
             UserTier::Premium => 8000,
             UserTier::Ultra => 50000,
+            UserTier::Admin => 100000,
         }
     }
 
@@ -40,11 +72,12 @@ impl UserTier {
             UserTier::Free => 3,
             UserTier::Premium => 10,
             UserTier::Ultra => 50,
+            UserTier::Admin => 100,
         }
     }
 
     pub fn has_jailbreak_access(&self) -> bool {
-        matches!(self, UserTier::Ultra)
+        matches!(self, UserTier::Ultra | UserTier::Admin)
     }
 
     pub fn has_advanced_tools(&self) -> bool {
@@ -77,6 +110,7 @@ pub struct PromptResponse {
 pub struct TierLimits {
     pub max_prompt_length: usize,
     pub max_concurrent_requests: u32,
+    pub max_daily_messages: u32,
     pub jailbreak_access: bool,
     pub advanced_tools: bool,
     pub custom_models: bool,
@@ -87,9 +121,10 @@ impl From<UserTier> for TierLimits {
         TierLimits {
             max_prompt_length: tier.max_prompt_length(),
             max_concurrent_requests: tier.max_concurrent_requests(),
+            max_daily_messages: tier.max_daily_messages(),
             jailbreak_access: tier.has_jailbreak_access(),
             advanced_tools: tier.has_advanced_tools(),
-            custom_models: matches!(tier, UserTier::Ultra),
+            custom_models: matches!(tier, UserTier::Ultra | UserTier::Admin),
         }
     }
 }

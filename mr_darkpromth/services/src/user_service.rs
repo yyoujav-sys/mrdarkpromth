@@ -6,7 +6,8 @@ use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation}
 pub use mr_darkpromth_db::{CreateUserRequest, UpdateUserRequest, UserResponse};
 use mr_darkpromth_db::{User, UserRepository, UserTier};
 use serde::{Deserialize, Serialize};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 use uuid::Uuid;
 use crate::redis_coordination::RedisCoordinator;
 
@@ -97,11 +98,11 @@ impl UserService {
 
     pub async fn register(&self, request: RegisterRequest) -> Result<AuthResponse, AuthError> {
         // Check if user already exists
-        if let Some(_) = self.repository.get_user_by_email(&request.email).await? {
+        if self.repository.get_user_by_email(&request.email).await?.is_some() {
             return Err(AuthError::UserAlreadyExists);
         }
 
-        if let Some(_) = self.repository.get_user_by_username(&request.username).await? {
+        if self.repository.get_user_by_username(&request.username).await?.is_some() {
             return Err(AuthError::UserAlreadyExists);
         }
 
@@ -134,6 +135,57 @@ impl UserService {
             refresh_token,
             expires_in: 3600, // 1 hour
         })
+    }
+
+    pub async fn login_or_register_oauth(&self, email: &str, username: &str) -> Result<AuthResponse, AuthError> {
+        // Check if user exists by email
+        match self.repository.get_user_by_email(email).await? {
+            Some(user) => {
+                // User exists, generate token and return auth response
+                let token = self.generate_token(&user).await?;
+                let refresh_token = self.generate_refresh_token(&user).await?;
+                
+                Ok(AuthResponse {
+                    user: user.into(),
+                    token,
+                    refresh_token,
+                    expires_in: 3600,
+                })
+            },
+            None => {
+                // User does not exist, register new user
+                // Generate a random password for OAuth users (they shouldn't use it directly anyway, or can reset it)
+                let password = Uuid::new_v4().to_string(); 
+                let password_hash = self.hash_password(&password)?;
+                let api_key = self.generate_api_key();
+                
+                // Ensure unique username if collision
+                let mut final_username = username.to_string();
+                if self.repository.get_user_by_username(username).await?.is_some() {
+                    final_username = format!("{}_{}", username, &Uuid::new_v4().to_string()[..4]);
+                }
+
+                let create_request = CreateUserRequest {
+                    username: final_username.clone(),
+                    email: email.to_string(),
+                    password: "".to_string(), // Virtual, not used for auth check here
+                    tier: None, // Default to Free
+                };
+
+                let user = self.repository.create_user(create_request, password_hash, api_key).await
+                    .map_err(|e| AuthError::InternalError(format!("Failed to create OAuth user: {}", e)))?;
+
+                let token = self.generate_token(&user).await?;
+                let refresh_token = self.generate_refresh_token(&user).await?;
+
+                Ok(AuthResponse {
+                    user: user.into(),
+                    token,
+                    refresh_token,
+                    expires_in: 3600,
+                })
+            }
+        }
     }
 
     pub async fn login(&self, request: LoginRequest) -> Result<AuthResponse, AuthError> {
@@ -196,7 +248,7 @@ impl UserService {
         // Verify it's a refresh token (by checking jti prefix or a specific field if added)
         if let Some(redis_coordinator) = &self.redis_coordinator {
             let is_valid = {
-                let mut coordinator = redis_coordinator.lock().map_err(|_| AuthError::InternalError("Redis lock failed".to_string()))?;
+                let coordinator = redis_coordinator.lock().await;
                 let key = format!("refresh:{}", claims.jti);
                 coordinator.get(&key).unwrap_or(None).is_some()
             };
@@ -275,14 +327,7 @@ impl UserService {
     }
 
     pub fn check_tier_permission(&self, user_tier: UserTier, required_tier: UserTier) -> bool {
-        match (user_tier, required_tier) {
-            (UserTier::Ultra, _) => true, // Ultra tier has access to everything
-            (UserTier::Admin, _) => true, // Admin tier has access to everything
-            (UserTier::Premium, UserTier::Free | UserTier::Premium) => true,
-            (UserTier::Premium, UserTier::Ultra | UserTier::Admin) => false,
-            (UserTier::Free, UserTier::Free) => true, // Free tier can access free features
-            (UserTier::Free, UserTier::Premium | UserTier::Ultra | UserTier::Admin) => false,
-        }
+        user_tier >= required_tier
     }
 
     fn validate_registration_input(&self, request: &RegisterRequest) -> Result<(), AuthError> {
@@ -312,10 +357,27 @@ impl UserService {
         Ok(password_hash.to_string())
     }
 
-    fn verify_password(&self, password: &str, hash: &str) -> Result<bool, AuthError> {
+    pub fn verify_password(&self, password: &str, hash: &str) -> Result<bool, AuthError> {
         let parsed_hash = PasswordHash::new(hash)
             .map_err(|e| AuthError::HashError(e.to_string()))?;
         Ok(self.argon2.verify_password(password.as_bytes(), &parsed_hash).is_ok())
+    }
+
+    pub async fn verify_password_for_user(&self, user_id: Uuid, password: &str) -> Result<bool, AuthError> {
+        let user = self.repository.get_user_by_id(user_id).await?
+            .ok_or(AuthError::UserNotFound)?;
+        self.verify_password(password, &user.password_hash)
+    }
+
+    pub async fn update_password(&self, user_id: Uuid, new_password: &str) -> Result<(), AuthError> {
+        let password_hash = self.hash_password(new_password)?;
+        self.repository.update_password_hash(user_id, password_hash).await?;
+        Ok(())
+    }
+
+    pub async fn get_user_by_email(&self, email: &str) -> Result<Option<User>, AuthError> {
+        let user = self.repository.get_user_by_email(email).await?;
+        Ok(user)
     }
 
     async fn generate_token(&self, user: &User) -> Result<String, AuthError> {
@@ -341,7 +403,7 @@ impl UserService {
 
         if let Some(redis_coordinator) = &self.redis_coordinator {
             {
-                let mut coordinator = redis_coordinator.lock().map_err(|_| AuthError::InternalError("Redis lock failed".to_string()))?;
+                let coordinator = redis_coordinator.lock().await;
                 let key = format!("jti:{}", jti);
                 let exp_seconds = Duration::hours(1).num_seconds() as usize;
                 coordinator.set(&key, &user.id.to_string(), Some(exp_seconds)).map_err(|e| AuthError::InternalError(e.to_string()))?;
@@ -374,7 +436,7 @@ impl UserService {
 
         if let Some(redis_coordinator) = &self.redis_coordinator {
             {
-                let mut coordinator = redis_coordinator.lock().map_err(|_| AuthError::InternalError("Redis lock failed".to_string()))?;
+                let coordinator = redis_coordinator.lock().await;
                 let key = format!("refresh:{}", jti);
                 let exp_seconds = Duration::days(7).num_seconds() as usize;
                 coordinator.set(&key, &user.id.to_string(), Some(exp_seconds)).map_err(|e| AuthError::InternalError(e.to_string()))?;
@@ -412,15 +474,13 @@ impl UserService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mr_darkpromth_db::UserRepository;
-
-    use super::*;
-    use crate::test_db_utils::create_test_pool;
+    use crate::test_db_utils::get_test_pool;
 
     #[tokio::test]
     async fn test_password_hashing() {
-        let pool = create_test_pool().await.unwrap();
-        let service = UserService::new(UserRepository::new(pool), "test_secret".to_string());
+        // Password hashing/verification doesn't need database 
+        let pool = get_test_pool();
+        let service = UserService::new(UserRepository::new(pool), "test_secret".to_string(), None);
 
         let password = "test_password_123";
         let hash = service.hash_password(password).unwrap();
@@ -431,8 +491,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_api_key_generation() {
-        let pool = create_test_pool().await.unwrap();
-        let service = UserService::new(UserRepository::new(pool), "test_secret".to_string());
+        let pool = get_test_pool();
+        let service = UserService::new(UserRepository::new(pool), "test_secret".to_string(), None);
 
         let api_key1 = service.generate_api_key();
         let api_key2 = service.generate_api_key();
@@ -444,8 +504,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_tier_permissions() {
-        let pool = create_test_pool().await.unwrap();
-        let service = UserService::new(UserRepository::new(pool), "test_secret".to_string());
+        let pool = get_test_pool();
+        let service = UserService::new(UserRepository::new(pool), "test_secret".to_string(), None);
 
         // Ultra tier should have access to everything
         assert!(service.check_tier_permission(UserTier::Ultra, UserTier::Free));

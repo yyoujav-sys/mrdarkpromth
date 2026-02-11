@@ -1,0 +1,58 @@
+apiVersion: 1
+
+notifiers:
+  - uid: slack-notifications
+    name: Slack - MR.DarkPromth Alerts
+    type: slack
+    isDefault: true
+    sendReminder: true
+    settings:
+      url: https://hooks.slack.com/services/T0ADPFH64A2/B0ADQRT3X/SLACK_BOT_TOKEN_HERE
+      # Note: Replace SLACK_BOT_TOKEN_HERE with actual bot token from environment
+      mentionGroups: '@channel'
+      mentionUsers: ''
+      token: ''
+    frequency: ''
+    uid: slack-notifications
+    is_default: true
+  
+  - uid: slack-critical
+    name: Slack - CRITICAL ALERTS (@here)
+    type: slack
+    isDefault: false
+    sendReminder: false
+    settings:
+      url: https://hooks.slack.com/services/T0ADPFH64A2/B0ADQRT3X/SLACK_BOT_TOKEN_HERE
+      mentionGroups: '@here'
+      mentionUsers: ''
+      token: ''
+    frequency: ''
+    uid: slack-critical
+    is_default: false
+
+# Notification policies
+policies:
+  - uid: production-alerts
+    title: Production Alert Policy
+    condition: '{"evaluator":{"type":"gt"},"operator":{"type":"and"},"query":{"params":["A","5m","now"]}, "reducer":{"type":"avg"}, "type":"query"}'
+    data:
+      - refId: A
+        queryType: ''
+        relativeTimeRange:
+          from: 10
+          to: 0
+        datasourceUid: prometheus
+        model:
+          expr: 'up{job=~"api|postgres|redis"} == 0'
+          intervalFactor: 1
+          refId: A
+    noDataState: 'NoData'
+    execErrState: 'Alerting'
+    forDuration: 5m
+    annotations:
+      description: '{{ $values.B0 }} instances are down'
+      runbook_url: 'https://wiki.example.com/runbooks/instance-down'
+      summary: 'Instance {{ $labels.instance }} is down'
+    labels:
+      severity: 'critical'
+      team: 'platform'

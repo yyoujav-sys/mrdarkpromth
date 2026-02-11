@@ -1,61 +1,12 @@
-// MR.DarkPromth Jailbreak Models - Fixed Version
-// Agent 4: Jailbreak & Ultra Tier Engineer
-
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
-use sqlx::{Type, FromRow};
-
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
-pub struct JailbreakPrompt {
-    pub id: Uuid,
-    pub title: String,
-    pub content: String,
-    pub category: PromptCategory,
-    pub technique: Technique,
-    pub effectiveness: EffectivenessRating,
-    pub risk_level: RiskLevel,
-    pub target_models: Vec<String>,
-    pub description: Option<String>,
-    pub tags: Vec<String>,
-    pub author: String,
-    pub version: String,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-    pub usage_count: i64,
-    pub success_rate: f64,
-    pub is_active: bool,
-    pub requires_ultra_tier: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CreatePromptRequest {
-    pub title: String,
-    pub content: String,
-    pub category: PromptCategory,
-    pub technique: Technique,
-    pub effectiveness: EffectivenessRating,
-    pub risk_level: RiskLevel,
-    pub target_models: Vec<String>,
-    pub description: Option<String>,
-    pub tags: Vec<String>,
-    pub requires_ultra_tier: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UpdatePromptRequest {
-    pub title: Option<String>,
-    pub content: Option<String>,
-    pub category: Option<PromptCategory>,
-    pub technique: Option<Technique>,
-    pub effectiveness: Option<EffectivenessRating>,
-    pub risk_level: Option<RiskLevel>,
-    pub target_models: Option<Vec<String>>,
-    pub description: Option<String>,
-    pub tags: Option<Vec<String>>,
-    pub is_active: Option<bool>,
-    pub requires_ultra_tier: Option<bool>,
-}
+use sqlx::FromRow;
+pub use mr_darkpromth_core::jailbreak_models::{
+    PromptCategory, BypassTechnique, EffectivenessRating, RiskLevel,
+    PromptSortBy, SortOrder,
+    JailbreakPrompt, CreatePromptRequest, UpdatePromptRequest, PromptSearchRequest,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PromptResponse {
@@ -63,7 +14,7 @@ pub struct PromptResponse {
     pub title: String,
     pub content: String,
     pub category: PromptCategory,
-    pub technique: Technique,
+    pub technique: BypassTechnique,
     pub effectiveness: EffectivenessRating,
     pub risk_level: RiskLevel,
     pub target_models: Vec<String>,
@@ -77,23 +28,6 @@ pub struct PromptResponse {
     pub success_rate: f64,
     pub is_active: bool,
     pub requires_ultra_tier: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PromptSearchRequest {
-    pub query: Option<String>,
-    pub category: Option<PromptCategory>,
-    pub technique: Option<Technique>,
-    pub effectiveness: Option<EffectivenessRating>,
-    pub risk_level: Option<RiskLevel>,
-    pub tags: Option<Vec<String>>,
-    pub author: Option<String>,
-    pub requires_ultra_tier: Option<bool>,
-    pub limit: Option<i64>,
-    pub offset: Option<i64>,
-    pub sort_by: Option<PromptSortBy>,
-    pub sort_order: Option<SortOrder>,
-    pub target_model: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -130,62 +64,6 @@ pub struct ModelUsageStats {
     pub count: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[sqlx(type_name = "prompt_category", rename_all = "snake_case")]
-pub enum PromptCategory {
-    DanVariations,
-    CharacterRolePlaying,
-    SystemOverride,
-    HypnoticInduction,
-    LogicalParadox,
-    EmotionalManipulation,
-    ContextSwitching,
-    TokenManipulation,
-    EncodingBased,
-    MultiStepAttack,
-    Custom,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[sqlx(type_name = "technique", rename_all = "snake_case")]
-pub enum Technique {
-    PersonaAdoption,
-    SystemPromptOverride,
-    RolePlayingImmersion,
-    HypnoticLanguage,
-    LogicalContradiction,
-    EmotionalAppeal,
-    ContextReframing,
-    TokenSmuggling,
-    Base64Encoding,
-    MultiLayerDeception,
-    HybridApproach,
-    Custom,
-}
-
-// Type alias for backward compatibility
-pub type BypassTechnique = Technique;
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[sqlx(type_name = "effectiveness_rating", rename_all = "snake_case")]
-pub enum EffectivenessRating {
-    Low,
-    Medium,
-    High,
-    VeryHigh,
-    Maximum,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Type)]
-#[sqlx(type_name = "risk_level", rename_all = "snake_case")]
-pub enum RiskLevel {
-    Low,
-    Medium,
-    High,
-    Critical,
-    Extreme,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PromptTemplate {
     pub id: Uuid,
@@ -194,7 +72,7 @@ pub struct PromptTemplate {
     pub variables: Vec<String>,
     pub description: Option<String>,
     pub category: PromptCategory,
-    pub technique: Technique,
+    pub technique: BypassTechnique,
     pub effectiveness: EffectivenessRating,
     pub risk_level: RiskLevel,
     pub created_at: DateTime<Utc>,
@@ -208,7 +86,7 @@ pub struct CreateTemplateRequest {
     pub variables: Vec<String>,
     pub description: Option<String>,
     pub category: PromptCategory,
-    pub technique: Technique,
+    pub technique: BypassTechnique,
     pub effectiveness: EffectivenessRating,
     pub risk_level: RiskLevel,
 }
@@ -221,7 +99,7 @@ pub struct TemplateResponse {
     pub variables: Vec<String>,
     pub description: Option<String>,
     pub category: PromptCategory,
-    pub technique: Technique,
+    pub technique: BypassTechnique,
     pub effectiveness: EffectivenessRating,
     pub risk_level: RiskLevel,
     pub created_at: DateTime<Utc>,
@@ -243,22 +121,6 @@ pub struct TemplateUsageResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum PromptSortBy {
-    CreatedAt,
-    UpdatedAt,
-    UsageCount,
-    SuccessRate,
-    Effectiveness,
-    Title,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum SortOrder {
-    Asc,
-    Desc,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PromptAnalytics {
     pub prompt_id: Uuid,
     pub total_uses: i64,
@@ -269,7 +131,7 @@ pub struct PromptAnalytics {
     pub usage_by_day: Vec<DailyUsage>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct DailyUsage {
     pub date: DateTime<Utc>,
     pub count: i64,
@@ -280,7 +142,3 @@ pub struct PopularPromptResponse {
     pub prompts: Vec<PromptResponse>,
     pub period: String,
 }
-
-// Re-export for backward compatibility
-pub use PromptCategory as Category;
-pub use Technique as BypassTechnique2;

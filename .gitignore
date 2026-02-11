@@ -36,3 +36,18 @@ Thumbs.db
 
 # Runtime logs
 logs/
+*.log
+*.log.*
+
+# Backups (contain database dumps)
+backups/
+
+# SSL certificates
+certs/
+
+# Development archive
+docs/archive/
+
+# Binary artifacts
+*.bin
+mr_darkpromth_api_bin

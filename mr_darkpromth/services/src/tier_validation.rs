@@ -80,7 +80,7 @@ impl DefaultTierValidator {
 #[async_trait]
 impl TierValidator for DefaultTierValidator {
     async fn validate_prompt_request(&self, request: &PromptRequest) -> Result<(), TierValidationError> {
-        let tier_limits: TierLimits = request.user_tier.clone().into();
+        let tier_limits: TierLimits = request.user_tier.into();
 
         // Validate prompt length
         self.validate_prompt_length(&request.prompt, &tier_limits)?;
@@ -91,7 +91,7 @@ impl TierValidator for DefaultTierValidator {
         // Log the validation attempt
         if let Err(e) = self.audit_logger.log_prompt_request(
             request.user_id,
-            request.user_tier.clone(),
+            request.user_tier,
             request.id,
             &request.prompt,
             request.jailbreak_enabled,
@@ -105,7 +105,7 @@ impl TierValidator for DefaultTierValidator {
     }
 
     async fn validate_jailbreak_access(&self, user_id: Uuid, user_tier: UserTier) -> Result<(), TierValidationError> {
-        let tier_limits: TierLimits = user_tier.clone().into();
+        let tier_limits: TierLimits = user_tier.into();
 
         if !tier_limits.jailbreak_access {
             let error = TierValidationError {
@@ -131,7 +131,7 @@ impl TierValidator for DefaultTierValidator {
     }
 
     async fn validate_concurrent_requests(&self, _user_id: Uuid, user_tier: UserTier) -> Result<(), TierValidationError> {
-        let tier_limits: TierLimits = user_tier.clone().into();
+        let tier_limits: TierLimits = user_tier.into();
 
         // In a real implementation, you would check the current number of concurrent requests
         // for this user from Redis or a database. For now, we'll just validate the tier limits.

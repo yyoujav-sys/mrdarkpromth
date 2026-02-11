@@ -245,47 +245,44 @@ impl Agent for TerminalAgent {
     fn handle_message(&mut self, message: AgentMessage) -> AgentResult<()> {
         log::info!("Terminal received message from {}: {:?}", message.from_agent, message.message_type);
         
-        match message.message_type.as_str() {
-            "delegate_task" => {
-                if let (Some(subtask_id), Some(description), Some(task_id)) = (
-                    message.content.get("subtask_id").and_then(|v| v.as_str()),
-                    message.content.get("description").and_then(|v| v.as_str()),
-                    message.content.get("task_id").and_then(|v| v.as_str())
-                ) {
-                    // Determine command to execute based on description
-                    let result = if description.contains("test") {
-                        self.run_tests()
-                    } else if description.contains("build") {
-                        self.build_project()
-                    } else if description.contains("check") {
-                        self.check_code()
-                    } else if description.contains("format") {
-                        self.format_code()
-                    } else if description.contains("clippy") {
-                        self.clippy_check()
+        if message.message_type.as_str() == "delegate_task" {
+            if let (Some(subtask_id), Some(description), Some(task_id)) = (
+                message.content.get("subtask_id").and_then(|v| v.as_str()),
+                message.content.get("description").and_then(|v| v.as_str()),
+                message.content.get("task_id").and_then(|v| v.as_str())
+            ) {
+                // Determine command to execute based on description
+                let result = if description.contains("test") {
+                    self.run_tests()
+                } else if description.contains("build") {
+                    self.build_project()
+                } else if description.contains("check") {
+                    self.check_code()
+                } else if description.contains("format") {
+                    self.format_code()
+                } else if description.contains("clippy") {
+                    self.clippy_check()
+                } else {
+                    // Default: try to parse as command
+                    let parts: Vec<&str> = description.split_whitespace().collect();
+                    if parts.len() >= 2 {
+                        let command = parts[0];
+                        let args: Vec<String> = parts[1..].iter().map(|s| s.to_string()).collect();
+                        self.execute_command(command, &args)
                     } else {
-                        // Default: try to parse as command
-                        let parts: Vec<&str> = description.split_whitespace().collect();
-                        if parts.len() >= 2 {
-                            let command = parts[0];
-                            let args: Vec<String> = parts[1..].iter().map(|s| s.to_string()).collect();
-                            self.execute_command(command, &args)
-                        } else {
-                            return Err(AgentError::ActionExecutionFailed("Invalid command format".to_string()));
-                        }
-                    };
-                    
-                    match result {
-                        Ok(cmd_result) => {
-                            self.publish_completion(task_id, subtask_id, &cmd_result)?;
-                        }
-                        Err(e) => {
-                            self.publish_error(task_id, subtask_id, &e.to_string())?;
-                        }
+                        return Err(AgentError::ActionExecutionFailed("Invalid command format".to_string()));
+                    }
+                };
+                
+                match result {
+                    Ok(cmd_result) => {
+                        self.publish_completion(task_id, subtask_id, &cmd_result)?;
+                    }
+                    Err(e) => {
+                        self.publish_error(task_id, subtask_id, &e.to_string())?;
                     }
                 }
             }
-            _ => {}
         }
         
         Ok(())

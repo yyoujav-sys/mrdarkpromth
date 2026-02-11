@@ -4,9 +4,11 @@ use axum::{
     middleware::Next,
     response::Response,
 };
-use tokio::sync::Mutex;
 use std::sync::Arc;
+use std::time::Instant;
 use crate::AppState;
+use mr_darkpromth_services::RedisCoordinator;
+use tokio::sync::MutexGuard;
 
 // Custom extension to hold user claims
 #[derive(Clone)]
@@ -36,7 +38,7 @@ pub async fn auth_middleware(
     match state.user_service.validate_token(token).await {
         Ok(claims) => {
             if let Some(redis_coordinator) = &state.redis_coordinator {
-                let mut coordinator = redis_coordinator.lock().await;
+                let coordinator: MutexGuard<'_, RedisCoordinator> = redis_coordinator.lock().await;
                 let key = format!("jti:{}", claims.jti);
                 let is_revoked = coordinator.get(&key).unwrap_or(None).is_none();
                 drop(coordinator);
@@ -60,4 +62,22 @@ pub async fn auth_middleware(
         }
         Err(_) => Err(StatusCode::UNAUTHORIZED),
     }
+}
+
+/// Middleware to track request metrics (latency, success/failure)
+pub async fn request_tracking_middleware(
+    State(state): State<Arc<AppState>>,
+    req: Request,
+    next: Next,
+) -> Response {
+    let start = Instant::now();
+    
+    let response = next.run(req).await;
+    
+    let latency_ms = start.elapsed().as_millis() as u64;
+    let success = response.status().is_success() || response.status().is_redirection();
+    
+    state.telemetry_service.record_request(latency_ms, success);
+    
+    response
 }

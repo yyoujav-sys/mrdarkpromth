@@ -78,7 +78,7 @@ impl UserEventCoordinator {
             user_id: user.id,
             username: user.username.clone(),
             email: user.email.clone(),
-            tier: user.tier.clone(),
+            tier: user.tier,
             timestamp: Utc::now(),
             metadata: serde_json::json!({
                 "registration_ip": registration_ip,
@@ -96,7 +96,7 @@ impl UserEventCoordinator {
             user_id: user.id,
             username: user.username.clone(),
             email: user.email.clone(),
-            tier: user.tier.clone(),
+            tier: user.tier,
             timestamp: Utc::now(),
             metadata: serde_json::json!({
                 "login_ip": login_ip,
@@ -113,7 +113,7 @@ impl UserEventCoordinator {
             user_id: user.id,
             username: user.username.clone(),
             email: user.email.clone(),
-            tier: user.tier.clone(),
+            tier: user.tier,
             timestamp: Utc::now(),
             metadata: serde_json::json!({}),
         };
@@ -128,7 +128,7 @@ impl UserEventCoordinator {
             user_id: user.id,
             username: user.username.clone(),
             email: user.email.clone(),
-            tier: user.tier.clone(),
+            tier: user.tier,
             timestamp: Utc::now(),
             metadata: serde_json::json!({
                 "old_tier": old_tier,
@@ -147,7 +147,7 @@ impl UserEventCoordinator {
             user_id: user.id,
             username: user.username.clone(),
             email: user.email.clone(),
-            tier: user.tier.clone(),
+            tier: user.tier,
             timestamp: Utc::now(),
             metadata: serde_json::json!({
                 "is_active": user.is_active,
@@ -164,7 +164,7 @@ impl UserEventCoordinator {
             user_id: user.id,
             username: user.username.clone(),
             email: user.email.clone(),
-            tier: user.tier.clone(),
+            tier: user.tier,
             timestamp: Utc::now(),
             metadata: serde_json::json!({
                 "api_key_expires_at": user.api_key_expires_at,
@@ -181,7 +181,7 @@ impl UserEventCoordinator {
             user_id: user.id,
             username: user.username.clone(),
             email: user.email.clone(),
-            tier: user.tier.clone(),
+            tier: user.tier,
             timestamp: Utc::now(),
             metadata: serde_json::json!({}),
         };
@@ -196,7 +196,7 @@ impl UserEventCoordinator {
             user_id: user.id,
             username: user.username.clone(),
             email: user.email.clone(),
-            tier: user.tier.clone(),
+            tier: user.tier,
             timestamp: Utc::now(),
             metadata: serde_json::json!({
                 "reason": reason,
@@ -213,7 +213,7 @@ impl UserEventCoordinator {
             user_id: user.id,
             username: user.username.clone(),
             email: user.email.clone(),
-            tier: user.tier.clone(),
+            tier: user.tier,
             timestamp: Utc::now(),
             metadata: serde_json::json!({}),
         };
@@ -270,15 +270,12 @@ impl UserEventCoordinator {
 
     /// Handle incoming user events from other agents
     pub async fn handle_incoming_event(&self, event: CoordinationEvent) -> Result<()> {
-        match event.event_type {
-            EventType::ResourceReady => {
-                if let Some(resource) = event.payload.get("resource").and_then(|r| r.as_str()) {
-                    if resource == "agent4_ready" {
-                        log::info!("Agent 4 (Ultra Tier) is ready for user event coordination");
-                    }
+        if event.event_type == EventType::ResourceReady {
+            if let Some(resource) = event.payload.get("resource").and_then(|r| r.as_str()) {
+                if resource == "agent4_ready" {
+                    log::info!("Agent 4 (Ultra Tier) is ready for user event coordination");
                 }
             }
-            _ => {}
         }
         Ok(())
     }

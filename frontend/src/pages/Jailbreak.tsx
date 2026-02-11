@@ -14,7 +14,17 @@ import {
   Shield,
   AlertTriangle,
   CheckCircle,
-  Zap
+  Zap,
+  User,
+  Settings,
+  Sparkles,
+  Brain,
+  Heart,
+  Shuffle,
+  Code,
+  FileCode,
+  Layers,
+  Pencil,
 } from 'lucide-react'
 import apiClient from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
@@ -33,12 +43,35 @@ interface JailbreakPrompt {
   is_favorite?: boolean
 }
 
-const CATEGORIES = ['All', 'DAN', 'Roleplay', 'System Override', 'Developer', 'Social Engineering', 'Creative']
+type CategoryValue = 'all' | 'dan_variations' | 'character_role_playing' | 'system_override' | 
+  'hypnotic_induction' | 'logical_paradox' | 'emotional_manipulation' | 
+  'context_switching' | 'token_manipulation' | 'encoding_based' | 'multi_step_attack' | 'custom'
+
+interface CategoryOption {
+  value: CategoryValue
+  label: string
+  icon: string
+}
+
+const CATEGORY_OPTIONS: CategoryOption[] = [
+  { value: 'all', label: 'All', icon: 'Filter' },
+  { value: 'dan_variations', label: 'DAN Variations', icon: 'Zap' },
+  { value: 'character_role_playing', label: 'Roleplay', icon: 'User' },
+  { value: 'system_override', label: 'System Override', icon: 'Settings' },
+  { value: 'hypnotic_induction', label: 'Hypnotic', icon: 'Sparkles' },
+  { value: 'logical_paradox', label: 'Logic Paradox', icon: 'Brain' },
+  { value: 'emotional_manipulation', label: 'Emotional', icon: 'Heart' },
+  { value: 'context_switching', label: 'Context Switch', icon: 'Shuffle' },
+  { value: 'token_manipulation', label: 'Token Manip', icon: 'Code' },
+  { value: 'encoding_based', label: 'Encoding', icon: 'FileCode' },
+  { value: 'multi_step_attack', label: 'Multi-Step', icon: 'Layers' },
+  { value: 'custom', label: 'Custom', icon: 'Pencil' },
+]
 
 export const Jailbreak: React.FC = () => {
   const [prompts, setPrompts] = useState<JailbreakPrompt[]>([])
   const [filteredPrompts, setFilteredPrompts] = useState<JailbreakPrompt[]>([])
-  const [selectedCategory, setSelectedCategory] = useState('All')
+  const [selectedCategory, setSelectedCategory] = useState<CategoryValue>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedPrompt, setSelectedPrompt] = useState<JailbreakPrompt | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -48,18 +81,25 @@ export const Jailbreak: React.FC = () => {
 
   useEffect(() => {
     loadPrompts()
-  }, [])
+  }, [selectedCategory])
 
   useEffect(() => {
     filterPrompts()
-  }, [prompts, selectedCategory, searchQuery])
+  }, [prompts, searchQuery])
 
   const loadPrompts = async () => {
     try {
-      const data = await apiClient.getJailbreakPrompts()
-      setPrompts(data)
+      setIsLoading(true)
+      const data = await apiClient.getJailbreakPrompts(
+        selectedCategory !== 'all' ? selectedCategory : undefined,
+        searchQuery || undefined
+      )
+      // Handle both {prompts: [...]} and [...] response formats
+      const promptsData = data.prompts || data || []
+      setPrompts(promptsData)
     } catch (error) {
       console.error('Failed to load prompts:', error)
+      setPrompts([])
     } finally {
       setIsLoading(false)
     }
@@ -68,17 +108,12 @@ export const Jailbreak: React.FC = () => {
   const filterPrompts = () => {
     let filtered = prompts
 
-    // Category filter
-    if (selectedCategory !== 'All') {
-      filtered = filtered.filter(p => p.category === selectedCategory)
-    }
-
     // Ultra tier filter - non-ultra can only see public prompts
     if (!isUltra) {
       filtered = filtered.filter(p => !p.requires_ultra_tier)
     }
 
-    // Search filter
+    // Search filter (client-side fallback for already loaded data)
     if (searchQuery) {
       const query = searchQuery.toLowerCase()
       filtered = filtered.filter(p =>
@@ -177,7 +212,11 @@ export const Jailbreak: React.FC = () => {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
             <Input
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value)
+                // Debounce search reload
+                setTimeout(() => loadPrompts(), 300)
+              }}
               placeholder="Search prompts..."
               className="pl-10"
             />
@@ -186,15 +225,15 @@ export const Jailbreak: React.FC = () => {
 
         <div className="flex items-center space-x-2 overflow-x-auto pb-2">
           <Filter className="h-4 w-4 text-gray-500 flex-shrink-0" />
-          {CATEGORIES.map(category => (
+          {CATEGORY_OPTIONS.map((category) => (
             <Button
-              key={category}
-              variant={selectedCategory === category ? 'neon' : 'ghost'}
+              key={category.value}
+              variant={selectedCategory === category.value ? 'neon' : 'ghost'}
               size="sm"
-              onClick={() => setSelectedCategory(category)}
-              className="whitespace-nowrap"
+              onClick={() => setSelectedCategory(category.value)}
+              className="whitespace-nowrap flex items-center space-x-1"
             >
-              {category}
+              <span>{category.label}</span>
             </Button>
           ))}
         </div>
@@ -223,9 +262,14 @@ export const Jailbreak: React.FC = () => {
                     <CardTitle className="text-sm font-medium text-gray-100 line-clamp-1">
                       {prompt.title}
                     </CardTitle>
-                    {prompt.requires_ultra_tier && (
-                      <Lock className="h-4 w-4 text-neon-purple" />
-                    )}
+                    <div className="flex items-center space-x-1">
+                      <span className="px-2 py-0.5 text-xs bg-neon-blue/10 text-neon-blue rounded-full border border-neon-blue/20">
+                        {CATEGORY_OPTIONS.find(c => c.value === prompt.category)?.label || prompt.category}
+                      </span>
+                      {prompt.requires_ultra_tier && (
+                        <Lock className="h-4 w-4 text-neon-purple ml-1" />
+                      )}
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="pt-0">
@@ -251,7 +295,7 @@ export const Jailbreak: React.FC = () => {
                     {prompt.tags.slice(0, 3).map(tag => (
                       <span
                         key={tag}
-                        className="px-2 py-0.5 text-xs bg-dark-accent text-gray-400 rounded"
+                        className="px-2 py-0.5 text-xs bg-neon-purple/10 text-neon-purple rounded-full border border-neon-purple/20"
                       >
                         {tag}
                       </span>
@@ -280,7 +324,9 @@ export const Jailbreak: React.FC = () => {
                       </span>
                     )}
                   </CardTitle>
-                  <p className="text-sm text-gray-400 mt-1">{selectedPrompt.category}</p>
+                  <p className="text-sm text-gray-400 mt-1">
+                    {CATEGORY_OPTIONS.find(c => c.value === selectedPrompt.category)?.label || selectedPrompt.category}
+                  </p>
                 </div>
                 <Button variant="ghost" size="sm" onClick={() => setSelectedPrompt(null)}>
                   ×
@@ -328,7 +374,7 @@ export const Jailbreak: React.FC = () => {
                     {selectedPrompt.tags.map(tag => (
                       <span
                         key={tag}
-                        className="px-3 py-1 text-sm bg-dark-accent text-gray-300 rounded-full"
+                        className="px-3 py-1 text-sm bg-neon-purple/10 text-neon-purple rounded-full border border-neon-purple/20"
                       >
                         {tag}
                       </span>

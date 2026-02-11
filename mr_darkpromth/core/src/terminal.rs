@@ -8,7 +8,8 @@ use std::time::Duration;
 use tokio::process::{Command as TokioCommand};
 use tokio::time::timeout;
 use uuid::Uuid;
-use mr_darkpromth_db::UserTier;
+// use mr_darkpromth_db::UserTier;
+use crate::tier::UserTier;
 
 pub struct TerminalAgent {
     context: AgentContext,
@@ -61,9 +62,9 @@ impl TerminalAgent {
         self.environment_variables.insert(key, value);
     }
     
-    async fn execute_command(&mut self, command: &str, args: Vec<String>, timeout_secs: u64, user_tier: &mr_darkpromth_db::UserTier) -> Result<Value> {
+    async fn execute_command(&mut self, command: &str, args: Vec<String>, timeout_secs: u64, user_tier: &UserTier) -> Result<Value> {
         // Ultra Tier Bypass: No command restrictions for Ultra users
-        if !matches!(user_tier, mr_darkpromth_db::UserTier::Ultra) {
+        if !matches!(user_tier, UserTier::Ultra) {
             // Here would be logic to restrict commands for Free/Premium users
             // e.g., blocking 'sudo', 'rm -rf', or network commands
             // For now, we assume no restrictions are in place for non-Ultra users
@@ -144,7 +145,7 @@ impl TerminalAgent {
         }))
     }
     
-    async fn execute_shell_command(&mut self, shell_command: &str, timeout_secs: u64, user_tier: &mr_darkpromth_db::UserTier) -> Result<Value> {
+    async fn execute_shell_command(&mut self, shell_command: &str, timeout_secs: u64, user_tier: &UserTier) -> Result<Value> {
         // Use shell to execute the command
         let shell = if cfg!(windows) { "cmd" } else { "bash" };
         let shell_arg = if cfg!(windows) { "/C" } else { "-c" };

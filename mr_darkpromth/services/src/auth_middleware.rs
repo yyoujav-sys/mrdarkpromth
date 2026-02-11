@@ -6,7 +6,7 @@ use axum::{
     body::Body,
 };
 use axum::Json;
-use mr_darkpromth_db::UserTier;
+use mr_darkpromth_core::tier::UserTier;
 use serde_json::json;
 use std::sync::Arc;
 
@@ -26,24 +26,11 @@ pub struct AuthenticatedUser {
 }
 
 fn parse_user_tier(raw: &str) -> UserTier {
-    match raw.to_lowercase().as_str() {
-        "free" | "basic" => UserTier::Free,
-        "premium" => UserTier::Premium,
-        "ultra" => UserTier::Ultra,
-        "admin" => UserTier::Admin,
-        _ => UserTier::Free,
-    }
+    raw.parse().unwrap_or(UserTier::Free)
 }
 
 fn has_required_tier(current: &UserTier, required: &UserTier) -> bool {
-    let rank = |tier: &UserTier| match tier {
-        UserTier::Free => 0,
-        UserTier::Premium => 1,
-        UserTier::Ultra => 2,
-        UserTier::Admin => 3,
-    };
-
-    rank(current) >= rank(required)
+    current >= required
 }
 
 pub async fn auth_middleware(
@@ -164,13 +151,7 @@ pub async fn optional_auth_middleware(
         .headers()
         .get(header::AUTHORIZATION)
         .and_then(|header| header.to_str().ok())
-        .and_then(|header| {
-            if header.starts_with("Bearer ") {
-                Some(&header[7..])
-            } else {
-                None
-            }
-        })
+        .and_then(|header| header.strip_prefix("Bearer "))
     {
         // Try to validate token
         if let Ok(claims) = state.user_service.validate_token(auth_header).await {

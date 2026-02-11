@@ -169,6 +169,12 @@ pub struct BuiltinFilePlugin {
     db: Option<sqlx::PgPool>,
 }
 
+impl Default for BuiltinFilePlugin {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BuiltinFilePlugin {
     pub fn new() -> Self {
         Self {
@@ -245,11 +251,9 @@ impl PluginDiscovery {
     }
 
     pub fn discover_plugins(&self) -> Result<Vec<String>, ToolError> {
-        let mut discovered = Vec::new();
-        
         // For now, return built-in plugins
         // In future phases, this will scan directories for dynamic libraries
-        discovered.push("builtin_file_operations".to_string());
+        let discovered = vec!["builtin_file_operations".to_string()];
         
         Ok(discovered)
     }

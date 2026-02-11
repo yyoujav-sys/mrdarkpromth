@@ -8,19 +8,7 @@ use mr_darkpromth_db::UserTier;
 use std::sync::Arc;
 use log::info;
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    env_logger::init();
-    info!("Starting MR.DarkPromth Security Modules Test");
-
-    test_output_filtering().await?;
-    test_server_protection().await?;
-    test_sandboxed_execution().await?;
-
-    info!("All security modules tests completed successfully!");
-    Ok(())
-}
-
+#[tokio::test]
 async fn test_output_filtering() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n=== Testing Output Filtering ===");
     
@@ -42,6 +30,7 @@ async fn test_output_filtering() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+#[tokio::test]
 async fn test_server_protection() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n=== Testing Server Protection ===");
     
@@ -70,6 +59,7 @@ async fn test_server_protection() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+#[tokio::test]
 async fn test_sandboxed_execution() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n=== Testing Sandboxed Execution ===");
     
@@ -89,12 +79,12 @@ print(f"1 + 1 = {x}")
     println!("✓ Python code execution: exit_code={}, stdout={}", result.exit_code, result.stdout.trim());
     
     let manager = SandboxManager::new(SandboxConfig::default());
-    manager.create_executor("test_executor", None).await?;
+    manager.create_session("test_session", None).await?;
     
-    let executors: Vec<String> = manager.list_executors().await;
-    println!("✓ Sandbox manager: {} executors", executors.len());
+    let sessions: Vec<String> = manager.list_sessions().await;
+    println!("✓ Sandbox manager: {} sessions", sessions.len());
     
-    manager.remove_executor("test_executor").await?;
+    manager.remove_session("test_session").await?;
     executor.cleanup().await;
     
     Ok(())

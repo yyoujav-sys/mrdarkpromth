@@ -40,13 +40,13 @@ export const Billing: React.FC = () => {
         setLoading(true)
         const response = await apiClient.getPlans()
         // Transform backend plans to frontend format
-        const transformedPlans: Plan[] = response.plans.map((plan: any) => ({
+        const transformedPlans: Plan[] = response.map((plan: any) => ({
           id: plan.id,
           name: plan.name,
           tier: plan.tier.toLowerCase() as 'premium' | 'ultra',
           price: parseFloat(plan.price),
           features: Array.isArray(plan.features) ? plan.features : [],
-          duration: 'month', // Default to month, can be enhanced later
+          duration: 'month',
         }))
         setPlans(transformedPlans)
       } catch (err: any) {
@@ -55,7 +55,6 @@ export const Billing: React.FC = () => {
         setLoading(false)
       }
     }
-
     fetchPlans()
   }, [])
 
@@ -66,7 +65,6 @@ export const Billing: React.FC = () => {
 
   const handlePaymentMethodSelect = async () => {
     if (!selectedPlan) return
-
     if (paymentMethod === 'qr-code') {
       try {
         setLoading(true)
@@ -75,7 +73,6 @@ export const Billing: React.FC = () => {
           url: '/api/billing/generate-qr',
           data: {
             plan_id: selectedPlan.id,
-            amount: selectedPlan.price,
           },
         })
         setQrData(response)
@@ -98,7 +95,6 @@ export const Billing: React.FC = () => {
         setError('File size must be less than 5MB')
         return
       }
-
       setSlipFile(file)
       const reader = new FileReader()
       reader.onloadend = () => {
@@ -113,23 +109,24 @@ export const Billing: React.FC = () => {
       setError('Please upload a payment slip')
       return
     }
-
     try {
       setLoading(true)
-      const formData = new FormData()
-      formData.append('slip', slipFile)
-      formData.append('payment_id', qrData.payment_id)
-      formData.append('plan_id', selectedPlan?.id || '')
-
+      // Convert file to base64 for upload
+      const toBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.readAsDataURL(file)
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = reject
+      })
+      const slipBase64 = await toBase64(slipFile)
       const response = await apiClient.request({
         method: 'POST',
         url: '/api/billing/verify-slip',
-        data: formData,
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+        data: {
+          reference: qrData.reference,
+          slip_image: slipBase64
+        }
       })
-
       if (response.verified) {
         setStep('success')
         setSuccess('Payment verified successfully!')
@@ -145,13 +142,11 @@ export const Billing: React.FC = () => {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-white">Billing & Subscription</h1>
         <p className="text-gray-400 mt-1">Upgrade your plan to unlock more features</p>
       </div>
 
-      {/* Error/Success Messages */}
       {error && (
         <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 flex items-start gap-3">
           <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
@@ -166,76 +161,43 @@ export const Billing: React.FC = () => {
         </div>
       )}
 
-      {/* Step 1: Select Plan */}
       {step === 'select-plan' && (
-        <div>
-          <h2 className="text-2xl font-bold text-white mb-6">Choose Your Plan</h2>
-          {loading ? (
-            <div className="flex justify-center items-center py-12">
-              <Loader className="h-8 w-8 text-neon-purple animate-spin" />
-              <span className="ml-3 text-gray-400">Loading plans...</span>
-            </div>
-          ) : plans.length === 0 ? (
-            <div className="text-center py-12">
-              <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-400">No plans available at the moment.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {plans.map((plan) => (
-              <div
-                key={plan.id}
-                className={`rounded-lg border p-6 transition-all cursor-pointer ${
-                  selectedPlan?.id === plan.id
-                    ? 'border-neon-purple bg-neon-purple/10'
-                    : 'border-dark-accent bg-dark-secondary hover:border-neon-purple/50'
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {plans.map((plan) => (
+            <div
+              key={plan.id}
+              className={`bg-dark-secondary rounded-lg border p-6 cursor-pointer transition-all hover:border-neon-purple/50 ${selectedPlan?.id === plan.id ? 'border-neon-purple ring-1 ring-neon-purple' : 'border-dark-accent'
                 }`}
-                onClick={() => handleSelectPlan(plan)}
-              >
-                <h3 className="text-lg font-bold text-white mb-2">{plan.name}</h3>
-                <p className="text-3xl font-bold text-neon-purple mb-4">
-                  ${plan.price}
-                  <span className="text-sm text-gray-400">/{plan.duration}</span>
-                </p>
-                <ul className="space-y-2 mb-6">
-                  {plan.features.map((feature, idx) => (
-                    <li key={idx} className="text-sm text-gray-300 flex items-start gap-2">
-                      <CheckCircle className="h-4 w-4 text-green-400 flex-shrink-0 mt-0.5" />
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
-                <button
-                  onClick={() => handleSelectPlan(plan)}
-                  className="w-full px-4 py-2 bg-neon-purple hover:bg-neon-purple/80 text-white rounded-lg transition-colors font-medium"
-                >
-                  {selectedPlan?.id === plan.id ? 'Selected' : 'Select'}
-                </button>
-              </div>
-            ))}
-            </div>
-          )}
-
-          {selectedPlan && (
-            <div className="mt-6 flex justify-end">
+              onClick={() => handleSelectPlan(plan)}
+            >
+              <h3 className="text-lg font-bold text-white mb-2">{plan.name}</h3>
+              <p className="text-3xl font-bold text-neon-purple mb-4">
+                ${plan.price}
+                <span className="text-sm text-gray-400">/{plan.duration}</span>
+              </p>
+              <ul className="space-y-2 mb-6">
+                {plan.features.map((feature, idx) => (
+                  <li key={idx} className="text-sm text-gray-300 flex items-start gap-2">
+                    <CheckCircle className="h-4 w-4 text-green-400 flex-shrink-0 mt-0.5" />
+                    {feature}
+                  </li>
+                ))}
+              </ul>
               <button
-                onClick={() => setStep('payment-method')}
-                className="px-6 py-2 bg-neon-purple hover:bg-neon-purple/80 text-white rounded-lg transition-colors font-medium"
+                onClick={() => handleSelectPlan(plan)}
+                className="w-full px-4 py-2 bg-neon-purple hover:bg-neon-purple/80 text-white rounded-lg transition-colors font-medium"
               >
-                Continue to Payment
+                {selectedPlan?.id === plan.id ? 'Selected' : 'Select'}
               </button>
             </div>
-          )}
+          ))}
         </div>
       )}
 
-      {/* Step 2: Payment Method */}
       {step === 'payment-method' && selectedPlan && (
         <div className="bg-dark-secondary rounded-lg border border-dark-accent p-8">
           <h2 className="text-2xl font-bold text-white mb-6">Select Payment Method</h2>
-
           <div className="space-y-4 mb-6">
-            {/* QR Code Payment */}
             <label className="flex items-center p-4 border-2 rounded-lg cursor-pointer transition-colors"
               style={{
                 borderColor: paymentMethod === 'qr-code' ? '#a78bfa' : '#374151',
@@ -258,9 +220,7 @@ export const Billing: React.FC = () => {
                 <p className="text-sm text-gray-400">Scan QR code to pay via G Wallet</p>
               </div>
             </label>
-
-            {/* Card Payment */}
-            <label className="flex items-center p-4 border-2 rounded-lg cursor-pointer transition-colors"
+            <label className="flex items-center p-4 border-2 rounded-lg cursor-pointer transition-colors opacity-50"
               style={{
                 borderColor: paymentMethod === 'card' ? '#a78bfa' : '#374151',
                 backgroundColor: paymentMethod === 'card' ? 'rgba(167, 139, 250, 0.1)' : 'transparent'
@@ -270,6 +230,7 @@ export const Billing: React.FC = () => {
                 type="radio"
                 name="payment"
                 value="card"
+                disabled
                 checked={paymentMethod === 'card'}
                 onChange={(e) => setPaymentMethod(e.target.value as 'card')}
                 className="w-4 h-4"
@@ -283,7 +244,6 @@ export const Billing: React.FC = () => {
               </div>
             </label>
           </div>
-
           <div className="flex gap-4">
             <button
               onClick={() => setStep('select-plan')}
@@ -303,27 +263,18 @@ export const Billing: React.FC = () => {
         </div>
       )}
 
-      {/* Step 3: QR Payment */}
       {step === 'qr-payment' && qrData && selectedPlan && (
         <div className="bg-dark-secondary rounded-lg border border-dark-accent p-8">
-          <h2 className="text-2xl font-bold text-white mb-6">Scan QR Code to Pay</h2>
-
+          <h2 className="text-2xl font-bold text-white mb-6">Scan to Pay</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* QR Code */}
-            <div className="flex flex-col items-center">
-              <div className="bg-white p-4 rounded-lg mb-4">
-                <img src={qrData.qr_code} alt="QR Code" className="w-64 h-64" />
-              </div>
-              <p className="text-gray-400 text-center">
-                Scan this QR code with your G Wallet app to complete the payment
-              </p>
+            <div className="flex flex-col items-center justify-center bg-white p-4 rounded-lg">
+              <img src={qrData.qr_code} alt="Payment QR Code" className="w-64 h-64" />
+              <p className="text-dark-primary font-bold mt-2">Scan with G Wallet</p>
             </div>
-
-            {/* Payment Details */}
             <div className="space-y-6">
-              <div>
-                <h3 className="text-lg font-bold text-white mb-4">Payment Details</h3>
-                <div className="space-y-3 bg-dark-primary p-4 rounded-lg">
+              <div className="bg-dark-primary/50 rounded-lg p-4 border border-dark-accent">
+                <h3 className="text-sm font-medium text-gray-400 uppercase mb-3">Payment Details</h3>
+                <div className="space-y-2">
                   <div className="flex justify-between">
                     <span className="text-gray-400">Plan:</span>
                     <span className="text-white font-medium">{selectedPlan.name}</span>
@@ -344,7 +295,6 @@ export const Billing: React.FC = () => {
                   </div>
                 </div>
               </div>
-
               <div>
                 <h3 className="text-lg font-bold text-white mb-4">Next Steps</h3>
                 <ol className="space-y-2 text-gray-300 text-sm">
@@ -356,7 +306,6 @@ export const Billing: React.FC = () => {
                   <li>6. Upload the slip below to verify</li>
                 </ol>
               </div>
-
               <button
                 onClick={() => setStep('slip-verification')}
                 className="w-full px-4 py-2 bg-neon-purple hover:bg-neon-purple/80 text-white rounded-lg transition-colors font-medium"
@@ -368,13 +317,10 @@ export const Billing: React.FC = () => {
         </div>
       )}
 
-      {/* Step 4: Slip Verification */}
       {step === 'slip-verification' && selectedPlan && (
         <div className="bg-dark-secondary rounded-lg border border-dark-accent p-8">
           <h2 className="text-2xl font-bold text-white mb-6">Upload Payment Slip</h2>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Upload Area */}
             <div>
               <label className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-dark-accent rounded-lg cursor-pointer hover:border-neon-purple/50 transition-colors bg-dark-primary/50">
                 <div className="flex flex-col items-center justify-center pt-5 pb-6">
@@ -390,8 +336,6 @@ export const Billing: React.FC = () => {
                 />
               </label>
             </div>
-
-            {/* Preview */}
             {slipPreview && (
               <div>
                 <p className="text-gray-400 text-sm mb-2">Preview:</p>
@@ -399,7 +343,6 @@ export const Billing: React.FC = () => {
               </div>
             )}
           </div>
-
           <div className="mt-6 flex gap-4">
             <button
               onClick={() => setStep('qr-payment')}
@@ -419,7 +362,6 @@ export const Billing: React.FC = () => {
         </div>
       )}
 
-      {/* Step 5: Success */}
       {step === 'success' && selectedPlan && (
         <div className="bg-dark-secondary rounded-lg border border-dark-accent p-8 text-center">
           <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
@@ -428,7 +370,7 @@ export const Billing: React.FC = () => {
             Your subscription to {selectedPlan.name} has been activated
           </p>
           <button
-            onClick={() => window.location.href = '/profile'}
+            onClick={() => window.location.href = '/app/profile'}
             className="px-6 py-2 bg-neon-purple hover:bg-neon-purple/80 text-white rounded-lg transition-colors font-medium"
           >
             Go to Profile

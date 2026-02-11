@@ -1,3 +1,5 @@
+use mr_darkpromth_db::*;
+use mr_darkpromth_core::UserTier;
 use crate::jailbreak_models::*;
 use anyhow::Result;
 use sqlx::{PgPool, Row};
@@ -48,10 +50,10 @@ impl JailbreakPromptService {
         .bind(prompt.id)
         .bind(&prompt.title)
         .bind(&prompt.content)
-        .bind(prompt.category as PromptCategory)
-        .bind(prompt.technique as Technique)
-        .bind(prompt.effectiveness as EffectivenessRating)
-        .bind(prompt.risk_level as RiskLevel)
+        .bind(prompt.category)
+        .bind(prompt.technique)
+        .bind(prompt.effectiveness)
+        .bind(prompt.risk_level)
         .bind(&prompt.target_models)
         .bind(&prompt.description)
         .bind(&prompt.tags)
@@ -87,6 +89,7 @@ impl JailbreakPromptService {
         }
 
         let prompt = existing.unwrap();
+        
         let updated_prompt = JailbreakPrompt {
             title: request.title.unwrap_or(prompt.title),
             content: request.content.unwrap_or(prompt.content),
@@ -116,10 +119,10 @@ impl JailbreakPromptService {
         .bind(id)
         .bind(&updated_prompt.title)
         .bind(&updated_prompt.content)
-        .bind(updated_prompt.category as PromptCategory)
-        .bind(updated_prompt.technique as Technique)
-        .bind(updated_prompt.effectiveness as EffectivenessRating)
-        .bind(updated_prompt.risk_level as RiskLevel)
+        .bind(updated_prompt.category)
+        .bind(updated_prompt.technique)
+        .bind(updated_prompt.effectiveness)
+        .bind(updated_prompt.risk_level)
         .bind(&updated_prompt.target_models)
         .bind(&updated_prompt.description)
         .bind(&updated_prompt.tags)
@@ -159,26 +162,26 @@ impl JailbreakPromptService {
 
         if let Some(category) = &request.category {
             param_count += 1;
-            query.push_str(&format!(" AND category = ${}::prompt_category", param_count));
-            params.push(format!("{:?}", category).to_lowercase());
+            query.push_str(&format!(" AND category = ${}", param_count));
+            params.push(serde_json::to_string(category).unwrap_or_default().trim_matches('"').to_string());
         }
 
         if let Some(technique) = &request.technique {
             param_count += 1;
-            query.push_str(&format!(" AND technique = ${}::technique", param_count));
-            params.push(format!("{:?}", technique).to_lowercase());
+            query.push_str(&format!(" AND technique = ${}", param_count));
+            params.push(serde_json::to_string(technique).unwrap_or_default().trim_matches('"').to_string());
         }
 
         if let Some(effectiveness) = &request.effectiveness {
             param_count += 1;
-            query.push_str(&format!(" AND effectiveness = ${}::effectiveness_rating", param_count));
-            params.push(format!("{:?}", effectiveness).to_lowercase());
+            query.push_str(&format!(" AND effectiveness = ${}", param_count));
+            params.push(serde_json::to_string(effectiveness).unwrap_or_default().trim_matches('"').to_string());
         }
 
         if let Some(risk_level) = &request.risk_level {
             param_count += 1;
-            query.push_str(&format!(" AND risk_level = ${}::risk_level", param_count));
-            params.push(format!("{:?}", risk_level).to_lowercase());
+            query.push_str(&format!(" AND risk_level = ${}", param_count));
+            params.push(serde_json::to_string(risk_level).unwrap_or_default().trim_matches('"').to_string());
         }
 
         if let Some(requires_ultra_tier) = request.requires_ultra_tier {
@@ -223,7 +226,7 @@ impl JailbreakPromptService {
         let prompts = sqlx::query_as::<_, JailbreakPrompt>(
             "SELECT * FROM jailbreak_prompts WHERE category = $1 AND is_active = true ORDER BY created_at DESC"
         )
-        .bind(category as PromptCategory)
+        .bind(category)
         .fetch_all(&self.db)
         .await?;
 
@@ -333,15 +336,21 @@ impl JailbreakPromptService {
         .fetch_all(&self.db)
         .await?;
 
-        // Get last used timestamp
-        let last_used = sqlx::query(
-            "SELECT MAX(used_at) as last_used FROM prompt_usage_records WHERE prompt_id = $1"
+        // Get daily usage for the last 30 days
+        let usage_by_day = sqlx::query_as::<_, DailyUsage>(
+            r#"
+            SELECT 
+                date_trunc('day', used_at) as date,
+                COUNT(*) as count
+            FROM prompt_usage_records
+            WHERE prompt_id = $1 AND used_at > NOW() - INTERVAL '30 days'
+            GROUP BY date
+            ORDER BY date ASC
+            "#
         )
         .bind(prompt_id)
-        .fetch_one(&self.db)
+        .fetch_all(&self.db)
         .await?;
-
-        let _last_used_timestamp: Option<chrono::DateTime<chrono::Utc>> = last_used.get("last_used");
 
         let analytics = PromptAnalytics {
             prompt_id,
@@ -350,9 +359,54 @@ impl JailbreakPromptService {
             average_effectiveness: success_rate * 100.0, // Convert to percentage
             trending: total_usage > 10 && success_rate > 0.7, // Simple trending logic
             popular_models: model_stats,
-            usage_by_day: vec![], // TODO: Implement daily usage
+            usage_by_day,
         };
 
         Ok(Some(analytics))
+    }
+
+    pub async fn check_quota(&self, user_id: Uuid, tier: UserTier) -> Result<bool> {
+        let max_daily = tier.max_daily_messages();
+        
+        // Admins have unlimited quota (effectively)
+        if matches!(tier, UserTier::Admin) {
+            return Ok(true);
+        }
+
+        let count: i64 = sqlx::query_scalar(
+            r#"
+            SELECT COUNT(*) 
+            FROM prompt_usage_records 
+            WHERE user_id = $1 AND used_at >= date_trunc('day', NOW())
+            "#
+        )
+        .bind(user_id)
+        .fetch_one(&self.db)
+        .await?;
+
+        Ok(count < max_daily as i64)
+    }
+
+    pub async fn get_daily_usage(&self, user_id: Uuid) -> Result<i64> {
+        let count: i64 = sqlx::query_scalar(
+            r#"
+            SELECT COUNT(*) 
+            FROM prompt_usage_records 
+            WHERE user_id = $1 AND used_at >= date_trunc('day', NOW())
+            "#
+        )
+        .bind(user_id)
+        .fetch_one(&self.db)
+        .await?;
+
+        Ok(count)
+    }
+
+    pub async fn get_quota_status(&self, user_id: Uuid, tier: UserTier) -> Result<(i64, i64)> {
+        let used = self.get_daily_usage(user_id).await?;
+        let limit = tier.max_daily_messages() as i64;
+        let remaining = limit.saturating_sub(used);
+        
+        Ok((used, remaining))
     }
 }

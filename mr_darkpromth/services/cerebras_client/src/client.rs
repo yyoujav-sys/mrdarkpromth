@@ -280,14 +280,13 @@ impl Inner {
                     let mut manager = self.key_manager.lock().await;
                     manager.mark_failure(&key);
 
-                    if status == reqwest::StatusCode::TOO_MANY_REQUESTS || status.is_server_error() {
-                        if attempt < self.config.max_retries {
+                    if (status == reqwest::StatusCode::TOO_MANY_REQUESTS || status.is_server_error())
+                        && attempt < self.config.max_retries {
                             let backoff = backoff_duration(self.config.retry_backoff_base_ms, attempt);
                             attempt += 1;
                             sleep(backoff).await;
                             continue;
                         }
-                    }
 
                     return Err(CerebrasClientError::HttpStatus { status, body });
                 }

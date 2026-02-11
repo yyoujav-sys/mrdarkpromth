@@ -6,7 +6,7 @@ use serde_json::Value;
 use std::fs::OpenOptions;
 use std::io::Write;
 use uuid::Uuid;
-use mr_darkpromth_core::{
+pub use mr_darkpromth_core::{
     audit::{AuditLog, AuditFilter, AuditStats, AuditAction, AuditSeverity},
     tier::UserTier,
 };
@@ -93,6 +93,7 @@ impl AuditLogger {
         &self.entries
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn log_prompt_request(
         &self,
         user_id: Uuid,
@@ -172,6 +173,7 @@ impl AuditLogger {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn log_jailbreak_attempt(
         &self,
         user_id: Uuid,

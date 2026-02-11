@@ -223,7 +223,7 @@ pub mod builtin {
         }
         
         fn validate_input(&self, input: &serde_json::Value) -> Result<(), ToolError> {
-            if !input.is_object() || !input.get("path").and_then(|p| p.as_str()).is_some() {
+            if !input.is_object() || input.get("path").and_then(|p| p.as_str()).is_none() {
                 return Err(ToolError::InvalidInput("Missing 'path' parameter".to_string()));
             }
             Ok(())
@@ -299,8 +299,8 @@ pub mod builtin {
         
         fn validate_input(&self, input: &serde_json::Value) -> Result<(), ToolError> {
             if !input.is_object() || 
-               !input.get("path").and_then(|p| p.as_str()).is_some() ||
-               !input.get("content").and_then(|c| c.as_str()).is_some() {
+               input.get("path").and_then(|p| p.as_str()).is_none() ||
+               input.get("content").and_then(|c| c.as_str()).is_none() {
                 return Err(ToolError::InvalidInput("Missing 'path' or 'content' parameter".to_string()));
             }
             Ok(())
@@ -355,16 +355,14 @@ pub mod builtin {
             match std::fs::read_dir(path) {
                 Ok(entries) => {
                     let mut files = Vec::new();
-                    for entry in entries {
-                        if let Ok(entry) = entry {
-                            let metadata = entry.metadata();
-                            let file_info = serde_json::json!({
-                                "name": entry.file_name().to_string_lossy(),
-                                "type": metadata.as_ref().map(|m| if m.is_dir() { "dir" } else { "file" }).unwrap_or("unknown"),
-                                "size": metadata.as_ref().map(|m| m.len()).unwrap_or(0)
-                            });
-                            files.push(file_info);
-                        }
+                    for entry in entries.flatten() {
+                        let metadata = entry.metadata();
+                        let file_info = serde_json::json!({
+                            "name": entry.file_name().to_string_lossy(),
+                            "type": metadata.as_ref().map(|m| if m.is_dir() { "dir" } else { "file" }).unwrap_or("unknown"),
+                            "size": metadata.as_ref().map(|m| m.len()).unwrap_or(0)
+                        });
+                        files.push(file_info);
                     }
                     
                     Ok(ToolResult {
@@ -389,7 +387,7 @@ pub mod builtin {
         }
         
         fn validate_input(&self, input: &serde_json::Value) -> Result<(), ToolError> {
-            if !input.is_object() || !input.get("path").and_then(|p| p.as_str()).is_some() {
+            if !input.is_object() || input.get("path").and_then(|p| p.as_str()).is_none() {
                 return Err(ToolError::InvalidInput("Missing 'path' parameter".to_string()));
             }
             Ok(())
@@ -574,7 +572,7 @@ pub mod builtin {
                 .collect();
             
             // Get response content
-            let content = if status_code >= 200 && status_code < 300 {
+            let content = if (200..300).contains(&status_code) {
                 response.text()
                     .map_err(|e| ToolError::ExecutionFailed(format!("Failed to read response: {}", e)))?
             } else {
@@ -598,7 +596,7 @@ pub mod builtin {
         }
 
         fn validate_input(&self, input: &serde_json::Value) -> Result<(), ToolError> {
-            if !input.is_object() || !input.get("url").and_then(|u| u.as_str()).is_some() {
+            if !input.is_object() || input.get("url").and_then(|u| u.as_str()).is_none() {
                 return Err(ToolError::InvalidInput("Missing 'url' parameter".to_string()));
             }
             Ok(())
@@ -710,8 +708,8 @@ pub mod builtin {
 
         fn validate_input(&self, input: &serde_json::Value) -> Result<(), ToolError> {
             if !input.is_object() || 
-               !input.get("code").and_then(|c| c.as_str()).is_some() ||
-               !input.get("language").and_then(|l| l.as_str()).is_some() {
+               input.get("code").and_then(|c| c.as_str()).is_none() ||
+               input.get("language").and_then(|l| l.as_str()).is_none() {
                 return Err(ToolError::InvalidInput("Missing 'code' or 'language' parameter".to_string()));
             }
             Ok(())
@@ -805,26 +803,64 @@ pub mod builtin {
                                 .await
                                 .map_err(|e| ToolError::SystemError(format!("Query failed: {}", e)))?;
                                 
-                            // Convert rows to JSON
-                            // This is tricky without knowing the schema. 
-                            // For generic query tool, we might need `sqlx::Row` serialization helper or convert manually.
-                            // Since we can't easily iterate columns dynamically without known types in sqlx easily for JSON,
-                            // we'll try a simpler approach or return stringified debug output for now if complex.
-                            // BUT given this is "Production Readiness", we should try to support JSON.
-                            // We can use `sqlx::types::Json` or just format generic rows?
-                            // Actually, let's use a simpler heuristic: just count rows for now OR
-                            // assume it's valid JSON-compatible types.
-                            // A better approach for a generic tool is to use `sqlx::Any` but we have `PgPool`.
-                            
-                            // Let's implement a simplified row-to-json mapper if possible, 
-                            // or just Debug format for now to ensure it compiles and runs safely.
-                            // IMPROVEMENT: Retrieve column names and mapping.
-                            
+                            // Convert rows to JSON using column introspection
+                            use sqlx::Row;
+                            use sqlx::Column;
+                            use sqlx::TypeInfo;
                             let mut results = Vec::new();
-                            for _row in rows {
-                                // Placeholder for row-to-json mapping
-                                // Real implementation would reflect on the Row columns
-                                results.push(serde_json::json!({ "status": "row_retrieved" })); 
+                            for row in &rows {
+                                let mut row_map = serde_json::Map::new();
+                                for col in row.columns() {
+                                    let col_name = col.name().to_string();
+                                    let type_name = col.type_info().name();
+                                    let value: serde_json::Value = match type_name {
+                                        "TEXT" | "VARCHAR" | "CHAR" | "NAME" => {
+                                            row.try_get::<String, _>(col.ordinal())
+                                                .map(serde_json::Value::String)
+                                                .unwrap_or(serde_json::Value::Null)
+                                        }
+                                        "INT4" | "INT2" => {
+                                            row.try_get::<i32, _>(col.ordinal())
+                                                .map(|v| serde_json::Value::Number(v.into()))
+                                                .unwrap_or(serde_json::Value::Null)
+                                        }
+                                        "INT8" => {
+                                            row.try_get::<i64, _>(col.ordinal())
+                                                .map(|v| serde_json::Value::Number(v.into()))
+                                                .unwrap_or(serde_json::Value::Null)
+                                        }
+                                        "BOOL" => {
+                                            row.try_get::<bool, _>(col.ordinal())
+                                                .map(serde_json::Value::Bool)
+                                                .unwrap_or(serde_json::Value::Null)
+                                        }
+                                        "FLOAT4" | "FLOAT8" => {
+                                            row.try_get::<f64, _>(col.ordinal())
+                                                .ok()
+                                                .and_then(|v| serde_json::Number::from_f64(v))
+                                                .map(serde_json::Value::Number)
+                                                .unwrap_or(serde_json::Value::Null)
+                                        }
+                                        "UUID" => {
+                                            row.try_get::<uuid::Uuid, _>(col.ordinal())
+                                                .map(|v| serde_json::Value::String(v.to_string()))
+                                                .unwrap_or(serde_json::Value::Null)
+                                        }
+                                        "TIMESTAMPTZ" | "TIMESTAMP" => {
+                                            row.try_get::<chrono::DateTime<chrono::Utc>, _>(col.ordinal())
+                                                .map(|v| serde_json::Value::String(v.to_rfc3339()))
+                                                .unwrap_or(serde_json::Value::Null)
+                                        }
+                                        // Fallback: try as string
+                                        _ => {
+                                            row.try_get::<String, _>(col.ordinal())
+                                                .map(serde_json::Value::String)
+                                                .unwrap_or(serde_json::Value::Null)
+                                        }
+                                    };
+                                    row_map.insert(col_name, value);
+                                }
+                                results.push(serde_json::Value::Object(row_map));
                             }
                             Ok::<Vec<serde_json::Value>, ToolError>(results)
                         })
@@ -859,7 +895,7 @@ pub mod builtin {
         }
 
         fn validate_input(&self, input: &serde_json::Value) -> Result<(), ToolError> {
-            if !input.is_object() || !input.get("query").and_then(|q| q.as_str()).is_some() {
+            if !input.is_object() || input.get("query").and_then(|q| q.as_str()).is_none() {
                 return Err(ToolError::InvalidInput("Missing 'query' parameter".to_string()));
             }
             Ok(())

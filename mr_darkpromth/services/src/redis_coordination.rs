@@ -173,7 +173,8 @@ impl RedisCoordinator {
         }
         cmd.arg("STREAMS").arg(&stream_name).arg(">");
 
-        let result: Option<Vec<(String, Vec<(String, Vec<(String, String)>)>)>> = cmd.query(&mut conn)?;
+        type StreamResult = Vec<(String, Vec<(String, Vec<(String, String)>)>)>;
+        let result: Option<StreamResult> = cmd.query(&mut conn)?;
         let result = result.unwrap_or_default();
 
         let mut events = Vec::new();

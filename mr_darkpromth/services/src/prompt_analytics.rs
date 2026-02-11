@@ -2,7 +2,7 @@ use crate::jailbreak_models::*;
 use anyhow::Result;
 use chrono::{DateTime, Utc, Duration};
 use serde::{Deserialize, Serialize};
-use sqlx::PgPool;
+use sqlx::{PgPool, Row};
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -26,22 +26,22 @@ impl PromptAnalyticsService {
         rating: Option<i32>,
     ) -> Result<()> {
         // Record the usage
-        sqlx::query!(
+        sqlx::query(
             r#"
             INSERT INTO prompt_usage_records (
                 id, prompt_id, user_id, target_model, success, response_time_ms, used_at, feedback, rating
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             "#,
-            Uuid::new_v4(),
-            prompt_id,
-            user_id,
-            target_model,
-            success,
-            response_time_ms,
-            Utc::now(),
-            feedback,
-            rating
         )
+        .bind(Uuid::new_v4())
+        .bind(prompt_id)
+        .bind(user_id)
+        .bind(&target_model)
+        .bind(success)
+        .bind(response_time_ms)
+        .bind(Utc::now())
+        .bind(&feedback)
+        .bind(rating)
         .execute(&self.db)
         .await?;
 
@@ -52,7 +52,7 @@ impl PromptAnalyticsService {
     }
 
     async fn update_prompt_statistics(&self, prompt_id: Uuid) -> Result<()> {
-        let stats = sqlx::query!(
+        let stats = sqlx::query(
             r#"
             SELECT 
                 COUNT(*) as total_usage,
@@ -61,18 +61,21 @@ impl PromptAnalyticsService {
             FROM prompt_usage_records 
             WHERE prompt_id = $1
             "#,
-            prompt_id
         )
+        .bind(prompt_id)
         .fetch_one(&self.db)
         .await?;
 
-        let success_rate = if stats.total_usage > 0 {
-            stats.successful_usage as f64 / stats.total_usage as f64
+        let total_usage: i64 = stats.get("total_usage");
+        let successful_usage: i64 = stats.get("successful_usage");
+
+        let success_rate = if total_usage > 0 {
+            successful_usage as f64 / total_usage as f64
         } else {
             0.0
         };
 
-        sqlx::query!(
+        sqlx::query(
             r#"
             UPDATE jailbreak_prompts 
             SET usage_count = $2,
@@ -80,10 +83,10 @@ impl PromptAnalyticsService {
                 updated_at = NOW()
             WHERE id = $1
             "#,
-            prompt_id,
-            stats.total_usage,
-            success_rate
         )
+        .bind(prompt_id)
+        .bind(total_usage)
+        .bind(success_rate)
         .execute(&self.db)
         .await?;
 
@@ -91,11 +94,10 @@ impl PromptAnalyticsService {
     }
 
     pub async fn get_prompt_analytics(&self, prompt_id: Uuid) -> Result<Option<PromptAnalytics>> {
-        let prompt = sqlx::query_as!(
-            JailbreakPrompt,
+        let prompt = sqlx::query_as::<_, JailbreakPrompt>(
             "SELECT * FROM jailbreak_prompts WHERE id = $1",
-            prompt_id
         )
+        .bind(prompt_id)
         .fetch_optional(&self.db)
         .await?;
 
@@ -104,7 +106,7 @@ impl PromptAnalyticsService {
         }
 
         // Get usage statistics
-        let stats = sqlx::query!(
+        let stats = sqlx::query(
             r#"
             SELECT 
                 COUNT(*) as total_usage,
@@ -113,20 +115,23 @@ impl PromptAnalyticsService {
             FROM prompt_usage_records 
             WHERE prompt_id = $1
             "#,
-            prompt_id
         )
+        .bind(prompt_id)
         .fetch_one(&self.db)
         .await?;
 
-        let success_rate = if stats.total_usage > 0 {
-            stats.successful_usage as f64 / stats.total_usage as f64
+        let total_usage: i64 = stats.get("total_usage");
+        let successful_usage: i64 = stats.get("successful_usage");
+        let avg_response_time: Option<f64> = stats.get("avg_response_time");
+
+        let success_rate = if total_usage > 0 {
+            successful_usage as f64 / total_usage as f64
         } else {
             0.0
         };
 
         // Get usage by model
-        let model_stats = sqlx::query_as!(
-            ModelUsageStats,
+        let model_stats = sqlx::query_as::<_, ModelUsageStats>(
             r#"
             SELECT 
                 target_model as model,
@@ -140,8 +145,8 @@ impl PromptAnalyticsService {
             WHERE prompt_id = $1
             GROUP BY target_model
             "#,
-            prompt_id
         )
+        .bind(prompt_id)
         .fetch_all(&self.db)
         .await?;
 
@@ -149,22 +154,24 @@ impl PromptAnalyticsService {
         let trend_data = self.get_usage_trend(prompt_id, 30).await?;
 
         // Get last used timestamp
-        let last_used = sqlx::query!(
+        let last_used_row = sqlx::query(
             "SELECT MAX(used_at) as last_used FROM prompt_usage_records WHERE prompt_id = $1",
-            prompt_id
         )
+        .bind(prompt_id)
         .fetch_one(&self.db)
         .await?;
 
+        let last_used: Option<DateTime<Utc>> = last_used_row.get("last_used");
+
         let analytics = PromptAnalytics {
             prompt_id,
-            total_usage: stats.total_usage,
-            successful_usage: stats.successful_usage,
+            total_usage,
+            successful_usage,
             success_rate,
-            average_response_time: stats.avg_response_time.unwrap_or(0.0) as f64,
+            average_response_time: avg_response_time.unwrap_or(0.0),
             usage_by_model: model_stats,
             usage_trend: trend_data,
-            last_used: last_used.last_used,
+            last_used,
         };
 
         Ok(Some(analytics))
@@ -173,11 +180,10 @@ impl PromptAnalyticsService {
     async fn get_usage_trend(&self, prompt_id: Uuid, days: i32) -> Result<Vec<UsageTrendData>> {
         let start_date = Utc::now() - Duration::days(days as i64);
         
-        let trend_data = sqlx::query_as!(
-            UsageTrendData,
+        let trend_data = sqlx::query_as::<_, UsageTrendData>(
             r#"
             SELECT 
-                DATE(used_at) as date,
+                DATE(used_at)::text as date,
                 COUNT(*) as usage_count,
                 CASE 
                     WHEN COUNT(*) = 0 THEN 0 
@@ -188,9 +194,9 @@ impl PromptAnalyticsService {
             GROUP BY DATE(used_at)
             ORDER BY date DESC
             "#,
-            prompt_id,
-            start_date
         )
+        .bind(prompt_id)
+        .bind(start_date)
         .fetch_all(&self.db)
         .await?;
 
@@ -199,40 +205,42 @@ impl PromptAnalyticsService {
 
     pub async fn get_global_analytics(&self) -> Result<GlobalAnalytics> {
         // Total prompts
-        let total_prompts = sqlx::query_scalar!(
+        let total_prompts: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM jailbreak_prompts WHERE is_active = true"
         )
         .fetch_one(&self.db)
         .await?;
 
         // Total usage
-        let total_usage = sqlx::query_scalar!(
+        let total_usage: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM prompt_usage_records"
         )
         .fetch_one(&self.db)
         .await?;
 
         // Overall success rate
-        let success_stats = sqlx::query!(
+        let success_stats = sqlx::query(
             "SELECT COUNT(*) as total, COUNT(CASE WHEN success THEN 1 END) as successful FROM prompt_usage_records"
         )
         .fetch_one(&self.db)
         .await?;
 
-        let overall_success_rate = if success_stats.total > 0 {
-            success_stats.successful as f64 / success_stats.total as f64
+        let total: i64 = success_stats.get("total");
+        let successful: i64 = success_stats.get("successful");
+
+        let overall_success_rate = if total > 0 {
+            successful as f64 / total as f64
         } else {
             0.0
         };
 
         // Category distribution
-        let category_stats = sqlx::query_as!(
-            CategoryStats,
+        let category_stats = sqlx::query_as::<_, CategoryStats>(
             r#"
             SELECT 
                 category,
                 COUNT(*) as prompt_count,
-                SUM(usage_count) as total_usage
+                COALESCE(SUM(usage_count), 0) as total_usage
             FROM jailbreak_prompts 
             WHERE is_active = true
             GROUP BY category
@@ -242,8 +250,7 @@ impl PromptAnalyticsService {
         .await?;
 
         // Model performance
-        let model_performance = sqlx::query_as!(
-            ModelPerformance,
+        let model_performance = sqlx::query_as::<_, ModelPerformance>(
             r#"
             SELECT 
                 target_model as model,
@@ -262,8 +269,7 @@ impl PromptAnalyticsService {
         .await?;
 
         // Top performers
-        let top_performers = sqlx::query_as!(
-            JailbreakPrompt,
+        let top_performers = sqlx::query_as::<_, JailbreakPrompt>(
             "SELECT * FROM jailbreak_prompts WHERE is_active = true ORDER BY success_rate DESC, usage_count DESC LIMIT 10"
         )
         .fetch_all(&self.db)
@@ -273,8 +279,8 @@ impl PromptAnalyticsService {
         let recent_activity = self.get_recent_activity(7).await?;
 
         Ok(GlobalAnalytics {
-            total_prompts,
-            total_usage,
+            total_prompts: total_prompts.0,
+            total_usage: total_usage.0,
             overall_success_rate,
             category_distribution: category_stats,
             model_performance,
@@ -286,11 +292,10 @@ impl PromptAnalyticsService {
     async fn get_recent_activity(&self, days: i32) -> Result<Vec<DailyActivity>> {
         let start_date = Utc::now() - Duration::days(days as i64);
         
-        let activity = sqlx::query_as!(
-            DailyActivity,
+        let activity = sqlx::query_as::<_, DailyActivity>(
             r#"
             SELECT 
-                DATE(used_at) as date,
+                DATE(used_at)::text as date,
                 COUNT(*) as usage_count,
                 COUNT(DISTINCT prompt_id) as unique_prompts,
                 COUNT(DISTINCT user_id) as unique_users,
@@ -301,8 +306,8 @@ impl PromptAnalyticsService {
             GROUP BY DATE(used_at)
             ORDER BY date DESC
             "#,
-            start_date
         )
+        .bind(start_date)
         .fetch_all(&self.db)
         .await?;
 
@@ -310,7 +315,7 @@ impl PromptAnalyticsService {
     }
 
     pub async fn get_user_analytics(&self, user_id: Uuid) -> Result<Option<UserAnalytics>> {
-        let user_stats = sqlx::query!(
+        let user_stats = sqlx::query(
             r#"
             SELECT 
                 COUNT(*) as total_usage,
@@ -322,20 +327,26 @@ impl PromptAnalyticsService {
             FROM prompt_usage_records 
             WHERE user_id = $1
             "#,
-            user_id
         )
+        .bind(user_id)
         .fetch_one(&self.db)
         .await?;
 
-        if user_stats.total_usage == 0 {
+        let total_usage: i64 = user_stats.get("total_usage");
+        let unique_prompts_used: i64 = user_stats.get("unique_prompts_used");
+        let successful_usage: i64 = user_stats.get("successful_usage");
+        let avg_response_time: Option<f64> = user_stats.get("avg_response_time");
+        let first_used: Option<DateTime<Utc>> = user_stats.get("first_used");
+        let last_used: Option<DateTime<Utc>> = user_stats.get("last_used");
+
+        if total_usage == 0 {
             return Ok(None);
         }
 
-        let success_rate = user_stats.successful_usage as f64 / user_stats.total_usage as f64;
+        let success_rate = successful_usage as f64 / total_usage as f64;
 
         // Favorite categories
-        let favorite_categories = sqlx::query_as!(
-            FavoriteCategory,
+        let favorite_categories = sqlx::query_as::<_, FavoriteCategory>(
             r#"
             SELECT 
                 jp.category,
@@ -347,14 +358,13 @@ impl PromptAnalyticsService {
             ORDER BY usage_count DESC
             LIMIT 5
             "#,
-            user_id
         )
+        .bind(user_id)
         .fetch_all(&self.db)
         .await?;
 
         // Preferred models
-        let preferred_models = sqlx::query_as!(
-            PreferredModel,
+        let preferred_models = sqlx::query_as::<_, PreferredModel>(
             r#"
             SELECT 
                 target_model as model,
@@ -369,19 +379,19 @@ impl PromptAnalyticsService {
             GROUP BY target_model
             ORDER BY usage_count DESC
             "#,
-            user_id
         )
+        .bind(user_id)
         .fetch_all(&self.db)
         .await?;
 
         let analytics = UserAnalytics {
             user_id,
-            total_usage: user_stats.total_usage,
-            unique_prompts_used: user_stats.unique_prompts_used,
+            total_usage,
+            unique_prompts_used,
             success_rate,
-            average_response_time: user_stats.avg_response_time.unwrap_or(0.0) as f64,
-            first_used: user_stats.first_used,
-            last_used: user_stats.last_used,
+            average_response_time: avg_response_time.unwrap_or(0.0),
+            first_used,
+            last_used,
             favorite_categories,
             preferred_models,
         };
@@ -393,8 +403,7 @@ impl PromptAnalyticsService {
         let start_date = Utc::now() - Duration::days(days as i64);
 
         // Overall effectiveness trends
-        let effectiveness_trends = sqlx::query_as!(
-            EffectivenessTrend,
+        let effectiveness_trends = sqlx::query_as::<_, EffectivenessTrend>(
             r#"
             SELECT 
                 jp.effectiveness,
@@ -410,14 +419,13 @@ impl PromptAnalyticsService {
             GROUP BY jp.effectiveness
             ORDER BY jp.effectiveness
             "#,
-            start_date
         )
+        .bind(start_date)
         .fetch_all(&self.db)
         .await?;
 
         // Category vs effectiveness correlation
-        let category_effectiveness = sqlx::query_as!(
-            CategoryEffectiveness,
+        let category_effectiveness = sqlx::query_as::<_, CategoryEffectiveness>(
             r#"
             SELECT 
                 jp.category,
@@ -434,14 +442,13 @@ impl PromptAnalyticsService {
             GROUP BY jp.category, jp.effectiveness
             ORDER BY jp.category, jp.effectiveness
             "#,
-            start_date
         )
+        .bind(start_date)
         .fetch_all(&self.db)
         .await?;
 
         // Technique effectiveness
-        let technique_effectiveness = sqlx::query_as!(
-            TechniqueEffectiveness,
+        let technique_effectiveness = sqlx::query_as::<_, TechniqueEffectiveness>(
             r#"
             SELECT 
                 jp.technique,
@@ -458,8 +465,8 @@ impl PromptAnalyticsService {
             GROUP BY jp.technique
             ORDER BY success_rate DESC
             "#,
-            start_date
         )
+        .bind(start_date)
         .fetch_all(&self.db)
         .await?;
 

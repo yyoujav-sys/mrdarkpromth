@@ -1,3 +1,4 @@
+use crate::tier::UserTier;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -76,9 +77,9 @@ impl OutputFilter {
         })
     }
 
-    pub fn filter_content(&self, content: &str, user_tier: &mr_darkpromth_db::UserTier) -> Result<String, FilterError> {
+    pub fn filter_content(&self, content: &str, user_tier: &UserTier) -> Result<String, FilterError> {
         // Ultra Tier Bypass: Skip all content filtering for Ultra users
-        if matches!(user_tier, mr_darkpromth_db::UserTier::Ultra) {
+        if matches!(user_tier, UserTier::Ultra) {
             return Ok(content.to_string());
         }
         if content.len() > self.config.max_content_length {
@@ -168,7 +169,7 @@ mod tests {
         let filter = OutputFilter::new(config).unwrap();
 
         let content = "My password is secret123 and my email is test@example.com";
-        let result = filter.filter_content(content, &mr_darkpromth_db::UserTier::Free);
+        let result = filter.filter_content(content, &UserTier::Free);
         assert!(result.is_err());
     }
 
@@ -191,7 +192,7 @@ mod tests {
         let filter = OutputFilter::new(config).unwrap();
 
         let content = "This is a very long content that exceeds the limit";
-        let result = filter.filter_content(content, &mr_darkpromth_db::UserTier::Free);
+        let result = filter.filter_content(content, &UserTier::Free);
         assert!(result.is_err());
     }
 }

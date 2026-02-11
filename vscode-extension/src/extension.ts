@@ -4,19 +4,21 @@ import { AuthManager } from './authManager';
 import { ApiClient } from './apiClient';
 import { StatusBarManager } from './statusBarManager';
 import { EventBusCoordinator } from './eventBusCoordinator';
+import { UltraTerminalProvider } from './ultraTerminal';
 
 let chatPanelProvider: ChatPanelProvider;
 let authManager: AuthManager;
 let apiClient: ApiClient;
 let statusBarManager: StatusBarManager;
 let eventBusCoordinator: EventBusCoordinator;
+let ultraTerminalProvider: UltraTerminalProvider;
 let healthCheckInterval: NodeJS.Timeout | null = null;
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('MR.DarkPromth extension is now active!');
 
     const config = vscode.workspace.getConfiguration('mr-darkpromth');
-    const apiEndpoint = config.get<string>('apiEndpoint', 'https://bt-shop-dark.online');
+    const apiEndpoint = config.get<string>('apiEndpoint', 'https://mrdarkpromth.online');
 
     // Initialize event bus coordinator for agent coordination
     eventBusCoordinator = new EventBusCoordinator();
@@ -25,15 +27,16 @@ export function activate(context: vscode.ExtensionContext) {
     authManager = new AuthManager(context, apiClient);
     statusBarManager = new StatusBarManager(authManager);
     chatPanelProvider = new ChatPanelProvider(context, apiClient, authManager);
+    ultraTerminalProvider = new UltraTerminalProvider(context, apiClient, authManager);
 
     context.subscriptions.push(
         vscode.commands.registerCommand('mr-darkpromth.openChat', async () => {
             if (!authManager.isAuthenticated()) {
                 const result = await vscode.window.showWarningMessage(
-                    'You need to authenticate first',
-                    'Authenticate'
+                    vscode.l10n.t('authRequired'),
+                    vscode.l10n.t('connect')
                 );
-                if (result === 'Authenticate') {
+                if (result === vscode.l10n.t('connect')) {
                     await vscode.commands.executeCommand('mr-darkpromth.authenticate');
                 }
                 return;
@@ -43,7 +46,7 @@ export function activate(context: vscode.ExtensionContext) {
 
         vscode.commands.registerCommand('mr-darkpromth.authenticate', async () => {
             const email = await vscode.window.showInputBox({
-                prompt: 'Enter your email',
+                prompt: vscode.l10n.t('enterEmail'),
                 placeHolder: 'user@example.com'
             });
 
@@ -52,7 +55,7 @@ export function activate(context: vscode.ExtensionContext) {
             }
 
             const password = await vscode.window.showInputBox({
-                prompt: 'Enter your password',
+                prompt: vscode.l10n.t('enterPassword'),
                 password: true
             });
 
@@ -62,23 +65,23 @@ export function activate(context: vscode.ExtensionContext) {
 
             try {
                 await authManager.authenticate(email, password);
-                vscode.window.showInformationMessage('Authentication successful!');
+                vscode.window.showInformationMessage(vscode.l10n.t('authSuccess'));
                 await statusBarManager.update();
                 vscode.commands.executeCommand('setContext', 'mr-darkpromth.authenticated', true);
             } catch (error) {
-                vscode.window.showErrorMessage(`Authentication failed: ${error}`);
+                vscode.window.showErrorMessage(vscode.l10n.t('authFailed', String(error)));
             }
         }),
 
         vscode.commands.registerCommand('mr-darkpromth.clearChat', async () => {
             const result = await vscode.window.showWarningMessage(
-                'Are you sure you want to clear the chat history?',
-                'Clear',
-                'Cancel'
+                vscode.l10n.t('clearChatConfirm'),
+                vscode.l10n.t('clear'),
+                vscode.l10n.t('cancel')
             );
-            if (result === 'Clear') {
+            if (result === vscode.l10n.t('clear')) {
                 chatPanelProvider.clearChat();
-                vscode.window.showInformationMessage('Chat history cleared');
+                vscode.window.showInformationMessage(vscode.l10n.t('chatCleared'));
             }
         }),
 
@@ -86,9 +89,20 @@ export function activate(context: vscode.ExtensionContext) {
             try {
                 await authManager.refreshUserInfo();
                 await statusBarManager.update();
-                vscode.window.showInformationMessage('User information refreshed');
+                vscode.window.showInformationMessage(vscode.l10n.t('refreshSuccess'));
             } catch (error) {
-                vscode.window.showErrorMessage(`Failed to refresh user info: ${error}`);
+                vscode.window.showErrorMessage(vscode.l10n.t('refreshFailed', String(error)));
+            }
+        }),
+
+        vscode.commands.registerCommand('mr-darkpromth.openUltraTerminal', async () => {
+            if (!authManager.isAuthenticated()) {
+                vscode.window.showErrorMessage(vscode.l10n.t('authRequired'));
+                return;
+            }
+            const success = await ultraTerminalProvider.initializeSession();
+            if (success) {
+                ultraTerminalProvider.showTerminal();
             }
         }),
 
@@ -130,7 +144,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     vscode.workspace.onDidChangeConfiguration(async (e) => {
         if (e.affectsConfiguration('mr-darkpromth.apiEndpoint')) {
-            const newEndpoint = config.get<string>('apiEndpoint', 'https://bt-shop-dark.online');
+            const newEndpoint = config.get<string>('apiEndpoint', 'https://mrdarkpromth.online');
             apiClient.updateEndpoint(newEndpoint);
         }
     });

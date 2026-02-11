@@ -7,6 +7,12 @@ pub struct DecisionEngine {
     http_client: Client,
 }
 
+impl Default for DecisionEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DecisionEngine {
     pub fn new() -> Self {
         Self {

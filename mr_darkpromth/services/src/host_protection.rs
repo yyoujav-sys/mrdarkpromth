@@ -41,6 +41,12 @@ impl HostProtectionPolicy {
             "metadata.google.internal",
             "metadata.aws.amazon.com",
             "169.254.169.254",
+            "postgres",
+            "redis",
+            "db",
+            "database",
+            "grafana",
+            "prometheus",
         ];
 
         for host in hosts {
@@ -61,6 +67,12 @@ impl HostProtectionPolicy {
             r"(?i)^https?://169\.254\.169\.254",
             r"(?i)^https?://metadata\.google\.internal",
             r"(?i)^https?://metadata\.amazonaws\.com/latest/meta-data",
+            r"(?i).*:5432", // PostgreSQL
+            r"(?i).*:6379", // Redis
+            r"(?i).*:9090", // Prometheus
+            r"(?i).*:3000", // Grafana
+            r"(?i).*:8080", // API Gateway
+            r"(?i).*:8081", // Metrics/Alt API
         ];
 
         for pattern in patterns {

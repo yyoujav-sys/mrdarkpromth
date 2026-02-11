@@ -294,7 +294,7 @@ impl FixGenerator {
             _ => {}
         }
         
-        confidence.min(0.99).max(0.1) as f64
+        confidence.clamp(0.1, 0.99)
     }
 
     pub fn should_apply_fix(&self, fix: &GeneratedFix) -> bool {

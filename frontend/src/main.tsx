@@ -1,5 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { ToastProvider } from './components/ui/Toast'
+import { LanguageProvider } from './contexts/LanguageContext'
 import './index.css'
 import App from './App.tsx'
 
@@ -11,7 +13,11 @@ try {
   }
   createRoot(rootElement).render(
     <StrictMode>
-      <App />
+      <LanguageProvider>
+        <ToastProvider>
+          <App />
+        </ToastProvider>
+      </LanguageProvider>
     </StrictMode>,
   );
 } catch (e) {

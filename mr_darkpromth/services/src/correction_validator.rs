@@ -226,7 +226,9 @@ impl CorrectionValidator {
         
         log::info!("Running test: {}", test_name);
         
-        let result = if test_name.contains("syntax") {
+        
+        
+        if test_name.contains("syntax") {
             TestResult {
                 test_name: test_name.to_string(),
                 passed: true,
@@ -240,9 +242,7 @@ impl CorrectionValidator {
                 output: "Test passed (simulated)".to_string(),
                 duration_ms: start.elapsed().as_millis() as u64,
             }
-        };
-        
-        result
+        }
     }
 
     pub fn calculate_validation_score(&self, test_results: &[TestResult]) -> f64 {

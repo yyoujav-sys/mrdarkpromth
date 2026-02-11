@@ -229,30 +229,27 @@ impl Agent for EditorAgent {
     fn handle_message(&mut self, message: AgentMessage) -> AgentResult<()> {
         log::info!("Editor received message from {}: {:?}", message.from_agent, message.message_type);
         
-        match message.message_type.as_str() {
-            "delegate_task" => {
-                if let (Some(subtask_id), Some(description), Some(task_id)) = (
-                    message.content.get("subtask_id").and_then(|v| v.as_str()),
-                    message.content.get("description").and_then(|v| v.as_str()),
-                    message.content.get("task_id").and_then(|v| v.as_str())
-                ) {
-                    let file_name = description.split_whitespace()
-                        .take(3)
-                        .collect::<Vec<_>>()
-                        .join("_");
-                    let file_path = format!("src/{}.rs", file_name);
-                    
-                    match self.generate_code(description, &file_path) {
-                        Ok(result) => {
-                            self.publish_completion(task_id, subtask_id, &result)?;
-                        }
-                        Err(e) => {
-                            self.publish_error(task_id, subtask_id, &e.to_string())?;
-                        }
+        if message.message_type.as_str() == "delegate_task" {
+            if let (Some(subtask_id), Some(description), Some(task_id)) = (
+                message.content.get("subtask_id").and_then(|v| v.as_str()),
+                message.content.get("description").and_then(|v| v.as_str()),
+                message.content.get("task_id").and_then(|v| v.as_str())
+            ) {
+                let file_name = description.split_whitespace()
+                    .take(3)
+                    .collect::<Vec<_>>()
+                    .join("_");
+                let file_path = format!("src/{}.rs", file_name);
+                
+                match self.generate_code(description, &file_path) {
+                    Ok(result) => {
+                        self.publish_completion(task_id, subtask_id, &result)?;
+                    }
+                    Err(e) => {
+                        self.publish_error(task_id, subtask_id, &e.to_string())?;
                     }
                 }
             }
-            _ => {}
         }
         
         Ok(())

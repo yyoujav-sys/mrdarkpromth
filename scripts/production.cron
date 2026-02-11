@@ -1,0 +1,12 @@
+# Production Monitoring Cron
+# Run health checks every 5 minutes
+*/5 * * * * /opt/mrdarkpromth/scripts/production_monitor.sh >> /var/log/mrdarkpromth/cron.log 2>&1
+
+# Run backup daily at 2 AM
+0 2 * * * /opt/mrdarkpromth/scripts/enhanced_backup.sh >> /var/log/mrdarkpromth/backup.log 2>&1
+
+# Docker log rotation daily at 3 AM
+0 3 * * * /opt/mrdarkpromth/scripts/docker-logrotate.sh >> /var/log/mrdarkpromth/logrotate.log 2>&1
+
+# SSL renewal check weekly
+0 0 * * 0 /opt/mrdarkpromth/scripts/ssl-renewal.sh >> /var/log/mrdarkpromth/ssl.log 2>&1

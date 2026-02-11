@@ -1,21 +1,15 @@
+pub mod openrouter_client;
 // MR.DarkPromth Services Library
 // Agent 4: Jailbreak & Ultra Tier Engineer
 // Agent 6: MasterToolExecutor & Tool System Engineer
 // Agent 7: Multi-Agent System Engineer
+// Agent 8: Self-Correction Engine modules
 
 pub mod jailbreak_system;
 pub mod redis_coordination;
-// pub mod agent4_main; // Deprecated
-pub mod safety_filter;
-pub mod sandbox;
+pub mod strategic_bypass_engine;
 pub mod ultra_tier_logic;
-#[cfg(test)]
-pub mod ultra_tier_integration_tests;
-#[cfg(test)]
-pub mod ultra_tier_dark_tests;
 pub mod audit_analytics;
-#[cfg(test)]
-pub mod integration_tests;
 pub mod monitoring;
 pub mod dependency_monitor;
 pub mod integration_coordinator;
@@ -35,7 +29,6 @@ pub mod auth_middleware;
 pub mod tier_management;
 pub mod user_profile;
 pub mod cerebras_integration;
-// pub mod main_integrated; // Deprecated
 pub mod user_event_coordinator;
 pub mod user_integration;
 pub mod key_pool;
@@ -43,9 +36,11 @@ pub mod host_protection;
 pub mod billing_service;
 pub mod email_service;
 pub mod cache_service;
-
-#[cfg(test)]
+pub mod auto_docs;
+pub mod telemetry;
+pub mod i18n;
 pub mod test_db_utils;
+pub mod sandbox;
 
 // Agent 6: Tool System modules
 pub mod tool_system;
@@ -73,55 +68,55 @@ pub mod correction_validator;
 pub mod learning_system;
 pub mod self_correction_agent;
 
-// Re-export main types for easier access
-pub use redis_coordination::*;
-pub use safety_filter::*;
-pub use ultra_tier_logic::*;
-#[cfg(test)]
-pub use integration_tests::*;
-pub use monitoring::*;
-pub use audit::*;
-pub use database_audit::*;
-pub use tier_validation::*;
-pub use server_protection::*;
-pub use sandboxed_execution::*;
-pub use user_service::*;
-pub use auth_middleware::*;
-pub use tier_management::*;
-pub use user_profile::*;
-pub use cerebras_integration::*;
-pub use user_integration::*;
-
-// Agent 6: Tool System exports
-pub use tool_system::*;
-pub use tool_plugin_manager::*;
-pub use tool_registry::*;
-pub use master_tool_executor::*;
-
-// Re-export main types for main.rs
-pub use jailbreak_system::{JailbreakPrompt, JailbreakSystem, AIModel, PromptCategory, Technique, EffectivenessRating, RiskLevel};
-pub use safety_filter::{SafetyFilter, FilterResult, FilterAction, ProtectionRule};
-pub use sandbox::{Sandbox, SandboxConfig, Language, ExecutionResult};
-pub use ultra_tier_logic::{UltraTierLogic, UltraTierRequest, UltraTierResponse, UserTier, User, AuditLogEntry, UltraAuditAction};
-
-pub use monitoring::{collect_system_metrics, MonitoringSystem, SystemMetrics, HealthStatus, ServiceStatus, DependencyStatus};
-pub use dependency_monitor::{DependencyMonitor, DependencyStatus as DepStatus, DependencyState};
-pub use integration_coordinator::{IntegrationCoordinator, TestResult};
-pub use audit::{AuditLogger, AuditEvent, AuditEventType};
-pub use tier_validation::TierValidator;
-
-pub use server_protection::{ServerProtection, ProtectionConfig, ProtectionStats, SuspiciousProcess, ProtectionMiddleware};
-pub use sandboxed_execution::SandboxedExecutor;
+// Explicit Re-exports (Strictly NO Glob Exports to avoid shadowing)
+pub use jailbreak_models::{
+    JailbreakPrompt, CreatePromptRequest, UpdatePromptRequest, PromptResponse,
+    PromptSearchRequest, PromptSearchResponse, PromptCategory, BypassTechnique,
+    EffectivenessRating, RiskLevel,
+};
 
 pub use jailbreak_service::JailbreakPromptService;
 
-pub use jailbreak_models::*;
 pub use user_service::{UserService, CreateUserRequest, UpdateUserRequest, UserResponse, Claims, AuthError};
-pub use auth_middleware::{AuthState, AuthenticatedUser};
 
-pub use audit_analytics::*;
+pub use auth_middleware::{
+    AuthState, AuthenticatedUser, api_key_middleware, auth_middleware,
+    check_user_tier, extract_auth_user, optional_auth_middleware,
+    require_premium_tier, require_ultra_tier,
+};
+
+pub use mr_darkpromth_core::tier::UserTier;
+pub use ultra_tier_logic::{UltraTierLogic, UltraTierRequest, UltraTierResponse};
+
+pub use strategic_bypass_engine::{StrategicBypassEngine, StrategicAction, StrategicRule, OperationalResult, OperationalPriority};
+
+pub use sandboxed_execution::{SandboxedExecutor, SandboxConfig as SandboxedExecutorConfig, SandboxError, SandboxManager, SandboxSession};
+pub use sandbox::{Sandbox, SandboxConfig, Language, ExecutionResult as SandboxExecutionResult};
+
+pub use monitoring::{collect_system_metrics, MonitoringSystem, HealthStatus, ServiceStatus, DependencyStatus};
+
+pub use audit::{AuditLogger, AuditEvent, AuditEventType, AuditLog, AuditFilter, AuditStats, AuditAction, AuditSeverity};
+
+pub use tier_management::{TierManagementService, TierUpgradeRequest, TierUpgradeResponse, TierStats};
+
+pub use billing_service::{BillingService, Plan, Subscription, PaymentStatus};
+
 pub use key_pool::{KeyPool, Provider};
-pub use host_protection::{HostProtectionPolicy};
-pub use billing_service::{BillingService, Plan, Payment, Subscription, PaymentStatus, PaymentMethod};
-pub use email_service::{EmailService, EmailVerificationToken, PasswordResetToken, EmailConfig};
+
 pub use cache_service::CacheService;
+
+pub use email_service::EmailService;
+
+pub use redis_coordination::{RedisCoordinator, CoordinationEvent};
+
+pub use database_audit::DatabaseAuditService;
+
+pub use tool_registry::ToolRegistry;
+pub use master_tool_executor::MasterToolExecutor;
+pub use cerebras_integration::CerebrasClient;
+pub use openrouter_client::OpenRouterClient;
+pub use tier_validation::TierValidator;
+pub use auto_docs::{AutoDocService, DocModule, DocFunction, DocStruct, DocEnum};
+pub use telemetry::TelemetryService;
+pub use i18n::{Language as BackendLanguage, Translator};
+pub use learning_system::LearningSystem;

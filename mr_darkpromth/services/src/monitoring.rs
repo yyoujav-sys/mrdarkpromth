@@ -6,7 +6,47 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::time::{Duration, Instant};
 use chrono::{DateTime, Utc};
-use sysinfo::{CpuExt, System, SystemExt};
+use sysinfo::{CpuExt, ProcessExt, System, SystemExt};
+
+/// Send an alert message to Telegram via the Bot API.
+/// Requires `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` environment variables.
+/// Silently succeeds if credentials are placeholder values.
+pub async fn send_telegram_alert(message: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let token = std::env::var("TELEGRAM_BOT_TOKEN").unwrap_or_default();
+    let chat_id = std::env::var("TELEGRAM_CHAT_ID").unwrap_or_default();
+
+    // Skip if credentials are not configured
+    if token.is_empty() || token == "YOUR_BOT_TOKEN_HERE"
+        || chat_id.is_empty() || chat_id == "YOUR_CHAT_ID_HERE"
+    {
+        log::debug!("Telegram alert skipped: credentials not configured");
+        return Ok(());
+    }
+
+    let url = format!("https://api.telegram.org/bot{}/sendMessage", token);
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .build()?;
+
+    let resp = client
+        .post(&url)
+        .json(&serde_json::json!({
+            "chat_id": chat_id,
+            "text": message,
+            "parse_mode": "MarkdownV2"
+        }))
+        .send()
+        .await?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        log::error!("Telegram API error {}: {}", status, body);
+    }
+
+    Ok(())
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemMetrics {
@@ -26,9 +66,24 @@ pub fn collect_system_metrics(agent_id: &str) -> SystemMetrics {
     let mut system = System::new_all();
     system.refresh_cpu();
     system.refresh_memory();
+    system.refresh_processes();
 
     let cpu_usage = system.global_cpu_info().cpu_usage();
-    let memory_used_mb = system.used_memory() / 1024; // sysinfo returns KB
+    
+    // Get memory usage (prioritize container-accurate cgroup metrics)
+    let memory_used_mb = if let Ok(cgroup_mem) = std::fs::read_to_string("/sys/fs/cgroup/memory.current") {
+        cgroup_mem.trim().parse::<u64>().unwrap_or(0) / (1024 * 1024)
+    } else if let Ok(cgroup_mem_legacy) = std::fs::read_to_string("/sys/fs/cgroup/memory/memory.usage_in_bytes") {
+        cgroup_mem_legacy.trim().parse::<u64>().unwrap_or(0) / (1024 * 1024)
+    } else {
+        // Fallback to sysinfo process memory
+        let pid = sysinfo::get_current_pid().unwrap();
+        if let Some(process) = system.process(pid) {
+            process.memory() / (1024 * 1024)
+        } else {
+            system.used_memory() / (1024 * 1024)
+        }
+    };
 
     SystemMetrics {
         timestamp: Utc::now(),
@@ -91,11 +146,11 @@ pub struct AlertThresholds {
 impl Default for AlertThresholds {
     fn default() -> Self {
         Self {
-            max_error_rate: 5.0, // 5%
+            max_error_rate: 10.0, // 10% (increased from 5% to reduce noise)
             max_response_time_ms: 5000.0, // 5 seconds
-            max_cpu_usage: 80.0, // 80%
-            max_memory_mb: 1024, // 1GB
-            min_jailbreak_success_rate: 85.0, // 85%
+            max_cpu_usage: 90.0, // 90% (increased from 80%)
+            max_memory_mb: 2048, // 2GB (increased from 1GB for AI workloads)
+            min_jailbreak_success_rate: 0.0, // Disabled for pre-production (set to 50.0+ for production)
         }
     }
 }
@@ -212,9 +267,12 @@ impl MonitoringSystem {
             alerts.push(format!("High memory usage: {}MB", metrics.memory_usage_mb));
         }
         
-        if metrics.jailbreak_success_rate < self.alert_thresholds.min_jailbreak_success_rate {
-            alerts.push(format!("Low jailbreak success rate: {:.1}%", metrics.jailbreak_success_rate));
-        }
+        // Only alert for jailbreak success rate if there are actual requests and threshold is set
+        // if self.alert_thresholds.min_jailbreak_success_rate > 0.0 
+        //     && metrics.completed_requests > 0 
+        //     && metrics.jailbreak_success_rate < self.alert_thresholds.min_jailbreak_success_rate {
+        //     alerts.push(format!("Low jailbreak success rate: {:.1}%", metrics.jailbreak_success_rate));
+        // }
         
         if !alerts.is_empty() {
             self.send_alerts(&alerts);
@@ -222,12 +280,27 @@ impl MonitoringSystem {
     }
 
     fn send_alerts(&self, alerts: &[String]) {
+        let message = format!(
+            "🚨 *MR\\.DarkPromth Alert* \\[{}\\]\n\n{}",
+            self.agent_id,
+            alerts.iter()
+                .map(|a| format!("• {}", a))
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
+
+        // Always log to stdout
         for alert in alerts {
-            println!("🚨 AGENT 4 ALERT: {} [{}]", alert, self.agent_id);
-            
-            // In a real implementation, this would send to monitoring systems
-            // like Prometheus, Grafana, PagerDuty, etc.
+            log::warn!("🚨 ALERT: {} [{}]", alert, self.agent_id);
         }
+
+        // Attempt Telegram delivery in background
+        let msg = message.clone();
+        tokio::spawn(async move {
+            if let Err(e) = send_telegram_alert(&msg).await {
+                log::error!("Failed to send Telegram alert: {}", e);
+            }
+        });
     }
 
     pub fn update_dependency_status(&mut self, dependency: String, status: DependencyStatus) {

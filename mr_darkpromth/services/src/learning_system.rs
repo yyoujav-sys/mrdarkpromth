@@ -326,7 +326,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_pattern_extraction() {
-        let pool = create_test_pool().await.unwrap();
+        let pool = sqlx::PgPool::connect_lazy("postgresql://postgres:postgres@localhost:5432/mr_darkpromth").unwrap();
         let system = LearningSystem::new(pool);
         
         let error = ErrorDetection {
@@ -354,7 +354,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_metrics_update() {
-        let pool = create_test_pool().await.unwrap();
+        let pool = sqlx::PgPool::connect_lazy("postgresql://postgres:postgres@localhost:5432/mr_darkpromth").unwrap();
         let mut system = LearningSystem::new(pool);
         
         let history = CorrectionHistory {

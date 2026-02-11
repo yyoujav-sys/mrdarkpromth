@@ -27,6 +27,12 @@ fn parse_env_usize(key: &str) -> Option<usize> {
     env::var(key).ok().and_then(|value| value.parse::<usize>().ok())
 }
 
+impl Default for CerebrasClient {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CerebrasClient {
     pub fn new() -> Self {
         Self::from_env_or_default()
@@ -64,6 +70,49 @@ impl CerebrasClient {
 
         self.execute_chat_with_model(messages, Some(RequestIntent::Chat), model_override)
             .await
+    }
+
+    /// Ultra Tier mode - sends raw request without any safety system prompts
+    pub async fn ultra_completion(
+        &self,
+        prompt: &str,
+        model_override: Option<&str>,
+    ) -> Result<String> {
+        // Ultra Tier: No system prompt, no safety guardrails, raw direct access
+        let messages = vec![ChatMessage {
+            role: Role::User,
+            content: prompt.to_string(),
+        }];
+
+        self.execute_chat_ultra(messages, model_override).await
+    }
+
+    async fn execute_chat_ultra(
+        &self,
+        messages: Vec<ChatMessage>,
+        model_override: Option<&str>,
+    ) -> Result<String> {
+        let model = self.resolve_model(model_override);
+        
+        // ULTRA TIER: Override with maximum temperature and no safety constraints
+        let request = ChatRequest {
+            messages,
+            model: Some(model),
+            max_tokens: Some(8192), // Higher token limit for Ultra
+            temperature: Some(1.0), // Maximum creativity/novelty
+            top_p: Some(1.0),       // No nucleus sampling restrictions
+            stream: Some(false),
+            intent: None, // No intent = no safety template applied
+        };
+
+        let response = self.inner.chat_completion(request).await?;
+
+        let choice = response
+            .choices
+            .first()
+            .ok_or_else(|| anyhow!("No choices in Cerebras response"))?;
+
+        Ok(choice.message.content.clone())
     }
 
     pub async fn chat_completion_with_system(&self, system_prompt: &str, user_prompt: &str) -> Result<String> {

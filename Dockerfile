@@ -1,5 +1,5 @@
 # Multi-stage build for MR.DarkPromth API
-FROM rust:1.83-slim as builder
+FROM rustlang/rust:nightly-bookworm AS builder
 
 WORKDIR /app
 
@@ -10,32 +10,9 @@ RUN apt-get update && apt-get install -y \
     protobuf-compiler \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy dependency definitions to cache layers
-COPY Cargo.toml Cargo.lock ./
-COPY mr_darkpromth/core/Cargo.toml ./mr_darkpromth/core/
-COPY mr_darkpromth/db/Cargo.toml ./mr_darkpromth/db/
-COPY mr_darkpromth/services/Cargo.toml ./mr_darkpromth/services/
-COPY mr_darkpromth/services/cerebras_client/Cargo.toml ./mr_darkpromth/services/cerebras_client/
-COPY mr_darkpromth/api/Cargo.toml ./mr_darkpromth/api/
-
-# Create dummy source files to build and cache dependencies only
-RUN mkdir -p mr_darkpromth/core/src && echo "pub fn lib() {}" > mr_darkpromth/core/src/lib.rs && \
-    mkdir -p mr_darkpromth/db/src && echo "pub fn lib() {}" > mr_darkpromth/db/src/lib.rs && \
-    mkdir -p mr_darkpromth/services/src && echo "pub fn lib() {}" > mr_darkpromth/services/src/lib.rs && \
-    mkdir -p mr_darkpromth/services/cerebras_client/src && echo "pub fn lib() {}" > mr_darkpromth/services/cerebras_client/src/lib.rs && \
-    mkdir -p mr_darkpromth/api/src && echo "fn main() {}" > mr_darkpromth/api/src/main.rs
-
-# Build only dependencies
-# This will be cached unless Cargo files change
-RUN cargo build --release
-
-# Now copy the actual source code
-COPY ./mr_darkpromth ./mr_darkpromth
-COPY ./migrations ./migrations
-COPY ./config ./config
-
-# Build the application with the cached dependencies
-# This will be fast because dependencies are cached
+# Build the application
+# We copy everything and build once to avoid complex caching issues with local workspace crates
+COPY . .
 RUN cargo build --release
 
 # Runtime stage
@@ -46,6 +23,11 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     curl \
     libssl3 \
+    gnupg \
+    lsb-release \
+    && curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list \
+    && apt-get update && apt-get install -y docker-ce-cli \
     && rm -rf /var/lib/apt/lists/*
 
 # Create app user

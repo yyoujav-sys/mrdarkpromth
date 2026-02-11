@@ -6,6 +6,7 @@ export class StatusBarManager {
     private statusBarItem: vscode.StatusBarItem;
     private tierBarItem: vscode.StatusBarItem;
     private healthStatusItem: vscode.StatusBarItem;
+    private ultraModeItem: vscode.StatusBarItem;
     private updateInterval: NodeJS.Timeout | null = null;
 
     constructor(authManager: AuthManager) {
@@ -13,19 +14,25 @@ export class StatusBarManager {
         this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
         this.tierBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 99);
         this.healthStatusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 101);
+        this.ultraModeItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 98);
     }
 
     initialize(): void {
         this.statusBarItem.command = 'mr-darkpromth.refreshUserInfo';
         this.tierBarItem.command = 'mr-darkpromth.refreshUserInfo';
         this.healthStatusItem.command = 'mr-darkpromth.healthCheck';
-        
+
         this.statusBarItem.show();
         this.tierBarItem.show();
         this.healthStatusItem.show();
-        
+        this.ultraModeItem.show();
+
         this.update();
-        
+
+        vscode.commands.registerCommand('mr-darkpromth.ultraModeChanged', (isEnabled: boolean) => {
+            this.updateUltraMode(isEnabled);
+        });
+
         this.updateInterval = setInterval(() => {
             this.update();
         }, 60000);
@@ -36,7 +43,7 @@ export class StatusBarManager {
             this.statusBarItem.text = '$(circle-slash) Not Authenticated';
             this.statusBarItem.tooltip = 'Click to authenticate';
             this.statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
-            
+
             this.tierBarItem.hide();
             return;
         }
@@ -48,17 +55,17 @@ export class StatusBarManager {
 
         const tier = userInfo.tier;
         const tierIcon = tier === 'Ultra' ? '$(star-full)' : tier === 'Premium' ? '$(star)' : '$(circle-outline)';
-        
+
         this.tierBarItem.text = `${tierIcon} ${tier}`;
         this.tierBarItem.tooltip = `User Tier: ${tier}`;
-        
+
         const apiKeyExpiration = this.authManager.getApiKeyExpiration();
         if (apiKeyExpiration) {
             const expirationDate = new Date(apiKeyExpiration);
             const now = new Date();
             const timeDiff = expirationDate.getTime() - now.getTime();
             const daysRemaining = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
-            
+
             if (daysRemaining <= 0) {
                 this.statusBarItem.text = '$(warning) API Key Expired';
                 this.statusBarItem.tooltip = 'Your API key has expired. Please refresh.';
@@ -91,6 +98,18 @@ export class StatusBarManager {
         }
     }
 
+    updateUltraMode(isEnabled: boolean): void {
+        if (isEnabled) {
+            this.ultraModeItem.text = '$(zap) Ultra: ON';
+            this.ultraModeItem.tooltip = 'Mr.DarkPromth mode is ENABLED';
+            this.ultraModeItem.color = '#ff6b6b';
+        } else {
+            this.ultraModeItem.text = '$(zap) Ultra: OFF';
+            this.ultraModeItem.tooltip = 'Mr.DarkPromth mode is DISABLED';
+            this.ultraModeItem.color = undefined;
+        }
+    }
+
     dispose(): void {
         if (this.updateInterval) {
             clearInterval(this.updateInterval);
@@ -98,5 +117,6 @@ export class StatusBarManager {
         this.statusBarItem.dispose();
         this.tierBarItem.dispose();
         this.healthStatusItem.dispose();
+        this.ultraModeItem.dispose();
     }
 }

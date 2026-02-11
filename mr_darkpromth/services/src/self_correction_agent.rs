@@ -78,7 +78,9 @@ impl SelfCorrectionAgent {
         let detections = self.error_detector.detect_from_log(log_message, &source);
         
         for detection in &detections {
-            self.process_error_detection(detection).await?;
+            if let Err(e) = self.process_error_detection(detection).await {
+                log::error!("Failed to process error detection: {}", e);
+            }
         }
         
         Ok(())
@@ -113,11 +115,38 @@ impl SelfCorrectionAgent {
         
         let code_context = self.get_code_context(detection).await?;
         
-        let fixes = self.fix_generator.generate_multiple_fixes(detection, &code_context, 3).await;
+        // Retry logic for fix generation (Cerebras API)
+        let mut fixes = Vec::new();
+        let mut retry_count = 0;
+        let max_retries = 3;
         
+        while retry_count < max_retries {
+            fixes = self.fix_generator.generate_multiple_fixes(detection, &code_context, 3).await;
+            
+            if !fixes.is_empty() {
+                break;
+            }
+            
+            retry_count += 1;
+            if retry_count < max_retries {
+                log::warn!("Failed to generate fixes, retrying ({}/{})", retry_count, max_retries);
+                tokio::time::sleep(tokio::time::Duration::from_secs(2u64.pow(retry_count))).await;
+            }
+        }
+        
+        if fixes.is_empty() {
+             log::error!("Failed to generate any valid fixes after {} retries", max_retries);
+             return Err(AgentError::ActionExecutionFailed("Failed to generate fixes".to_string()));
+        }
+
         if let Some(best_fix) = self.fix_generator.select_best_fix(&fixes) {
             if self.fix_generator.should_apply_fix(best_fix) {
-                self.apply_fix(best_fix, detection).await?;
+                if let Err(e) = self.apply_fix(best_fix, detection).await {
+                    log::error!("Failed to apply fix: {}", e);
+                    // Attempt to rollback if needed is handled inside apply_fix via validator
+                }
+            } else {
+                log::warn!("Best fix verification score {} below threshold", best_fix.confidence_score);
             }
         }
         
@@ -347,7 +376,7 @@ mod tests {
         let config = cerebras_client::CerebrasConfig::new(vec!["test_key".to_string()])
             .expect("config");
         let cerebras_client = CerebrasClient::new(config);
-        let db_pool = create_test_pool().await.unwrap();
+        let db_pool = sqlx::PgPool::connect_lazy("postgresql://postgres:postgres@localhost:5432/mr_darkpromth").unwrap();
         let project_root = "/tmp/test".to_string();
         
         let agent = SelfCorrectionAgent::new(

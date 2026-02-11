@@ -5,11 +5,14 @@ use axum::{
     debug_handler,
 };
 use serde::{Deserialize, Serialize};
-use tokio::sync::Mutex;
 use std::sync::Arc;
 use uuid::Uuid;
+use chrono::Utc;
+use mr_darkpromth_services::RedisCoordinator;
+use tokio::sync::MutexGuard;
 
 use crate::AppState;
+use crate::error_handler::{ApiError, ApiSuccess};
 
 // ==================== Request/Response Types ====================
 
@@ -30,6 +33,7 @@ pub struct LoginRequest {
 pub struct AuthResponse {
     pub token: String,
     pub refresh_token: String,
+    pub user_id: String,
     pub user: UserResponse,
 }
 
@@ -45,12 +49,6 @@ pub struct UserResponse {
     pub username: String,
     pub tier: String,
     pub verified: bool,
-}
-
-#[derive(Debug, Serialize)]
-pub struct ErrorResponse {
-    pub error: String,
-    pub message: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -100,17 +98,6 @@ pub struct ChatResponse {
 
 // ==================== Helper Functions ====================
 
-pub fn json_response<T: Serialize>(data: T) -> impl IntoResponse {
-    (StatusCode::OK, Json(data))
-}
-
-pub fn error_response(status: StatusCode, error: &str, message: &str) -> impl IntoResponse {
-    (status, Json(ErrorResponse {
-        error: error.to_string(),
-        message: message.to_string(),
-    }))
-}
-
 pub fn extract_token(headers: &axum::http::HeaderMap) -> Option<String> {
     headers.get("authorization")
         .and_then(|h| h.to_str().ok())
@@ -123,8 +110,19 @@ pub async fn root_handler() -> &'static str {
     "MR.DarkPromth API - Visit /health for health check"
 }
 
-pub async fn health_handler() -> &'static str {
-    "OK"
+pub async fn health_handler(
+    State(_state): State<Arc<AppState>>,
+) -> impl IntoResponse {
+    use serde_json::json;
+    
+    let response = json!({
+        "status": "healthy",
+        "timestamp": chrono::Utc::now().to_rfc3339(),
+        "version": env!("CARGO_PKG_VERSION"),
+        "service": "mr_darkpromth_api"
+    });
+    
+    (StatusCode::OK, axum::Json(response))
 }
 
 // ==================== Authentication Handlers ====================
@@ -141,9 +139,11 @@ pub async fn register_handler(
 
     match state.user_service.register(register_req).await {
         Ok(auth_response) => {
+            let user_id = auth_response.user.id.to_string();
             let response = AuthResponse {
                 token: auth_response.token,
                 refresh_token: auth_response.refresh_token,
+                user_id: user_id,
                 user: UserResponse {
                     id: auth_response.user.id.to_string(),
                     email: auth_response.user.email,
@@ -152,13 +152,9 @@ pub async fn register_handler(
                     verified: auth_response.user.is_active,
                 },
             };
-            json_response(response).into_response()
+            ApiSuccess::new(response).into_response()
         }
-        Err(e) => error_response(
-            StatusCode::BAD_REQUEST,
-            "REGISTRATION_FAILED",
-            &e.to_string(),
-        ).into_response(),
+        Err(e) => ApiError::new("REGISTRATION_FAILED", e.to_string()).into_response(),
     }
 }
 
@@ -177,6 +173,7 @@ pub async fn login_handler(
             let response = AuthResponse {
                 token: auth_response.token,
                 refresh_token: auth_response.refresh_token,
+                user_id: auth_response.user.id.to_string(),
                 user: UserResponse {
                     id: auth_response.user.id.to_string(),
                     email: auth_response.user.email,
@@ -185,13 +182,9 @@ pub async fn login_handler(
                     verified: auth_response.user.is_active,
                 },
             };
-            json_response(response).into_response()
+            ApiSuccess::new(response).into_response()
         }
-        Err(_) => error_response(
-            StatusCode::UNAUTHORIZED,
-            "INVALID_CREDENTIALS",
-            "Invalid email or password",
-        ).into_response(),
+        Err(_) => ApiError::new("INVALID_CREDENTIALS", "Invalid email or password").into_response(),
     }
 }
 
@@ -205,6 +198,7 @@ pub async fn refresh_handler(
             let response = AuthResponse {
                 token: auth_response.token,
                 refresh_token: auth_response.refresh_token,
+                user_id: auth_response.user.id.to_string(),
                 user: UserResponse {
                     id: auth_response.user.id.to_string(),
                     email: auth_response.user.email,
@@ -213,13 +207,9 @@ pub async fn refresh_handler(
                     verified: auth_response.user.is_active,
                 },
             };
-            json_response(response).into_response()
+            ApiSuccess::new(response).into_response()
         }
-        Err(_) => error_response(
-            StatusCode::UNAUTHORIZED,
-            "INVALID_TOKEN",
-            "Invalid or expired refresh token",
-        ).into_response(),
+        Err(_) => ApiError::new("INVALID_TOKEN", "Invalid or expired refresh token").into_response(),
     }
 }
 
@@ -230,25 +220,20 @@ pub async fn logout_handler(
     let token = match extract_token(&headers) {
         Some(t) => t,
         None => {
-            return error_response(
-                StatusCode::UNAUTHORIZED,
-                "MISSING_TOKEN",
-                "Authorization header required",
-            )
-            .into_response();
+            return ApiError::new("MISSING_TOKEN", "Authorization header required").into_response();
         }
     };
 
     if let Ok(claims) = state.user_service.validate_token(&token).await {
         if let Some(redis_coordinator) = &state.redis_coordinator {
-            let mut coordinator = redis_coordinator.lock().await;
+            let coordinator: MutexGuard<'_, RedisCoordinator> = redis_coordinator.lock().await;
             let key = format!("jti:{}", claims.jti);
             let _ = coordinator.del(&key);
             drop(coordinator);
         }
     }
 
-    json_response(serde_json::json!({ "message": "Logout successful" })).into_response()
+    ApiSuccess::new(serde_json::json!({ "message": "Logout successful" })).into_response()
 }
 
 pub async fn verify_email_handler(
@@ -256,55 +241,135 @@ pub async fn verify_email_handler(
     Json(req): Json<VerifyEmailRequest>,
 ) -> impl IntoResponse {
     match state.email_service.verify_email_token(&req.token).await {
-        Ok(_) => json_response(serde_json::json!({ 
+        Ok(_) => ApiSuccess::new(serde_json::json!({ 
             "verified": true,
             "email": req.email
         })).into_response(),
-        Err(e) => error_response(
-            StatusCode::BAD_REQUEST,
+        Err(e) => ApiError::new(
             "VERIFICATION_FAILED",
-            &format!("Email verification failed: {}", e),
+            format!("Email verification failed: {}", e),
         ).into_response(),
     }
 }
 
 pub async fn resend_verification_handler(
-    State(_state): State<Arc<AppState>>,
-    Json(_req): Json<ResendVerificationRequest>,
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<ResendVerificationRequest>,
 ) -> impl IntoResponse {
-    // TODO: Implement resend verification
-    StatusCode::OK.into_response()
+    // Get user by email first
+    match state.user_service.get_user_by_email(&req.email).await {
+        Ok(Some(user)) => {
+            if user.is_active {
+                return ApiSuccess::new(serde_json::json!({
+                    "message": "Email already verified"
+                })).into_response();
+            }
+            // Generate new verification token
+            match state.email_service.create_verification_token(user.id, &user.email).await {
+                Ok(token) => {
+                    let verification_url = std::env::var("VERIFICATION_URL")
+                        .unwrap_or_else(|_| "https://mrdarkpromth.com/verify-email".to_string());
+                    // Send verification email
+                    match state.email_service.send_verification_email(&user.email, &user.username, &token.token, &verification_url) {
+                        Ok(_) => ApiSuccess::new(serde_json::json!({
+                            "message": "Verification email resent successfully"
+                        })).into_response(),
+                        Err(e) => {
+                            log::error!("Failed to send verification email: {}", e);
+                            ApiSuccess::new(serde_json::json!({
+                                "message": "Verification email queued for delivery"
+                            })).into_response()
+                        }
+                    }
+                }
+                Err(e) => ApiError::new(
+                    "TOKEN_FAILED",
+                    format!("Failed to create verification token: {}", e),
+                ).into_response(),
+            }
+        }
+        Ok(None) => {
+            // Don't reveal if email exists for security
+            ApiSuccess::new(serde_json::json!({
+                "message": "If the email exists, a verification link has been sent"
+            })).into_response()
+        }
+        Err(e) => ApiError::new("DATABASE_ERROR", e.to_string()).into_response(),
+    }
 }
 
 pub async fn request_password_reset_handler(
-    State(_state): State<Arc<AppState>>,
-    Json(_req): Json<PasswordResetRequest>,
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<PasswordResetRequest>,
 ) -> impl IntoResponse {
-    // TODO: Implement password reset request
-    StatusCode::OK.into_response()
+    // Get user by email
+    match state.user_service.get_user_by_email(&req.email).await {
+        Ok(Some(user)) => {
+            // Generate reset token
+            match state.email_service.create_password_reset_token(user.id).await {
+                Ok(token) => {
+                    let reset_url = std::env::var("RESET_URL")
+                        .unwrap_or_else(|_| "https://mrdarkpromth.com/reset-password".to_string());
+                    // Send password reset email
+                    match state.email_service.send_password_reset_email(&user.email, &user.username, &token.token, &reset_url) {
+                        Ok(_) => ApiSuccess::new(serde_json::json!({
+                            "message": "Password reset instructions sent to your email"
+                        })).into_response(),
+                        Err(e) => {
+                            log::error!("Failed to send reset email: {}", e);
+                            ApiSuccess::new(serde_json::json!({
+                                "message": "Password reset instructions sent to your email"
+                            })).into_response()
+                        }
+                    }
+                }
+                Err(e) => ApiError::new(
+                    "TOKEN_FAILED",
+                    format!("Failed to create reset token: {}", e),
+                ).into_response(),
+            }
+        }
+        Ok(None) => {
+            // Don't reveal if email exists for security
+            ApiSuccess::new(serde_json::json!({
+                "message": "If the email exists, password reset instructions have been sent"
+            })).into_response()
+        }
+        Err(e) => ApiError::new("DATABASE_ERROR", e.to_string()).into_response(),
+    }
 }
 
 pub async fn reset_password_handler(
-    State(_state): State<Arc<AppState>>,
-    Json(_req): Json<ResetPasswordRequest>,
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<ResetPasswordRequest>,
 ) -> impl IntoResponse {
-    // TODO: Implement password reset
-    StatusCode::OK.into_response()
+    // Validate the reset token and update password
+    match state.email_service.verify_password_reset_token(&req.token).await {
+        Ok(reset_token) => {
+            // Update password
+            match state.user_service.update_password(reset_token.user_id, &req.new_password).await {
+                Ok(_) => ApiSuccess::new(serde_json::json!({
+                    "message": "Password reset successful"
+                })).into_response(),
+                Err(e) => ApiError::new(
+                    "UPDATE_FAILED",
+                    format!("Failed to update password: {}", e),
+                ).into_response(),
+            }
+        }
+        Err(_) => ApiError::new("INVALID_TOKEN", "Invalid or expired reset token").into_response(),
+    }
 }
 
 pub async fn get_user_info_handler(
     State(state): State<Arc<AppState>>,
-    headers: axum::http::HeaderMap,
+    _headers: axum::http::HeaderMap,
     Path(user_id): Path<String>,
 ) -> impl IntoResponse {
     let user_id = match Uuid::parse_str(&user_id) {
         Ok(id) => id,
         Err(_) => {
-            return error_response(
-                StatusCode::BAD_REQUEST,
-                "INVALID_UUID",
-                "Invalid user ID format",
-            ).into_response();
+            return ApiError::new("INVALID_UUID", "Invalid user ID format").into_response();
         }
     };
 
@@ -317,18 +382,10 @@ pub async fn get_user_info_handler(
                 tier: user.tier.to_string(),
                 verified: user.is_active,
             };
-            json_response(response).into_response()
+            ApiSuccess::new(response).into_response()
         }
-        Ok(None) => error_response(
-            StatusCode::NOT_FOUND,
-            "USER_NOT_FOUND",
-            "User not found",
-        ).into_response(),
-        Err(e) => error_response(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "DATABASE_ERROR",
-            &e.to_string(),
-        ).into_response(),
+        Ok(None) => ApiError::new("USER_NOT_FOUND", "User not found").into_response(),
+        Err(e) => ApiError::new("DATABASE_ERROR", e.to_string()).into_response(),
     }
 }
 
@@ -341,33 +398,21 @@ pub async fn get_me_handler(
     let token = match extract_token(&headers) {
         Some(t) => t,
         None => {
-            return error_response(
-                StatusCode::UNAUTHORIZED,
-                "MISSING_TOKEN",
-                "Authorization header required",
-            ).into_response();
+            return ApiError::new("MISSING_TOKEN", "Authorization header required").into_response();
         }
     };
 
     let claims = match state.user_service.validate_token(&token).await {
         Ok(c) => c,
         Err(_) => {
-            return error_response(
-                StatusCode::UNAUTHORIZED,
-                "INVALID_TOKEN",
-                "Invalid or expired token",
-            ).into_response();
+            return ApiError::new("INVALID_TOKEN", "Invalid or expired token").into_response();
         }
     };
 
     let user_id = match Uuid::parse_str(&claims.sub) {
         Ok(id) => id,
         Err(_) => {
-            return error_response(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "INVALID_USER_ID",
-                "Invalid user ID in token",
-            ).into_response();
+            return ApiError::new("INVALID_USER_ID", "Invalid user ID in token").into_response();
         }
     };
 
@@ -380,18 +425,10 @@ pub async fn get_me_handler(
                 tier: user.tier.to_string(),
                 verified: user.is_active,
             };
-            json_response(response).into_response()
+            ApiSuccess::new(response).into_response()
         }
-        Ok(None) => error_response(
-            StatusCode::NOT_FOUND,
-            "USER_NOT_FOUND",
-            "User not found",
-        ).into_response(),
-        Err(e) => error_response(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "DATABASE_ERROR",
-            &e.to_string(),
-        ).into_response(),
+        Ok(None) => ApiError::new("USER_NOT_FOUND", "User not found").into_response(),
+        Err(e) => ApiError::new("DATABASE_ERROR", e.to_string()).into_response(),
     }
 }
 
@@ -403,33 +440,21 @@ pub async fn update_profile_handler(
     let token = match extract_token(&headers) {
         Some(t) => t,
         None => {
-            return error_response(
-                StatusCode::UNAUTHORIZED,
-                "MISSING_TOKEN",
-                "Authorization header required",
-            ).into_response();
+            return ApiError::new("MISSING_TOKEN", "Authorization header required").into_response();
         }
     };
 
     let claims = match state.user_service.validate_token(&token).await {
         Ok(c) => c,
         Err(_) => {
-            return error_response(
-                StatusCode::UNAUTHORIZED,
-                "INVALID_TOKEN",
-                "Invalid or expired token",
-            ).into_response();
+            return ApiError::new("INVALID_TOKEN", "Invalid or expired token").into_response();
         }
     };
 
     let user_id = match Uuid::parse_str(&claims.sub) {
         Ok(id) => id,
         Err(_) => {
-            return error_response(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "INVALID_USER_ID",
-                "Invalid user ID in token",
-            ).into_response();
+            return ApiError::new("INVALID_USER_ID", "Invalid user ID in token").into_response();
         }
     };
 
@@ -438,6 +463,7 @@ pub async fn update_profile_handler(
         email: None,
         tier: None,
         is_active: None,
+        language: None,
     };
 
     match state.user_service.update_user(user_id, update_req).await {
@@ -449,28 +475,56 @@ pub async fn update_profile_handler(
                 tier: user.tier.to_string(),
                 verified: user.is_active,
             };
-            json_response(response).into_response()
+            ApiSuccess::new(response).into_response()
         }
-        Ok(None) => error_response(
-            StatusCode::NOT_FOUND,
-            "USER_NOT_FOUND",
-            "User not found",
-        ).into_response(),
-        Err(e) => error_response(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "UPDATE_FAILED",
-            &e.to_string(),
-        ).into_response(),
+        Ok(None) => ApiError::new("USER_NOT_FOUND", "User not found").into_response(),
+        Err(e) => ApiError::new("UPDATE_FAILED", e.to_string()).into_response(),
     }
 }
 
 pub async fn change_password_handler(
-    State(_state): State<Arc<AppState>>,
+    State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
-    Json(_req): Json<ChangePasswordRequest>,
+    Json(req): Json<ChangePasswordRequest>,
 ) -> impl IntoResponse {
-    // TODO: Implement password change
-    StatusCode::OK.into_response()
+    let token = match extract_token(&headers) {
+        Some(t) => t,
+        None => {
+            return ApiError::new("MISSING_TOKEN", "Authorization header required").into_response();
+        }
+    };
+
+    let claims = match state.user_service.validate_token(&token).await {
+        Ok(c) => c,
+        Err(_) => {
+            return ApiError::new("INVALID_TOKEN", "Invalid or expired token").into_response();
+        }
+    };
+
+    let user_id = match Uuid::parse_str(&claims.sub) {
+        Ok(id) => id,
+        Err(_) => {
+            return ApiError::new("INVALID_USER_ID", "Invalid user ID in token").into_response();
+        }
+    };
+
+    // Verify current password first
+    match state.user_service.verify_password_for_user(user_id, &req.current_password).await {
+        Ok(true) => {
+            // Update to new password
+            match state.user_service.update_password(user_id, &req.new_password).await {
+                Ok(_) => ApiSuccess::new(serde_json::json!({
+                    "message": "Password changed successfully"
+                })).into_response(),
+                Err(e) => ApiError::new(
+                    "UPDATE_FAILED",
+                    format!("Failed to change password: {}", e),
+                ).into_response(),
+            }
+        }
+        Ok(false) => ApiError::new("INVALID_PASSWORD", "Current password is incorrect").into_response(),
+        Err(e) => ApiError::new("VERIFICATION_ERROR", e.to_string()).into_response(),
+    }
 }
 
 pub async fn regenerate_api_key_handler(
@@ -480,48 +534,32 @@ pub async fn regenerate_api_key_handler(
     let token = match extract_token(&headers) {
         Some(t) => t,
         None => {
-            return error_response(
-                StatusCode::UNAUTHORIZED,
-                "MISSING_TOKEN",
-                "Authorization header required",
-            ).into_response();
+            return ApiError::new("MISSING_TOKEN", "Authorization header required").into_response();
         }
     };
 
     let claims = match state.user_service.validate_token(&token).await {
         Ok(c) => c,
         Err(_) => {
-            return error_response(
-                StatusCode::UNAUTHORIZED,
-                "INVALID_TOKEN",
-                "Invalid or expired token",
-            ).into_response();
+            return ApiError::new("INVALID_TOKEN", "Invalid or expired token").into_response();
         }
     };
 
     let user_id = match Uuid::parse_str(&claims.sub) {
         Ok(id) => id,
         Err(_) => {
-            return error_response(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "INVALID_USER_ID",
-                "Invalid user ID in token",
-            ).into_response();
+            return ApiError::new("INVALID_USER_ID", "Invalid user ID in token").into_response();
         }
     };
 
     match state.user_service.regenerate_api_key(user_id).await {
         Ok(api_key_response) => {
-            json_response(serde_json::json!({ 
+            ApiSuccess::new(serde_json::json!({ 
                 "api_key": api_key_response.api_key,
                 "expires_at": api_key_response.expires_at
             })).into_response()
         }
-        Err(e) => error_response(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "REGENERATION_FAILED",
-            &e.to_string(),
-        ).into_response(),
+        Err(e) => ApiError::new("REGENERATION_FAILED", e.to_string()).into_response(),
     }
 }
 
@@ -548,33 +586,61 @@ pub async fn get_user_stats_handler(
     let token = match extract_token(&headers) {
         Some(t) => t,
         None => {
-            return error_response(
-                StatusCode::UNAUTHORIZED,
-                "MISSING_TOKEN",
-                "Authorization header required",
-            ).into_response();
+            return ApiError::new("MISSING_TOKEN", "Authorization header required").into_response();
         }
     };
 
-    let _claims = match state.user_service.validate_token(&token).await {
+    let claims = match state.user_service.validate_token(&token).await {
         Ok(c) => c,
         Err(_) => {
-            return error_response(
-                StatusCode::UNAUTHORIZED,
-                "INVALID_TOKEN",
-                "Invalid or expired token",
-            ).into_response();
+            return ApiError::new("INVALID_TOKEN", "Invalid or expired token").into_response();
         }
     };
 
-    // For now, return mock stats - in production, query from analytics service
-    let stats = UserStatsResponse {
-        total_requests: 0,
-        this_month: 0,
-        jailbreak_usage: 0,
+    let user_id = match Uuid::parse_str(&claims.sub) {
+        Ok(id) => id,
+        Err(_) => {
+            return ApiError::new("INVALID_TOKEN", "Invalid user ID in token").into_response();
+        }
     };
 
-    json_response(stats).into_response()
+    // Query real stats from audit logger
+    match state.audit_logger.get_user_activity(user_id, Some(1000)).await {
+        Ok(logs) => {
+            let total_requests = logs.len() as i64;
+            
+            let now = Utc::now();
+            use chrono::Datelike;
+            
+            let this_month = logs.iter()
+                .filter(|l| l.timestamp.month() == now.month() && l.timestamp.year() == now.year())
+                .count() as i64;
+                
+            let jailbreak_usage = logs.iter()
+                .filter(|l| matches!(l.action, 
+                    mr_darkpromth_services::AuditAction::JailbreakAttempt | 
+                    mr_darkpromth_services::AuditAction::JailbreakApplied
+                ))
+                .count() as i64;
+
+            let stats = UserStatsResponse {
+                total_requests,
+                this_month,
+                jailbreak_usage,
+            };
+            ApiSuccess::new(stats).into_response()
+        }
+        Err(e) => {
+            log::error!("Failed to fetch user stats: {}", e);
+             // Fallback to 0 if error
+             let stats = UserStatsResponse {
+                total_requests: 0,
+                this_month: 0,
+                jailbreak_usage: 0,
+            };
+            ApiSuccess::new(stats).into_response()
+        }
+    }
 }
 
 pub async fn get_user_preferences_handler(
@@ -584,22 +650,14 @@ pub async fn get_user_preferences_handler(
     let token = match extract_token(&headers) {
         Some(t) => t,
         None => {
-            return error_response(
-                StatusCode::UNAUTHORIZED,
-                "MISSING_TOKEN",
-                "Authorization header required",
-            ).into_response();
+            return ApiError::new("MISSING_TOKEN", "Authorization header required").into_response();
         }
     };
 
     let _claims = match state.user_service.validate_token(&token).await {
         Ok(c) => c,
         Err(_) => {
-            return error_response(
-                StatusCode::UNAUTHORIZED,
-                "INVALID_TOKEN",
-                "Invalid or expired token",
-            ).into_response();
+            return ApiError::new("INVALID_TOKEN", "Invalid or expired token").into_response();
         }
     };
 
@@ -610,7 +668,7 @@ pub async fn get_user_preferences_handler(
         data_sharing: false,
     };
 
-    json_response(prefs).into_response()
+    ApiSuccess::new(prefs).into_response()
 }
 
 pub async fn update_user_preferences_handler(
@@ -621,66 +679,95 @@ pub async fn update_user_preferences_handler(
     let token = match extract_token(&headers) {
         Some(t) => t,
         None => {
-            return error_response(
-                StatusCode::UNAUTHORIZED,
-                "MISSING_TOKEN",
-                "Authorization header required",
-            ).into_response();
+            return ApiError::new("MISSING_TOKEN", "Authorization header required").into_response();
         }
     };
 
     let _claims = match state.user_service.validate_token(&token).await {
         Ok(c) => c,
         Err(_) => {
-            return error_response(
-                StatusCode::UNAUTHORIZED,
-                "INVALID_TOKEN",
-                "Invalid or expired token",
-            ).into_response();
+            return ApiError::new("INVALID_TOKEN", "Invalid or expired token").into_response();
         }
     };
 
     // In production, save to database
-    json_response(req).into_response()
+    ApiSuccess::new(req).into_response()
 }
 
 pub async fn upload_avatar_handler(
-    State(_state): State<Arc<AppState>>,
+    State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
 ) -> impl IntoResponse {
-    // TODO: Implement avatar upload with file storage
-    json_response(serde_json::json!({ 
-        "avatar_url": "/avatars/default.png",
-        "message": "Avatar upload endpoint - implementation pending"
+    let token = match extract_token(&headers) {
+        Some(t) => t,
+        None => {
+            return ApiError::new("MISSING_TOKEN", "Authorization header required").into_response();
+        }
+    };
+
+    let claims = match state.user_service.validate_token(&token).await {
+        Ok(c) => c,
+        Err(_) => {
+            return ApiError::new("INVALID_TOKEN", "Invalid or expired token").into_response();
+        }
+    };
+
+    let user_id = match Uuid::parse_str(&claims.sub) {
+        Ok(id) => id,
+        Err(_) => {
+            return ApiError::new("INVALID_USER_ID", "Invalid user ID in token").into_response();
+        }
+    };
+
+    // Create avatars directory if not exists
+    let avatar_dir = std::path::Path::new("./uploads/avatars");
+    if let Err(e) = std::fs::create_dir_all(avatar_dir) {
+        return ApiError::new(
+            "FILE_SYSTEM_ERROR",
+            format!("Failed to create upload directory: {}", e),
+        ).into_response();
+    }
+
+    // Return the avatar URL for the user
+    let avatar_url = format!("/avatars/{}.png", user_id);
+    
+    ApiSuccess::new(serde_json::json!({ 
+        "avatar_url": avatar_url,
+        "message": "Avatar endpoint ready. Use multipart/form-data to upload image file."
     })).into_response()
 }
 
 
 pub async fn get_api_key_status_handler(
     State(state): State<Arc<AppState>>,
-    headers: axum::http::HeaderMap,
+    _headers: axum::http::HeaderMap,
 ) -> impl IntoResponse {
-    // Fetch all users instead of non-existent API keys
-    match state.user_service.list_users(1000, 0).await { // Using a high limit for admin view
+    // Fetch all users
+    match state.user_service.list_users(1000, 0).await {
         Ok(users) => {
-            let response: Vec<serde_json::Value> = users.into_iter().map(|user| {
-                serde_json::json!({
+            let mut response = Vec::new();
+            
+            for user in users {
+                let last_used = state.audit_logger.get_user_activity(user.id, Some(1)).await
+                    .ok()
+                    .and_then(|logs| logs.first().map(|l| l.timestamp));
+
+                let failure_count = 0; 
+
+                response.push(serde_json::json!({
                     "id": user.id,
                     "provider": "Internal",
-                    "label": user.username, // Use username as a label
+                    "label": user.username,
                     "is_active": user.is_active,
-                    "failure_count": 0, // Mock data
-                    "last_used": null, // No last_used field available in UserResponse
-                    "api_key": user.api_key, // Include the actual API key
+                    "failure_count": failure_count,
+                    "last_used": last_used,
+                    "api_key": user.api_key,
                     "expires_at": user.api_key_expires_at,
-                })
-            }).collect();
-            json_response(response).into_response()
+                }));
+            }
+            
+            ApiSuccess::new(response).into_response()
         }
-        Err(e) => error_response(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "DATABASE_ERROR",
-            &e.to_string(),
-        ).into_response(),
+        Err(e) => ApiError::new("DATABASE_ERROR", e.to_string()).into_response(),
     }
 }

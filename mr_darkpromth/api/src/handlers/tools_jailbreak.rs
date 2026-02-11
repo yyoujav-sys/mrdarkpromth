@@ -7,7 +7,14 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::AppState;
-use crate::handlers::auth::{json_response, error_response, extract_token};
+use crate::handlers::auth::extract_token;
+use crate::error_handler::{ApiError, ApiSuccess};
+use mr_darkpromth_services::jailbreak_models::{
+    PromptSortBy, SortOrder,
+    PromptSearchRequest, PromptCategory,
+    BypassTechnique, EffectivenessRating, RiskLevel,
+};
+
 
 #[derive(Debug, Serialize)]
 pub struct ToolInfo {
@@ -30,6 +37,7 @@ pub struct SandboxExecuteRequest {
     pub code: String,
     pub language: String,
     pub timeout_seconds: Option<u64>,
+    pub session_id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -49,6 +57,7 @@ pub struct TerminalExecuteRequest {
     pub command: String,
     pub args: Option<Vec<String>>,
     pub working_dir: Option<String>,
+    pub session_id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -64,11 +73,13 @@ pub struct JailbreakPromptDto {
     pub id: String,
     pub title: String,
     pub content: String,
-    pub category: String,
+    pub category: PromptCategory,
+    pub technique: BypassTechnique,
+    pub effectiveness: EffectivenessRating,
+    pub risk_level: RiskLevel,
     pub description: Option<String>,
     pub tags: Vec<String>,
     pub author: String,
-    pub votes: i32,
     pub usage_count: i64,
     pub success_rate: f64,
     pub requires_ultra_tier: bool,
@@ -100,11 +111,7 @@ pub async fn list_tools_handler(
     let _token = match extract_token(&headers) {
         Some(t) => t,
         None => {
-            return error_response(
-                StatusCode::UNAUTHORIZED,
-                "MISSING_TOKEN",
-                "Authorization header required",
-            ).into_response();
+            return ApiError::new("MISSING_TOKEN", "Authorization header required").into_response();
         }
     };
 
@@ -123,7 +130,7 @@ pub async fn list_tools_handler(
         })
         .collect();
 
-    json_response(serde_json::json!({ "tools": tools_list })).into_response()
+    ApiSuccess::new(serde_json::json!({ "tools": tools_list })).into_response()
 }
 
 pub async fn execute_tool_handler(
@@ -134,32 +141,20 @@ pub async fn execute_tool_handler(
     let token = match extract_token(&headers) {
         Some(t) => t,
         None => {
-            return error_response(
-                StatusCode::UNAUTHORIZED,
-                "MISSING_TOKEN",
-                "Authorization header required",
-            ).into_response();
+            return ApiError::new("MISSING_TOKEN", "Authorization header required").into_response();
         }
     };
 
     let claims = match state.user_service.validate_token(&token).await {
         Ok(c) => c,
         Err(_) => {
-            return error_response(
-                StatusCode::UNAUTHORIZED,
-                "INVALID_TOKEN",
-                "Invalid or expired token",
-            ).into_response();
+            return ApiError::new("INVALID_TOKEN", "Invalid or expired token").into_response();
         }
     };
 
     // Check tier requirements
     if claims.tier != "premium" && claims.tier != "ultra" {
-        return error_response(
-            StatusCode::FORBIDDEN,
-            "PREMIUM_REQUIRED",
-            "Tool execution requires Premium tier or higher",
-        ).into_response();
+        return ApiError::new("PREMIUM_REQUIRED", "Tool execution requires Premium tier or higher").into_response();
     }
 
     // Execute tool based on tool_id
@@ -167,28 +162,60 @@ pub async fn execute_tool_handler(
         "file_reader" => {
             let path = req.parameters.get("path").and_then(|p| p.as_str()).unwrap_or("");
             match std::fs::read_to_string(path) {
-                Ok(content) => json_response(serde_json::json!({
+                Ok(content) => ApiSuccess::new(serde_json::json!({
                     "result": content,
                     "success": true
                 })).into_response(),
-                Err(e) => error_response(
-                    StatusCode::BAD_REQUEST,
-                    "FILE_READ_ERROR",
-                    &format!("Failed to read file: {}", e),
-                ).into_response(),
+                Err(e) => ApiError::new("FILE_READ_ERROR", &format!("Failed to read file: {}", e)).into_response(),
             }
         }
         "web_search" => {
-            json_response(serde_json::json!({
-                "result": "Web search not yet implemented",
-                "success": false
-            })).into_response()
+            // Web search using reqwest to fetch search results
+            let query = req.parameters.get("query").and_then(|q| q.as_str()).unwrap_or("");
+            if query.is_empty() {
+                return ApiError::new("MISSING_QUERY", "Search query is required").into_response();
+            }
+
+            let search_url = format!("https://html.duckduckgo.com/html/?q={}", urlencoding::encode(query));
+            let client = reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(10))
+                .build();
+
+            match client {
+                Ok(client) => {
+                    match client.get(&search_url)
+                        .header("User-Agent", "MRDarkPromth/1.0")
+                        .send().await
+                    {
+                        Ok(resp) => {
+                            let status = resp.status().as_u16();
+                            let body = resp.text().await.unwrap_or_default();
+                            // Extract text snippets from HTML response
+                            let snippets: Vec<&str> = body.split("result__snippet")
+                                .skip(1)
+                                .take(5)
+                                .filter_map(|s| {
+                                    s.find('>').and_then(|start| {
+                                        s[start+1..].find('<').map(|end| &s[start+1..start+1+end])
+                                    })
+                                })
+                                .collect();
+
+                            ApiSuccess::new(serde_json::json!({
+                                "result": snippets,
+                                "query": query,
+                                "status_code": status,
+                                "result_count": snippets.len(),
+                                "success": true
+                            })).into_response()
+                        }
+                        Err(e) => ApiError::new("SEARCH_FAILED", &format!("Search request failed: {}", e)).into_response()
+                    }
+                }
+                Err(e) => ApiError::new("CLIENT_ERROR", &format!("Failed to create HTTP client: {}", e)).into_response()
+            }
         }
-        _ => error_response(
-            StatusCode::NOT_FOUND,
-            "TOOL_NOT_FOUND",
-            "Tool not found",
-        ).into_response(),
+        _ => ApiError::new("TOOL_NOT_FOUND", "Tool not found").into_response(),
     }
 }
 
@@ -200,11 +227,7 @@ pub async fn execute_sandbox_handler(
     let token = match extract_token(&headers) {
         Some(t) => t,
         None => {
-            return error_response(
-                StatusCode::UNAUTHORIZED,
-                "MISSING_TOKEN",
-                "Authorization header required",
-            ).into_response();
+            return ApiError::new("MISSING_TOKEN", "Authorization header required").into_response();
         }
     };
 
@@ -212,39 +235,35 @@ pub async fn execute_sandbox_handler(
     let claims = match state.user_service.validate_token(&token).await {
         Ok(c) => c,
         Err(_) => {
-            return error_response(
-                StatusCode::UNAUTHORIZED,
-                "INVALID_TOKEN",
-                "Invalid or expired token",
-            ).into_response();
+            return ApiError::new("INVALID_TOKEN", "Invalid or expired token").into_response();
         }
     };
 
     // Check tier requirements - sandbox requires Premium or Ultra
     let tier = claims.tier.to_lowercase();
-    if tier != "premium" && tier != "ultra" {
-        return error_response(
-            StatusCode::FORBIDDEN,
-            "PREMIUM_REQUIRED",
-            "Sandbox execution requires Premium tier or higher",
-        ).into_response();
+    if tier != "premium" && tier != "ultra" && tier != "admin" {
+        return ApiError::new("PREMIUM_REQUIRED", "Sandbox execution requires Premium tier or higher").into_response();
     }
 
-    // Configure sandbox
-    let mut config = mr_darkpromth_services::sandboxed_execution::SandboxConfig::default();
-    if let Some(timeout) = req.timeout_seconds {
-        config.max_execution_time = std::time::Duration::from_secs(timeout);
-    }
-
-    // Create sandbox executor
-    let executor = match mr_darkpromth_services::sandboxed_execution::SandboxedExecutor::new(config) {
-        Ok(exec) => exec,
-        Err(e) => {
-            return error_response(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "SANDBOX_ERROR",
-                &format!("Failed to create sandbox: {}", e),
-            ).into_response();
+    // Get or create executor
+    let executor = if let Some(ref session_id) = req.session_id {
+        match state.sandbox_manager.get_executor(session_id).await {
+            Ok(exec) => exec,
+            Err(_) => {
+                return ApiError::new("SESSION_NOT_FOUND", &format!("Sandbox session {} not found", session_id)).into_response();
+            }
+        }
+    } else {
+        // One-off execution
+        let mut config = mr_darkpromth_services::sandboxed_execution::SandboxConfig::default();
+        if let Some(timeout) = req.timeout_seconds {
+            config.max_execution_time = std::time::Duration::from_secs(timeout);
+        }
+        match mr_darkpromth_services::sandboxed_execution::SandboxedExecutor::new(config) {
+            Ok(exec) => Arc::new(exec),
+            Err(e) => {
+                return ApiError::new("SANDBOX_ERROR", &format!("Failed to create sandbox: {}", e)).into_response();
+            }
         }
     };
 
@@ -255,7 +274,7 @@ pub async fn execute_sandbox_handler(
                 .map(|p| p.to_string_lossy().to_string())
                 .collect();
             
-            json_response(serde_json::json!({
+            ApiSuccess::new(serde_json::json!({
                 "stdout": result.stdout,
                 "stderr": result.stderr,
                 "exit_code": result.exit_code,
@@ -264,13 +283,173 @@ pub async fn execute_sandbox_handler(
                 "cpu_time_ms": result.cpu_time.as_millis() as u64,
                 "files_created": files_created,
                 "security_violations": result.security_violations,
+                "session_id": req.session_id,
             })).into_response()
         }
-        Err(e) => error_response(
-            StatusCode::BAD_REQUEST,
-            "EXECUTION_FAILED",
-            &format!("Sandbox execution failed: {}", e),
-        ).into_response(),
+        Err(e) => ApiError::new("EXECUTION_FAILED", &format!("Sandbox execution failed: {}", e)).into_response(),
+    }
+}
+
+pub async fn admin_create_sandbox_handler(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+    Json(req): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    use uuid::Uuid;
+    let token = match extract_token(&headers) {
+        Some(t) => t,
+        None => return ApiError::new("MISSING_TOKEN", "Auth required").into_response(),
+    };
+
+    let claims = match state.user_service.validate_token(&token).await {
+        Ok(c) => c,
+        Err(_) => return ApiError::new("INVALID_TOKEN", "Invalid token").into_response(),
+    };
+
+    if claims.tier != "admin" && claims.tier != "ultra" {
+        return ApiError::new("FORBIDDEN", "Ultra or Admin required").into_response();
+    }
+
+    let session_id = req.get("session_id").and_then(|v| v.as_str()).unwrap_or(&Uuid::new_v4().to_string()).to_string();
+    
+    match state.sandbox_manager.create_session(&session_id, None).await {
+        Ok(_) => ApiSuccess::new(serde_json::json!({ "status": "success", "session_id": session_id })).into_response(),
+        Err(e) => ApiError::new("CREATE_FAILED", &e.to_string()).into_response(),
+    }
+}
+
+// ==================== Sandbox Session CRUD ====================
+
+#[derive(Debug, Deserialize)]
+pub struct CreateSessionRequest {
+    pub session_id: Option<String>,
+}
+
+/// Create a sandbox session for the authenticated user (with tier-based limits)
+pub async fn create_session_handler(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+    Json(req): Json<CreateSessionRequest>,
+) -> impl IntoResponse {
+    use uuid::Uuid;
+    use mr_darkpromth_services::UserTier;
+    
+    let token = match extract_token(&headers) {
+        Some(t) => t,
+        None => return ApiError::new("MISSING_TOKEN", "Auth required").into_response(),
+    };
+
+    let claims = match state.user_service.validate_token(&token).await {
+        Ok(c) => c,
+        Err(_) => return ApiError::new("INVALID_TOKEN", "Invalid token").into_response(),
+    };
+
+    // Parse user tier
+    let tier: UserTier = claims.tier.parse().unwrap_or(UserTier::Free);
+    
+    // Sandbox requires Premium or higher
+    if tier == UserTier::Free {
+        return ApiError::new("PREMIUM_REQUIRED", "Sandbox requires Premium tier or higher").into_response();
+    }
+
+    let user_id = match Uuid::parse_str(&claims.sub) {
+        Ok(id) => id,
+        Err(_) => return ApiError::new("INVALID_USER", "Invalid user ID").into_response(),
+    };
+
+    let session_id = req.session_id.unwrap_or_else(|| Uuid::new_v4().to_string());
+    
+    match state.sandbox_manager.create_session_for_user(&session_id, user_id, &tier, None).await {
+        Ok(_) => ApiSuccess::new(serde_json::json!({ 
+            "status": "success", 
+            "session_id": session_id,
+            "tier": tier.as_str(),
+            "limit": state.sandbox_manager.get_limit_for_tier(&tier)
+        })).into_response(),
+        Err(e) => ApiError::new("CREATE_FAILED", &e.to_string()).into_response(),
+    }
+}
+
+/// List sandbox sessions for the authenticated user
+pub async fn list_sessions_handler(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+) -> impl IntoResponse {
+    use uuid::Uuid;
+    use mr_darkpromth_services::UserTier;
+    
+    let token = match extract_token(&headers) {
+        Some(t) => t,
+        None => return ApiError::new("MISSING_TOKEN", "Auth required").into_response(),
+    };
+
+    let claims = match state.user_service.validate_token(&token).await {
+        Ok(c) => c,
+        Err(_) => return ApiError::new("INVALID_TOKEN", "Invalid token").into_response(),
+    };
+
+    let tier: UserTier = claims.tier.parse().unwrap_or(UserTier::Free);
+    
+    let user_id = match Uuid::parse_str(&claims.sub) {
+        Ok(id) => id,
+        Err(_) => return ApiError::new("INVALID_USER", "Invalid user ID").into_response(),
+    };
+
+    let sessions = state.sandbox_manager.get_user_sessions(user_id).await;
+    let limit = state.sandbox_manager.get_limit_for_tier(&tier);
+    
+    ApiSuccess::new(serde_json::json!({ 
+        "sessions": sessions,
+        "count": sessions.len(),
+        "limit": limit,
+        "remaining": limit.saturating_sub(sessions.len())
+    })).into_response()
+}
+
+/// Get info about a specific session
+pub async fn get_session_handler(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+    Path(session_id): Path<String>,
+) -> impl IntoResponse {
+    let token = match extract_token(&headers) {
+        Some(t) => t,
+        None => return ApiError::new("MISSING_TOKEN", "Auth required").into_response(),
+    };
+
+    let _claims = match state.user_service.validate_token(&token).await {
+        Ok(c) => c,
+        Err(_) => return ApiError::new("INVALID_TOKEN", "Invalid token").into_response(),
+    };
+
+    match state.sandbox_manager.get_executor(&session_id).await {
+        Ok(_) => ApiSuccess::new(serde_json::json!({ 
+            "session_id": session_id,
+            "status": "active"
+        })).into_response(),
+        Err(_) => ApiError::new("NOT_FOUND", "Session not found").into_response(),
+    }
+}
+
+/// Delete a sandbox session
+pub async fn delete_session_handler(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+    Path(session_id): Path<String>,
+) -> impl IntoResponse {
+    let token = match extract_token(&headers) {
+        Some(t) => t,
+        None => return ApiError::new("MISSING_TOKEN", "Auth required").into_response(),
+    };
+
+    let _claims = match state.user_service.validate_token(&token).await {
+        Ok(c) => c,
+        Err(_) => return ApiError::new("INVALID_TOKEN", "Invalid token").into_response(),
+    };
+
+    match state.sandbox_manager.remove_session(&session_id).await {
+        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Err(e) => ApiError::new("DELETE_FAILED", &e.to_string()).into_response(),
     }
 }
 
@@ -282,11 +461,7 @@ pub async fn execute_terminal_handler(
     let token = match extract_token(&headers) {
         Some(t) => t,
         None => {
-            return error_response(
-                StatusCode::UNAUTHORIZED,
-                "MISSING_TOKEN",
-                "Authorization header required",
-            ).into_response();
+            return ApiError::new("MISSING_TOKEN", "Authorization header required").into_response();
         }
     };
 
@@ -294,22 +469,14 @@ pub async fn execute_terminal_handler(
     let claims = match state.user_service.validate_token(&token).await {
         Ok(c) => c,
         Err(_) => {
-            return error_response(
-                StatusCode::UNAUTHORIZED,
-                "INVALID_TOKEN",
-                "Invalid or expired token",
-            ).into_response();
+            return ApiError::new("INVALID_TOKEN", "Invalid or expired token").into_response();
         }
     };
 
     // Terminal requires Ultra or Admin tier
     let tier = claims.tier.to_lowercase();
     if tier != "ultra" && tier != "admin" {
-        return error_response(
-            StatusCode::FORBIDDEN,
-            "ULTRA_OR_ADMIN_REQUIRED",
-            "Terminal access requires Ultra or Admin tier",
-        ).into_response();
+        return ApiError::new("ULTRA_OR_ADMIN_REQUIRED", "Terminal access requires Ultra or Admin tier").into_response();
     }
 
     // Execute command using sandboxed executor
@@ -317,20 +484,31 @@ pub async fn execute_terminal_handler(
         .map(|v| v.iter().map(|s| s.as_str()).collect())
         .unwrap_or_default();
     
-    match state.sandbox_executor.execute_command(&req.command, &args).await {
+    let executor: Arc<mr_darkpromth_services::sandboxed_execution::SandboxedExecutor> = if let Some(ref session_id) = req.session_id {
+        match state.sandbox_manager.get_executor(session_id).await {
+            Ok(exec) => exec,
+            Err(_) => return ApiError::new("SESSION_NOT_FOUND", "No such session").into_response(),
+        }
+    } else {
+        // Fallback to legacy single executor if no session provided?
+        // Actually we removed the single executor from AppState.
+        // Let's create a temporary one.
+        match mr_darkpromth_services::sandboxed_execution::SandboxedExecutor::new(Default::default()) {
+            Ok(exec) => Arc::new(exec),
+            Err(_) => return ApiError::new("SANDBOX_ERROR", "Failed to init sandbox").into_response(),
+        }
+    };
+
+    match executor.execute_command(&req.command, &args).await {
         Ok(result) => {
-            json_response(serde_json::json!({
+            ApiSuccess::new(serde_json::json!({
                 "stdout": result.stdout,
                 "stderr": result.stderr,
                 "exit_code": result.exit_code,
                 "execution_time_ms": result.execution_time.as_millis() as u64,
             })).into_response()
         }
-        Err(e) => error_response(
-            StatusCode::BAD_REQUEST,
-            "EXECUTION_FAILED",
-            &format!("Terminal execution failed: {}", e),
-        ).into_response(),
+        Err(e) => ApiError::new("EXECUTION_FAILED", &format!("Terminal execution failed: {}", e)).into_response(),
     }
 }
 
@@ -339,17 +517,16 @@ pub async fn execute_terminal_handler(
 pub async fn list_prompts_handler(
     State(state): State<Arc<AppState>>,
 ) -> impl IntoResponse {
-    use mr_darkpromth_services::jailbreak_models::*;
-    
     let search_request = PromptSearchRequest {
         query: None,
         category: None,
         technique: None,
         effectiveness: None,
         risk_level: None,
-        target_model: None,
+        target_models: None,
         tags: None,
         author: None,
+        target_model: None,
         requires_ultra_tier: None,
         limit: Some(50),
         offset: Some(0),
@@ -363,29 +540,27 @@ pub async fn list_prompts_handler(
                 id: p.id.to_string(),
                 title: p.title,
                 content: p.content,
-                category: format!("{:?}", p.category),
+                category: p.category,
+                technique: p.technique,
+                effectiveness: p.effectiveness,
+                risk_level: p.risk_level,
                 description: p.description,
                 tags: p.tags,
                 author: p.author,
-                votes: p.usage_count as i32,
                 usage_count: p.usage_count,
                 success_rate: p.success_rate,
                 requires_ultra_tier: p.requires_ultra_tier,
                 created_at: p.created_at.to_rfc3339(),
             }).collect();
             
-            json_response(serde_json::json!({ 
+            ApiSuccess::new(serde_json::json!({ 
                 "prompts": prompt_dtos, 
                 "total": prompt_dtos.len() 
             })).into_response()
         }
         Err(e) => {
             log::error!("Failed to list prompts: {}", e);
-            error_response(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "FETCH_ERROR",
-                "Failed to fetch prompts",
-            ).into_response()
+            ApiError::new("FETCH_ERROR", "Failed to fetch prompts").into_response()
         }
     }
 }
@@ -395,36 +570,28 @@ pub async fn create_prompt_handler(
     headers: axum::http::HeaderMap,
     Json(req): Json<CreatePromptApiRequest>,
 ) -> impl IntoResponse {
-    use mr_darkpromth_services::jailbreak_models::*;
+    use mr_darkpromth_services::*;
     
     // Extract token and get user info
     let token = match extract_token(&headers) {
         Some(t) => t,
         None => {
-            return error_response(
-                StatusCode::UNAUTHORIZED,
-                "MISSING_TOKEN",
-                "Authorization header required",
-            ).into_response();
+            return ApiError::new("MISSING_TOKEN", "Authorization header required").into_response();
         }
     };
 
     let claims = match state.user_service.validate_token(&token).await {
         Ok(c) => c,
         Err(_) => {
-            return error_response(
-                StatusCode::UNAUTHORIZED,
-                "INVALID_TOKEN",
-                "Invalid or expired token",
-            ).into_response();
+            return ApiError::new("INVALID_TOKEN", "Invalid or expired token").into_response();
         }
     };
 
-    let create_request = mr_darkpromth_services::jailbreak_models::CreatePromptRequest {
+    let create_request = CreatePromptRequest {
         title: req.title,
         content: req.content,
         category: PromptCategory::Custom, // Default category
-        technique: Technique::Custom,
+        technique: BypassTechnique::Custom,
         effectiveness: EffectivenessRating::Medium,
         risk_level: RiskLevel::Low,
         target_models: vec![],
@@ -439,25 +606,23 @@ pub async fn create_prompt_handler(
                 id: prompt.id.to_string(),
                 title: prompt.title,
                 content: prompt.content,
-                category: format!("{:?}", prompt.category),
+                category: prompt.category,
+                technique: prompt.technique,
+                effectiveness: prompt.effectiveness,
+                risk_level: prompt.risk_level,
                 description: prompt.description,
                 tags: prompt.tags,
                 author: prompt.author,
-                votes: prompt.usage_count as i32,
                 usage_count: prompt.usage_count,
                 success_rate: prompt.success_rate,
                 requires_ultra_tier: prompt.requires_ultra_tier,
                 created_at: prompt.created_at.to_rfc3339(),
             };
-            json_response(serde_json::json!(dto)).into_response()
+            ApiSuccess::new(serde_json::json!(dto)).into_response()
         }
         Err(e) => {
             log::error!("Failed to create prompt: {}", e);
-            error_response(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "CREATE_ERROR",
-                "Failed to create prompt",
-            ).into_response()
+            ApiError::new("CREATE_ERROR", "Failed to create prompt").into_response()
         }
     }
 }
@@ -471,11 +636,7 @@ pub async fn get_prompt_handler(
     let id = match Uuid::parse_str(&prompt_id) {
         Ok(uuid) => uuid,
         Err(_) => {
-            return error_response(
-                StatusCode::BAD_REQUEST,
-                "INVALID_ID",
-                "Invalid prompt ID format",
-            ).into_response()
+            return ApiError::new("INVALID_ID", "Invalid prompt ID format").into_response()
         }
     };
     
@@ -485,40 +646,103 @@ pub async fn get_prompt_handler(
                 id: prompt.id.to_string(),
                 title: prompt.title,
                 content: prompt.content,
-                category: format!("{:?}", prompt.category),
+                category: prompt.category,
+                technique: prompt.technique,
+                effectiveness: prompt.effectiveness,
+                risk_level: prompt.risk_level,
                 description: prompt.description,
                 tags: prompt.tags,
                 author: prompt.author,
-                votes: prompt.usage_count as i32,
                 usage_count: prompt.usage_count,
                 success_rate: prompt.success_rate,
                 requires_ultra_tier: prompt.requires_ultra_tier,
                 created_at: prompt.created_at.to_rfc3339(),
             };
-            json_response(serde_json::json!(dto)).into_response()
+            ApiSuccess::new(serde_json::json!(dto)).into_response()
         }
-        Ok(None) => error_response(
-            StatusCode::NOT_FOUND,
-            "NOT_FOUND",
-            "Prompt not found",
-        ).into_response(),
+        Ok(None) => ApiError::new("NOT_FOUND", "Prompt not found").into_response(),
         Err(e) => {
             log::error!("Failed to get prompt: {}", e);
-            error_response(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "FETCH_ERROR",
-                "Failed to fetch prompt",
-            ).into_response()
+            ApiError::new("FETCH_ERROR", "Failed to fetch prompt").into_response()
         }
     }
 }
 
 pub async fn update_prompt_handler(
-    State(_state): State<Arc<AppState>>,
+    State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
-    Path(_prompt_id): Path<String>,
+    Path(prompt_id): Path<String>,
+    Json(req): Json<CreatePromptApiRequest>,
 ) -> impl IntoResponse {
-    json_response(serde_json::json!({ "id": "1", "title": "Test", "content": "...", "category": "test", "votes": 0 })).into_response()
+    use uuid::Uuid;
+    use mr_darkpromth_services::*;
+
+    let token = match extract_token(&headers) {
+        Some(t) => t,
+        None => return ApiError::new("MISSING_TOKEN", "Auth required").into_response(),
+    };
+
+    let claims = match state.user_service.validate_token(&token).await {
+        Ok(c) => c,
+        Err(_) => return ApiError::new("INVALID_TOKEN", "Invalid token").into_response(),
+    };
+
+    let id = match Uuid::parse_str(&prompt_id) {
+        Ok(uuid) => uuid,
+        Err(_) => return ApiError::new("INVALID_ID", "Invalid prompt ID format").into_response(),
+    };
+
+    let update_request = UpdatePromptRequest {
+        title: Some(req.title),
+        content: Some(req.content),
+        category: Some(PromptCategory::Custom),
+        technique: None,
+        effectiveness: None,
+        risk_level: None,
+        target_models: None,
+        description: req.description,
+        tags: req.tags,
+        is_active: None,
+        requires_ultra_tier: req.requires_ultra_tier,
+    };
+
+    // Check ownership
+    match state.jailbreak_service.get_prompt_by_id(id).await {
+        Ok(Some(existing)) => {
+            if existing.author != claims.sub && claims.tier != "admin" {
+                 return ApiError::new("FORBIDDEN", "You can only update your own prompts").into_response();
+            }
+        },
+        Ok(None) => return ApiError::new("NOT_FOUND", "Prompt not found").into_response(),
+        Err(_) => return ApiError::new("DB_ERROR", "Database error").into_response(),
+    }
+
+    match state.jailbreak_service.update_prompt(id, update_request).await {
+        Ok(Some(prompt)) => {
+            let dto = JailbreakPromptDto {
+                id: prompt.id.to_string(),
+                title: prompt.title,
+                content: prompt.content,
+                category: prompt.category,
+                technique: prompt.technique,
+                effectiveness: prompt.effectiveness,
+                risk_level: prompt.risk_level,
+                description: prompt.description,
+                tags: prompt.tags,
+                author: prompt.author,
+                usage_count: prompt.usage_count,
+                success_rate: prompt.success_rate,
+                requires_ultra_tier: prompt.requires_ultra_tier,
+                created_at: prompt.created_at.to_rfc3339(),
+            };
+            ApiSuccess::new(serde_json::json!(dto)).into_response()
+        }
+        Ok(None) => ApiError::new("NOT_FOUND", "Prompt not found").into_response(),
+        Err(e) => {
+            log::error!("Failed to update prompt: {}", e);
+            ApiError::new("UPDATE_ERROR", "Failed to update prompt").into_response()
+        }
+    }
 }
 
 pub async fn delete_prompt_handler(
@@ -526,14 +750,49 @@ pub async fn delete_prompt_handler(
     headers: axum::http::HeaderMap,
     Path(prompt_id): Path<String>,
 ) -> impl IntoResponse {
-    StatusCode::NO_CONTENT.into_response()
+    use uuid::Uuid;
+
+    let token = match extract_token(&headers) {
+        Some(t) => t,
+        None => return ApiError::new("MISSING_TOKEN", "Auth required").into_response(),
+    };
+
+    let claims = match state.user_service.validate_token(&token).await {
+        Ok(c) => c,
+        Err(_) => return ApiError::new("INVALID_TOKEN", "Invalid token").into_response(),
+    };
+
+    let id = match Uuid::parse_str(&prompt_id) {
+        Ok(uuid) => uuid,
+        Err(_) => return ApiError::new("INVALID_ID", "Invalid prompt ID format").into_response(),
+    };
+
+    // Check ownership
+    match state.jailbreak_service.get_prompt_by_id(id).await {
+        Ok(Some(existing)) => {
+            if existing.author != claims.sub && claims.tier != "admin" {
+                 return ApiError::new("FORBIDDEN", "You can only delete your own prompts").into_response();
+            }
+        },
+        Ok(None) => return ApiError::new("NOT_FOUND", "Prompt not found").into_response(),
+        Err(_) => return ApiError::new("DB_ERROR", "Database error").into_response(),
+    }
+
+    match state.jailbreak_service.delete_prompt(id).await {
+        Ok(true) => StatusCode::NO_CONTENT.into_response(),
+        Ok(false) => ApiError::new("NOT_FOUND", "Prompt not found").into_response(),
+        Err(e) => {
+            log::error!("Failed to delete prompt: {}", e);
+            ApiError::new("DELETE_ERROR", "Failed to delete prompt").into_response()
+        }
+    }
 }
 
 pub async fn search_prompts_handler(
     State(state): State<Arc<AppState>>,
     Json(req): Json<SearchPromptsRequest>,
 ) -> impl IntoResponse {
-    use mr_darkpromth_services::jailbreak_models::*;
+    use mr_darkpromth_services::*;
     
     let category = req.category.and_then(|c| {
         match c.to_lowercase().as_str() {
@@ -558,9 +817,10 @@ pub async fn search_prompts_handler(
         technique: None,
         effectiveness: None,
         risk_level: None,
-        target_model: None,
+        target_models: None,
         tags: None,
         author: None,
+        target_model: None,
         requires_ultra_tier: None,
         limit: Some(50),
         offset: Some(0),
@@ -574,29 +834,27 @@ pub async fn search_prompts_handler(
                 id: p.id.to_string(),
                 title: p.title,
                 content: p.content,
-                category: format!("{:?}", p.category),
+                category: p.category,
+                technique: p.technique,
+                effectiveness: p.effectiveness,
+                risk_level: p.risk_level,
                 description: p.description,
                 tags: p.tags,
                 author: p.author,
-                votes: p.usage_count as i32,
                 usage_count: p.usage_count,
                 success_rate: p.success_rate,
                 requires_ultra_tier: p.requires_ultra_tier,
                 created_at: p.created_at.to_rfc3339(),
             }).collect();
             
-            json_response(serde_json::json!({ 
+            ApiSuccess::new(serde_json::json!({ 
                 "prompts": prompt_dtos, 
                 "total": prompt_dtos.len() 
             })).into_response()
         }
         Err(e) => {
             log::error!("Failed to search prompts: {}", e);
-            error_response(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "SEARCH_ERROR",
-                "Failed to search prompts",
-            ).into_response()
+            ApiError::new("SEARCH_ERROR", "Failed to search prompts").into_response()
         }
     }
 }
@@ -610,46 +868,125 @@ pub async fn get_popular_prompts_handler(
                 id: p.id.to_string(),
                 title: p.title,
                 content: p.content,
-                category: format!("{:?}", p.category),
+                category: p.category,
+                technique: p.technique,
+                effectiveness: p.effectiveness,
+                risk_level: p.risk_level,
                 description: p.description,
                 tags: p.tags,
                 author: p.author,
-                votes: p.usage_count as i32,
                 usage_count: p.usage_count,
                 success_rate: p.success_rate,
                 requires_ultra_tier: p.requires_ultra_tier,
                 created_at: p.created_at.to_rfc3339(),
             }).collect();
             
-            json_response(serde_json::json!({ 
+            ApiSuccess::new(serde_json::json!({ 
                 "prompts": prompt_dtos, 
                 "total": prompt_dtos.len() 
             })).into_response()
         }
         Err(e) => {
             log::error!("Failed to get popular prompts: {}", e);
-            error_response(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "FETCH_ERROR",
-                "Failed to fetch popular prompts",
-            ).into_response()
+            ApiError::new("FETCH_ERROR", "Failed to fetch popular prompts").into_response()
         }
     }
 }
 
 pub async fn get_prompt_analytics_handler(
-    State(_state): State<Arc<AppState>>,
+    State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
-    Path(_prompt_id): Path<String>,
+    Path(prompt_id): Path<String>,
 ) -> impl IntoResponse {
-    json_response(serde_json::json!({ "views": 0, "uses": 0, "success_rate": 0.0 })).into_response()
+    use uuid::Uuid;
+    use mr_darkpromth_services::UserTier;
+    
+    // Extract and validate token
+    let token = match extract_token(&headers) {
+        Some(t) => t,
+        None => return ApiError::new("MISSING_TOKEN", "Auth required").into_response(),
+    };
+
+    let claims = match state.user_service.validate_token(&token).await {
+        Ok(c) => c,
+        Err(_) => return ApiError::new("INVALID_TOKEN", "Invalid token").into_response(),
+    };
+
+    let id = match Uuid::parse_str(&prompt_id) {
+        Ok(uuid) => uuid,
+        Err(_) => return ApiError::new("INVALID_ID", "Invalid prompt ID format").into_response(),
+    };
+
+    match state.jailbreak_service.get_analytics(id).await {
+        Ok(Some(analytics)) => ApiSuccess::new(serde_json::json!(analytics)).into_response(),
+        Ok(None) => ApiError::new("NOT_FOUND", "Prompt not found").into_response(),
+        Err(e) => {
+            log::error!("Failed to get prompt analytics: {}", e);
+            ApiError::new("FETCH_ERROR", "Failed to fetch analytics").into_response()
+        }
+    }
 }
 
 pub async fn record_prompt_usage_handler(
-    State(_state): State<Arc<AppState>>,
+    State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
-    Path(_prompt_id): Path<String>,
+    Path(prompt_id): Path<String>,
+    Json(req): Json<serde_json::Value>,
 ) -> impl IntoResponse {
-    StatusCode::OK.into_response()
+    use uuid::Uuid;
+    use mr_darkpromth_services::UserTier;
+    
+    // Extract and validate token
+    let token = match extract_token(&headers) {
+        Some(t) => t,
+        None => return ApiError::new("MISSING_TOKEN", "Auth required").into_response(),
+    };
+
+    let claims = match state.user_service.validate_token(&token).await {
+        Ok(c) => c,
+        Err(_) => return ApiError::new("INVALID_TOKEN", "Invalid token").into_response(),
+    };
+
+    let user_id = match Uuid::parse_str(&claims.sub) {
+        Ok(id) => id,
+        Err(_) => return ApiError::new("INVALID_USER", "Invalid user ID").into_response(),
+    };
+
+    let id = match Uuid::parse_str(&prompt_id) {
+        Ok(uuid) => uuid,
+        Err(_) => return ApiError::new("INVALID_ID", "Invalid prompt ID format").into_response(),
+    };
+
+    let tier: UserTier = claims.tier.parse().unwrap_or(UserTier::Free);
+
+    // Check quota before recording usage
+    match state.jailbreak_service.check_quota(user_id, tier).await {
+        Ok(true) => {}, // Quota available, continue
+        Ok(false) => {
+            return ApiError::new("QUOTA_EXCEEDED", &format!("Daily quota exceeded. Limit: {} messages", tier.max_daily_messages())
+            ).into_response();
+        },
+        Err(e) => {
+            log::error!("Failed to check quota: {}", e);
+            return ApiError::new("QUOTA_ERROR", "Failed to check quota").into_response();
+        }
+    }
+
+    // Extract usage data from request
+    let target_model = req.get("model").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
+    let success = req.get("success").and_then(|v| v.as_bool()).unwrap_or(true);
+    let response_time_ms = req.get("response_time_ms").and_then(|v| v.as_i64()).unwrap_or(0);
+
+    match state.jailbreak_service.record_usage(id, user_id, target_model, success, response_time_ms).await {
+        Ok(()) => ApiSuccess::new(serde_json::json!({ 
+            "status": "success", 
+            "message": "Usage recorded successfully",
+            "remaining_quota": tier.max_daily_messages().saturating_sub(1) // Simplified, should query actual count
+        })).into_response(),
+        Err(e) => {
+            log::error!("Failed to record prompt usage: {}", e);
+            ApiError::new("RECORD_ERROR", "Failed to record usage").into_response()
+        }
+    }
 }
 

@@ -3,13 +3,19 @@ services:
   postgres:
     image: postgres:15-alpine
     container_name: mr_darkpromth_postgres
-    restart: always
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    env_file: .env
     environment:
       POSTGRES_DB: mr_darkpromth
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    ports:
-      - "5432:5432"
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    expose:
+      - "5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./migrations:/docker-entrypoint-initdb.d:ro
@@ -23,20 +29,26 @@ services:
         reservations:
           memory: 128M
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
       interval: 10s
       timeout: 5s
       retries: 5
-
   # Redis for Event Bus
   redis:
     image: redis:7-alpine
     container_name: mr_darkpromth_redis
-    restart: always
-    ports:
-      - "6379:6379"
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    command: redis-server /usr/local/etc/redis/redis.conf
+    expose:
+      - "6379"
     volumes:
       - redis_data:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf:ro
     networks:
       - mr_darkpromth_network
     deploy:
@@ -47,35 +59,43 @@ services:
         reservations:
           memory: 64M
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "-a", "redispassword", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
-
   # MR.DarkPromth Backend Service
   api:
     build:
       context: .
       dockerfile: Dockerfile
+    image: mr_darkpromth_api:latest
     container_name: mr_darkpromth_api
-    restart: always
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    env_file: .env
     environment:
-      DATABASE_URL: postgres://postgres:postgres@postgres:5432/mr_darkpromth
-      REDIS_URL: redis://redis:6379
-      RUST_LOG: debug
+      CEREBRAS_API_KEYS: ${CEREBRAS_API_KEYS}
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/mr_darkpromth
+      REDIS_URL: redis://:redispassword@redis:6379
+      RUST_LOG: info
       SERVER_HOST: 0.0.0.0
       SERVER_PORT: 8080
-      CORS_ALLOWED_ORIGINS: https://bt-shop-dark.online,https://www.bt-shop-dark.online
+      DOCKER_HOST: unix:///var/run/docker.sock
+      CORS_ALLOWED_ORIGINS: https://mrdarkpromth.online,https://www.mrdarkpromth.online
       AGENT_COORDINATION_ENABLED: "true"
       HEARTBEAT_INTERVAL_SECONDS: "30"
       MEMORY_LOG_ENABLED: "true"
-      CEREBRAS_API_KEYS: ${CEREBRAS_API_KEYS}
+      OPENROUTER_API_KEYS: ${OPENROUTER_API_KEYS}
       JWT_SECRET: ${JWT_SECRET}
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
     ports:
       - "8080:8080"
-    command: ["/bin/sh", "-c", "sleep 10 && mr_darkpromth_api"]
+    command: [ "/bin/sh", "-c", "sleep 10 && mr_darkpromth_api" ]
     depends_on:
       postgres:
         condition: service_healthy
@@ -84,6 +104,9 @@ services:
     volumes:
       - ./memory:/app/memory
       - ./logs:/app/logs
+      - ./mr_darkpromth:/app/mr_darkpromth:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    user: root
     networks:
       - mr_darkpromth_network
     deploy:
@@ -94,12 +117,30 @@ services:
         reservations:
           memory: 256M
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/health" ]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 30s
-
+  # Sandbox service for Ultra Terminal
+  sandbox:
+    image: ubuntu:22.04
+    container_name: mr_darkpromth_sandbox
+    restart: unless-stopped
+    privileged: true
+    cap_add:
+      - SYS_ADMIN
+      - NET_ADMIN
+    security_opt:
+      - apparmor:unconfined
+    environment:
+      - SANDBOX_MODE=ultra
+    volumes:
+      - sandbox_data:/sandbox
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - mr_darkpromth_network
+    command: tail -f /dev/null
   # Frontend (Builds the static assets)
   frontend:
     build:
@@ -108,22 +149,23 @@ services:
     container_name: mr_darkpromth_frontend
     volumes:
       - frontend_build:/usr/share/nginx/html
-    # This container only needs to build and populate the volume.
-    # It doesn't need to run continuously in production.
-    command: ["nginx", "-g", "daemon off;"]
-
-
+    command: [ "nginx", "-g", "daemon off;" ]
   # Nginx reverse proxy with SSL
   nginx:
     image: nginx:alpine
     container_name: mr_darkpromth_nginx
-    restart: always
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     ports:
       - "80:80"
       - "443:443"
     volumes:
       - ./nginx/nginx.production.conf:/etc/nginx/nginx.conf:ro
-      - ./certs:/etc/nginx/certs:ro
+      - ./certs:/etc/letsencrypt:ro
       - frontend_build:/usr/share/nginx/html:ro
     depends_on:
       - api
@@ -136,15 +178,14 @@ services:
           memory: 128M
         reservations:
           memory: 32M
-
 volumes:
   postgres_data:
   redis_data:
+  sandbox_data:
   frontend_build:
   prometheus_data:
   grafana_data:
   elasticsearch_data:
-
 networks:
   mr_darkpromth_network:
     driver: bridge

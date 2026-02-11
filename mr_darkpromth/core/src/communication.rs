@@ -58,12 +58,11 @@ impl RedisEventBus {
                             match serde_json::from_str::<AgentMessage>(&data) {
                                 Ok(agent_message) => {
                                     // Only process messages not sent by this agent
-                                    if agent_message.sender != channel_clone {
-                                        if let Err(_) = sender_clone.send(agent_message) {
+                                    if agent_message.sender != channel_clone
+                                        && sender_clone.send(agent_message).is_err() {
                                             // Channel closed, break the loop
                                             break;
                                         }
-                                    }
                                 }
                                 Err(e) => {
                                     eprintln!("Failed to deserialize message: {}", e);

@@ -121,8 +121,9 @@ impl TierManagementService {
         let update_request = UpdateUserRequest {
             username: None,
             email: None,
-            tier: Some(request.target_tier.clone()),
+            tier: Some(request.target_tier),
             is_active: None,
+            language: user.language.clone(),
         };
 
         let _updated_user = self.repository.update_user(request.user_id, update_request)
@@ -156,8 +157,9 @@ impl TierManagementService {
         let update_request = UpdateUserRequest {
             username: None,
             email: None,
-            tier: Some(target_tier.clone()),
+            tier: Some(target_tier),
             is_active: None,
+            language: user.language.clone(),
         };
 
         let _updated_user = self.repository.update_user(user_id, update_request)
@@ -350,12 +352,12 @@ impl TierManagementService {
     }
 
     fn validate_downgrade_transition(&self, current_tier: &UserTier, target_tier: &UserTier) -> bool {
-        match (current_tier, target_tier) {
-            (UserTier::Ultra, UserTier::Premium) => true,
-            (UserTier::Ultra, UserTier::Free) => true,
-            (UserTier::Premium, UserTier::Free) => true,
-            _ => false,
-        }
+        matches!(
+            (current_tier, target_tier),
+            (UserTier::Ultra, UserTier::Premium)
+                | (UserTier::Ultra, UserTier::Free)
+                | (UserTier::Premium, UserTier::Free)
+        )
     }
 
     async fn process_payment(&self, request: &TierUpgradeRequest) -> Result<(), TierManagementError> {
@@ -382,11 +384,10 @@ impl TierManagementService {
     }
 
     async fn validate_promo_code(&self, promo_code: &str) -> bool {
-        // In a real implementation, this would check against a database of valid promo codes
-        match promo_code.to_uppercase().as_str() {
-            "LAUNCH2026" | "BETA50" | "EARLYADOPTER" => true,
-            _ => false,
-        }
+        matches!(
+            promo_code.to_uppercase().as_str(),
+            "LAUNCH2026" | "BETA50" | "EARLYADOPTER"
+        )
     }
 
     pub async fn bulk_tier_update(&self, user_ids: Vec<Uuid>, target_tier: UserTier) -> Result<Vec<TierUpgradeResponse>, TierManagementError> {
@@ -395,7 +396,7 @@ impl TierManagementService {
         for user_id in user_ids {
             match self.upgrade_tier(TierUpgradeRequest {
                 user_id,
-                target_tier: target_tier.clone(),
+                target_tier,
                 payment_method: None,
                 promo_code: None,
             }).await {
@@ -414,13 +415,12 @@ impl TierManagementService {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    use super::*;
-    use crate::test_db_utils::create_test_pool;
+    use crate::test_db_utils::get_test_pool;
 
     #[tokio::test]
     async fn test_validate_tier_transition() {
-        let pool = create_test_pool().await.unwrap();
+        // This test doesn't need a database - just instantiate with lazy pool
+        let pool = get_test_pool();
         let service = TierManagementService::new(UserRepository::new(pool));
 
         assert!(service.validate_tier_transition(&UserTier::Free, &UserTier::Ultra));
@@ -431,7 +431,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_validate_promo_code() {
-        let pool = create_test_pool().await.unwrap();
+        let pool = get_test_pool();
         let service = TierManagementService::new(UserRepository::new(pool));
 
         assert!(service.validate_promo_code("LAUNCH2026").await);
@@ -442,7 +442,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_tier_benefits() {
-        let pool = create_test_pool().await.unwrap();
+        let pool = get_test_pool();
         let service = TierManagementService::new(UserRepository::new(pool));
 
         let free_benefits = service.get_tier_benefits(UserTier::Free).await;

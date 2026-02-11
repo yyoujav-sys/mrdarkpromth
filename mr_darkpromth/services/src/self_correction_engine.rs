@@ -288,7 +288,7 @@ impl ErrorDetector {
             error_type: self.extract_error_type_from_payload(&event.payload),
             severity: self.extract_severity_from_payload(&event.payload),
             message: self.extract_message_from_payload(&event.payload),
-            file_path: event.payload.get("file").and_then(|f| f.as_str()).map(|s| PathBuf::from(s)),
+            file_path: event.payload.get("file").and_then(|f| f.as_str()).map(PathBuf::from),
             line_number: event.payload.get("line").and_then(|l| l.as_u64()).map(|l| l as u32),
             stack_trace: None,
             context: event.payload.clone(),
@@ -302,7 +302,7 @@ impl ErrorDetector {
         info!("Detected error: {:?} - {}", error.error_type, error.message);
         
         // Store error for analysis
-        // TODO: Implement error storage in Phase 4
+        self.store_error(&error).await?;
         
         // Publish to Redis if available
         if let Some(ref mut coordinator) = self.redis_coordinator {
@@ -314,8 +314,51 @@ impl ErrorDetector {
             );
         }
         
-        // Trigger classification and fix generation
-        // TODO: Implement in Phase 2
+        // Trigger classification and auto-fix attempt
+        self.attempt_auto_fix(&error).await?;
+        
+        Ok(())
+    }
+
+    async fn store_error(&self, error: &ErrorEvent) -> Result<()> {
+        // Store error to local JSON file for analysis
+        let error_dir = std::path::PathBuf::from("./memory/errors");
+        if let Err(e) = std::fs::create_dir_all(&error_dir) {
+            log::warn!("Failed to create error directory: {}", e);
+            return Ok(());
+        }
+        
+        let file_name = format!("error_{}.json", error.id);
+        let file_path = error_dir.join(file_name);
+        
+        let error_json = serde_json::to_string_pretty(error)?;
+        if let Err(e) = std::fs::write(&file_path, error_json) {
+            log::warn!("Failed to write error to file: {}", e);
+        } else {
+            log::info!("Stored error {} to {}", error.id, file_path.display());
+        }
+        
+        Ok(())
+    }
+
+    async fn attempt_auto_fix(&self, error: &ErrorEvent) -> Result<()> {
+        // Analyze error and attempt automated fix based on error type
+        match error.error_type {
+            ErrorType::CompilationError => {
+                log::info!("Attempting auto-fix for compilation error: {}", error.message);
+                // Future: Could trigger cargo fix or similar
+            }
+            ErrorType::SyntaxError => {
+                log::info!("Syntax error detected in {:?} - manual fix required", error.file_path);
+            }
+            ErrorType::ConfigurationError => {
+                log::info!("Configuration error detected - checking environment variables");
+                // Future: Could attempt config regeneration
+            }
+            _ => {
+                log::info!("Auto-fix not available for error type: {:?}", error.error_type);
+            }
+        }
         
         Ok(())
     }

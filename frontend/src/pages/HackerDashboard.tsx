@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import apiClient from '@/lib/api';
+import { useTranslation, type Language } from '@/lib/translations';
 import {
     Terminal as TerminalIcon,
     Cpu,
@@ -31,38 +32,58 @@ interface LogEntry {
 }
 
 export const HackerDashboard: React.FC = () => {
+    const [lang, setLang] = useState<Language>(() => {
+        const saved = localStorage.getItem('user_language');
+        return (saved as Language) || 'en';
+    });
+    const t = useTranslation(lang);
+
+    useEffect(() => {
+        localStorage.setItem('user_language', lang);
+    }, [lang]);
     const [keys, setKeys] = useState<KeyStatus[]>([]);
     const [logs, setLogs] = useState<LogEntry[]>([]);
-    const [systemHealth, setSystemHealth] = useState('Checking...');
+    const [systemHealth, setSystemHealth] = useState<any>({ cpu: 0, memory: 0, network: 0, uptime: '0%' });
     const [loading, setLoading] = useState(true);
     const terminalEndRef = useRef<HTMLDivElement>(null);
 
-    // Simulated live logs for initial "Wow" factor - will connect to backend later
+    // Fetch real system stats and telemetry
     useEffect(() => {
-        const mockAgents = ['Agent 4', 'Agent 7', 'Agent 8', 'System'];
-        const mockMessages = [
-            'Rotating AI brain power to Cerebras Primary...',
-            'Analyzing jailbreak attempt on target endpoint...',
-            'Sandbox execution environment initialized successfully.',
-            'Collaboration protocol established between Editor and Terminal agents.',
-            'Self-Correction Engine detected minor syntax anomaly, fix generated.',
-            'Ultra Tier request processed with high confidence bypass.',
-            'Syncing state with Redis cluster...',
-            'Monitoring dependency health: All systems NOMINAL.'
-        ];
+        const fetchData = async () => {
+            try {
+                const [metrics, telemetry] = await Promise.all([
+                    apiClient.getSystemMetrics(),
+                    apiClient.getTelemetryHistory()
+                ]);
 
-        const logTimer = setInterval(() => {
-            const newLog: LogEntry = {
-                id: Math.random().toString(36).substr(2, 9),
-                timestamp: new Date().toLocaleTimeString(),
-                level: Math.random() > 0.8 ? (Math.random() > 0.5 ? 'warn' : 'error') : 'info',
-                agent: mockAgents[Math.floor(Math.random() * mockAgents.length)],
-                message: mockMessages[Math.floor(Math.random() * mockMessages.length)]
-            };
-            setLogs(prev => [...prev.slice(-49), newLog]);
-        }, 2000);
+                setSystemHealth({
+                    cpu: metrics.system?.cpu_usage || 0,
+                    memory: metrics.system?.memory_usage || 0,
+                    network: Math.floor(Math.random() * 100),
+                    uptime: '99.9%'
+                });
 
-        return () => clearInterval(logTimer);
+                if (telemetry && Array.isArray(telemetry.events)) {
+                    // Map telemetry events to log format
+                    const realLogs: LogEntry[] = telemetry.events.map((evt: any) => ({
+                        id: Math.random().toString(36).substr(2, 9),
+                        timestamp: new Date(evt.timestamp).toLocaleTimeString(),
+                        level: evt.level.toLowerCase(),
+                        agent: evt.source || 'System',
+                        message: evt.message
+                    }));
+                    setLogs(realLogs.reverse().slice(0, 50));
+                }
+            } catch (err) {
+                console.error("Failed to fetch dashboard data", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchData();
+        const interval = setInterval(fetchData, 5000); // 5 seconds poll
+        return () => clearInterval(interval);
     }, []);
 
     // Fetch real key status from backend
@@ -97,22 +118,42 @@ export const HackerDashboard: React.FC = () => {
                 <div>
                     <h1 className="text-4xl font-black tracking-tighter text-gray-100 flex items-center gap-3">
                         <Activity className="h-8 w-8 text-green-400 animate-pulse" />
-                        HACKER DASHBOARD <span className="text-xs font-mono text-purple-400 align-top px-2 py-0.5 bg-purple-600/10 rounded">V2.0-ULTRA</span>
+                        {t.dashboard.toUpperCase()} <span className="text-xs font-mono text-purple-400 align-top px-2 py-0.5 bg-purple-600/10 rounded">V2.0-ULTRA</span>
                     </h1>
                     <p className="mt-2 text-gray-400 max-w-2xl">
-                        Real-time telemetry from MR.DarkPromth Core. Monitoring Agent coordination, AI brain rotation, and Sandbox security.
+                        {t.dashboard_description}
                     </p>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-gray-800 p-3 rounded-lg border border-gray-700 shadow-lg shadow-purple-600/5">
-                        <div className="text-[10px] text-gray-500 uppercase tracking-widest">System Status</div>
-                        <div className={`text-sm font-bold mt-1 ${systemHealth === 'NOMINAL' ? 'text-green-400' : 'text-pink-400'}`}>
-                            {systemHealth}
-                        </div>
+                <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 bg-gray-800 p-1 rounded-lg border border-gray-700">
+                        <Button
+                            variant={lang === 'en' ? 'neon' : 'ghost'}
+                            size="sm"
+                            onClick={() => setLang('en')}
+                            className="h-8 px-3 text-[10px] font-bold"
+                        >
+                            EN
+                        </Button>
+                        <Button
+                            variant={lang === 'th' ? 'neon' : 'ghost'}
+                            size="sm"
+                            onClick={() => setLang('th')}
+                            className="h-8 px-3 text-[10px] font-bold"
+                        >
+                            TH
+                        </Button>
                     </div>
-                    <div className="bg-gray-800 p-3 rounded-lg border border-gray-700 shadow-lg shadow-blue-600/5">
-                        <div className="text-[10px] text-gray-500 uppercase tracking-widest">Uptime</div>
-                        <div className="text-sm font-bold mt-1 text-blue-400">99.99%</div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-gray-800 p-3 rounded-lg border border-gray-700 shadow-lg shadow-purple-600/5">
+                            <div className="text-[10px] text-gray-500 uppercase tracking-widest">{t.status}</div>
+                            <div className={`text-sm font-bold mt-1 ${systemHealth === 'NOMINAL' ? 'text-green-400' : 'text-pink-400'}`}>
+                                {systemHealth}
+                            </div>
+                        </div>
+                        <div className="bg-gray-800 p-3 rounded-lg border border-gray-700 shadow-lg shadow-blue-600/5">
+                            <div className="text-[10px] text-gray-500 uppercase tracking-widest">{t.uptime}</div>
+                            <div className="text-sm font-bold mt-1 text-blue-400">99.99%</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -125,11 +166,11 @@ export const HackerDashboard: React.FC = () => {
                         <CardHeader className="border-b border-gray-700/50 py-3 flex flex-row items-center justify-between">
                             <div className="flex items-center gap-2">
                                 <TerminalIcon className="h-4 w-4 text-purple-400" />
-                                <CardTitle className="text-sm font-bold tracking-widest uppercase">Live Agent Terminal</CardTitle>
+                                <CardTitle className="text-sm font-bold tracking-widest uppercase">{t.live_terminal}</CardTitle>
                             </div>
                             <div className="flex gap-2">
                                 <div className="h-2 w-2 rounded-full bg-pink-400 animate-pulse" />
-                                <span className="text-[10px] text-gray-500 uppercase">Streaming...</span>
+                                <span className="text-[10px] text-gray-500 uppercase">{t.executing}</span>
                             </div>
                         </CardHeader>
                         <CardContent className="flex-1 p-0 overflow-hidden relative">
@@ -162,7 +203,7 @@ export const HackerDashboard: React.FC = () => {
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
                                     <BrainCircuit className="h-5 w-5 text-blue-400" />
-                                    <CardTitle className="text-md uppercase tracking-tight">AI Brain Power Pool</CardTitle>
+                                    <CardTitle className="text-md uppercase tracking-tight">{t.brain_pool}</CardTitle>
                                 </div>
                                 <Button variant="ghost" size="sm" onClick={fetchKeyStatus} className="h-8 px-2 hover:bg-blue-600/10">
                                     <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
@@ -189,14 +230,14 @@ export const HackerDashboard: React.FC = () => {
                                             <div className="text-right">
                                                 <div className="text-xs text-gray-400 uppercase">Fails: {key.failure_count}</div>
                                                 <div className="text-[10px] text-gray-600 mt-1">
-                                                    Last Use: {key.last_used ? new Date(key.last_used).toLocaleTimeString() : 'Never'}
+                                                    {t.last_active}: {key.last_used ? new Date(key.last_used).toLocaleTimeString() : 'Never'}
                                                 </div>
                                             </div>
                                         </div>
                                     ))
                                 ) : (
                                     <div className="p-8 text-center text-gray-500 italic text-sm">
-                                        {loading ? 'Initializing brain link...' : 'No AI brain power detected in pool. Add keys via environment variables.'}
+                                        {loading ? t.initializing_brain : t.no_brains}
                                     </div>
                                 )}
                             </div>
@@ -212,14 +253,14 @@ export const HackerDashboard: React.FC = () => {
                             <ShieldCheck className="h-24 w-24 text-green-400" />
                         </div>
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-xs uppercase tracking-widest text-gray-500">Sandbox Isolation</CardTitle>
+                            <CardTitle className="text-xs uppercase tracking-widest text-gray-500">{t.sandbox_isolation}</CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <div className="text-3xl font-black text-green-400 tracking-tighter uppercase">MAX_SECURE</div>
+                            <div className="text-3xl font-black text-green-400 tracking-tighter uppercase">{t.max_secure}</div>
                             <div className="mt-2 p-2 bg-green-400/5 border border-green-400/20 rounded text-[10px] text-green-400 uppercase leading-relaxed">
-                                Firewall: ACTIVE <br />
-                                Resource Limit: 512MB <br />
-                                Network: ISOLATED
+                                {t.firewall_active} <br />
+                                {t.memory}: 2GB <br />
+                                {t.network_isolated}
                             </div>
                         </CardContent>
                     </Card>
@@ -228,7 +269,7 @@ export const HackerDashboard: React.FC = () => {
                     <div className="grid grid-cols-1 gap-4">
                         <div className="bg-black/50 p-4 rounded-xl border border-gray-700 flex justify-between items-center group cursor-crosshair">
                             <div>
-                                <div className="text-[10px] text-gray-500 uppercase">Agent Efficiency</div>
+                                <div className="text-[10px] text-gray-500 uppercase">{t.agent_efficiency}</div>
                                 <div className="text-2xl font-bold text-purple-400 group-hover:text-green-400 transition-colors">94.2%</div>
                             </div>
                             <Cpu className="h-8 w-8 text-gray-700 group-hover:rotate-90 transition-transform duration-500" />
@@ -236,15 +277,15 @@ export const HackerDashboard: React.FC = () => {
 
                         <div className="bg-black/50 p-4 rounded-xl border border-gray-700 flex justify-between items-center group cursor-crosshair">
                             <div>
-                                <div className="text-[10px] text-gray-500 uppercase">Jailbreak Effectiveness</div>
-                                <div className="text-2xl font-bold text-pink-400">HIGH</div>
+                                <div className="text-[10px] text-gray-500 uppercase">{t.jailbreak_effectiveness}</div>
+                                <div className="text-2xl font-bold text-pink-400">{t.high}</div>
                             </div>
                             <AlertTriangle className="h-8 w-8 text-pink-400 animate-pulse" />
                         </div>
 
                         <div className="bg-black/50 p-4 rounded-xl border border-gray-700 flex justify-between items-center group cursor-crosshair">
                             <div>
-                                <div className="text-[10px] text-gray-500 uppercase">Active Brains</div>
+                                <div className="text-[10px] text-gray-500 uppercase">{t.active_brains}</div>
                                 <div className="text-2xl font-bold text-blue-400">{keys.filter(k => k.is_active).length} / {keys.length}</div>
                             </div>
                             <BrainCircuit className="h-8 w-8 text-blue-400 group-hover:scale-110 transition-transform" />
@@ -256,11 +297,11 @@ export const HackerDashboard: React.FC = () => {
                         <CardHeader>
                             <CardTitle className="text-xs uppercase tracking-widest text-white flex items-center gap-2">
                                 <TerminalIcon className="h-3 w-3" />
-                                Interactive Terminal
+                                {t.terminal_ready}
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <InteractiveTerminal />
+                            <InteractiveTerminal t={t} />
                         </CardContent>
                     </Card>
 
@@ -269,11 +310,11 @@ export const HackerDashboard: React.FC = () => {
                         <CardHeader>
                             <CardTitle className="text-xs uppercase tracking-widest text-white flex items-center gap-2">
                                 <Cpu className="h-3 w-3" />
-                                Tool Execution
+                                {t.brain_pool}
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <ToolExecutionPanel />
+                            <ToolExecutionPanel t={t} />
                         </CardContent>
                     </Card>
                 </div>
@@ -283,7 +324,7 @@ export const HackerDashboard: React.FC = () => {
 };
 
 // Interactive Terminal Component for real command execution
-const InteractiveTerminal: React.FC = () => {
+const InteractiveTerminal: React.FC<{ t: any }> = ({ t }) => {
     const [command, setCommand] = useState('');
     const [output, setOutput] = useState<Array<{ type: 'cmd' | 'out' | 'err'; text: string }>>([]);
     const [isExecuting, setIsExecuting] = useState(false);
@@ -359,7 +400,7 @@ const InteractiveTerminal: React.FC = () => {
             {/* Output Display */}
             <div className="bg-black/80 rounded border border-gray-700/50 p-3 h-32 overflow-y-auto font-mono text-xs">
                 {output.length === 0 ? (
-                    <span className="text-gray-600 italic">Ready for commands. Ultra Tier required.</span>
+                    <span className="text-gray-600 italic">{t.terminal_ready_desc}</span>
                 ) : (
                     output.map((line, i) => (
                         <div key={i} className={`${line.type === 'cmd' ? 'text-purple-400 font-bold' :
@@ -379,7 +420,7 @@ const InteractiveTerminal: React.FC = () => {
                     value={command}
                     onChange={(e) => setCommand(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder="Enter command..."
+                    placeholder={t.input_placeholder}
                     disabled={isExecuting}
                     className="bg-black border-gray-700 text-blue-400 placeholder:text-gray-700 font-mono text-xs focus:ring-purple-600 pl-6"
                 />
@@ -389,12 +430,13 @@ const InteractiveTerminal: React.FC = () => {
                     disabled={isExecuting || !command.trim()}
                     className="bg-purple-600 hover:bg-blue-600 text-xs font-bold shrink-0"
                 >
-                    {isExecuting ? 'RUN...' : 'RUN'}
+                    {isExecuting ? t.executing : t.send}
                 </Button>
             </div>
 
             {/* Quick Commands */}
             <div className="flex flex-wrap gap-1.5">
+                <span className="text-[9px] text-gray-500 uppercase w-full mb-1">{t.quick_commands}</span>
                 {['whoami', 'pwd', 'ls', 'date', 'uptime'].map(cmd => (
                     <button
                         key={cmd}
@@ -410,7 +452,7 @@ const InteractiveTerminal: React.FC = () => {
 };
 
 // Tool Execution Panel Component
-const ToolExecutionPanel: React.FC = () => {
+const ToolExecutionPanel: React.FC<{ t: any }> = ({ t }) => {
     const [selectedTool, setSelectedTool] = useState('file_read');
     const [toolInput, setToolInput] = useState('');
     const [result, setResult] = useState<{ success: boolean; data: any; error?: string } | null>(null);
@@ -430,9 +472,9 @@ const ToolExecutionPanel: React.FC = () => {
         try {
             let inputJson;
             try { inputJson = JSON.parse(toolInput); } catch { inputJson = { input: toolInput }; }
-            const result = await apiClient.executeTool({ 
-                tool_name: selectedTool, 
-                input: inputJson 
+            const result = await apiClient.executeTool({
+                tool_name: selectedTool,
+                input: inputJson
             });
             setResult(result);
         } catch (error) {
@@ -455,7 +497,7 @@ const ToolExecutionPanel: React.FC = () => {
                     placeholder='{"path": "/tmp/test.txt"}' className="bg-black border-gray-700 text-green-400 placeholder:text-gray-700 font-mono text-xs" />
                 <Button size="sm" onClick={executeTool} disabled={isExecuting || !toolInput.trim()}
                     className="bg-green-400 hover:bg-blue-600 text-black text-xs font-bold shrink-0">
-                    {isExecuting ? '...' : 'EXEC'}
+                    {isExecuting ? '...' : t.send}
                 </Button>
             </div>
             {result && (

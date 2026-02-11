@@ -90,6 +90,12 @@ struct DDoSDetection {
     attack_start: Option<DateTime<Utc>>,
 }
 
+impl Default for RateLimiter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RateLimiter {
     pub fn new() -> Self {
         Self {
@@ -132,9 +138,7 @@ impl RateLimiter {
 
         // Check for DDoS attacks
         if self.ddos_detection.enabled {
-            if let Err(e) = self.check_ddos_detection() {
-                return Err(e);
-            }
+            self.check_ddos_detection()?
         }
 
         let config = self.limits.get(limit_key)

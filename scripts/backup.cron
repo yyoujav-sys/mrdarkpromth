@@ -1,0 +1,8 @@
+# MR.DarkPromth Backup Cron Job
+# Run daily at 3:00 AM
+
+# PostgreSQL and Redis backup
+0 3 * * * root /opt/mrdarkpromth/scripts/enhanced_backup.sh >> /var/log/mrdarkpromth-backup.log 2>&1
+
+# Weekly full backup (Sundays at 2:00 AM)
+0 2 * * 0 root /opt/mrdarkpromth/scripts/enhanced_backup.sh --full >> /var/log/mrdarkpromth-backup.log 2>&1

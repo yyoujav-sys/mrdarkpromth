@@ -199,15 +199,15 @@ impl SecurityError {
     }
 
     fn should_retry(&self) -> bool {
-        match self {
-            SecurityError::RateLimitExceeded(_) => true,
-            SecurityError::ServiceUnavailable(_) => true,
-            SecurityError::RequestTimeout(_) => true,
-            SecurityError::ExternalServiceError(_) => true,
-            SecurityError::DatabaseError(_) => true,
-            SecurityError::InternalServerError(_) => true,
-            _ => false,
-        }
+        matches!(
+            self,
+            SecurityError::RateLimitExceeded(_)
+                | SecurityError::ServiceUnavailable(_)
+                | SecurityError::RequestTimeout(_)
+                | SecurityError::ExternalServiceError(_)
+                | SecurityError::DatabaseError(_)
+                | SecurityError::InternalServerError(_)
+        )
     }
 
     fn get_retry_after(&self) -> Option<u64> {

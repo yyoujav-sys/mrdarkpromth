@@ -79,9 +79,9 @@ impl UserProfileService {
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
             .ok_or(StatusCode::NOT_FOUND)?;
 
-        let tier_benefits = self.tier_service.get_tier_benefits(user.tier.clone()).await;
+        let tier_benefits = self.tier_service.get_tier_benefits(user.tier).await;
         
-        let api_key_status = self.calculate_api_key_status(&user);
+        let api_key_status = Self::calculate_api_key_status(&user);
 
         Ok(UserProfileResponse {
             user,
@@ -109,6 +109,7 @@ impl UserProfileService {
             email: request.email,
             tier: None,
             is_active: None,
+            language: None,
         };
 
         let updated_user = self.user_service.update_user(user_id, update_request)
@@ -146,16 +147,14 @@ impl UserProfileService {
     }
 
     pub async fn get_admin_dashboard(&self) -> Result<AdminDashboardResponse, StatusCode> {
-        let stats = self.tier_service.get_tier_stats()
+        let stats: crate::tier_management::TierStats = self.tier_service.get_tier_stats()
             .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            .map_err(|_: crate::tier_management::TierManagementError| StatusCode::INTERNAL_SERVER_ERROR)?;
 
         let recent_users = self.user_service.list_users(10, 0)
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-            .into_iter()
-            .map(|user| user.into())
-            .collect();
+            .into_iter().collect();
 
         // In a real implementation, you would fetch pending upgrades from a separate table
         let pending_upgrades = vec![];
@@ -178,7 +177,7 @@ impl UserProfileService {
         let total_count = users.len() as i64; // In a real implementation, you'd do a separate count query
 
         Ok(UserManagementResponse {
-            users: users.into_iter().map(|user| user.into()).collect(),
+            users,
             total_count,
             page: (offset / limit) + 1,
             per_page: limit,
@@ -195,7 +194,7 @@ impl UserProfileService {
 
         self.tier_service.upgrade_tier(upgrade_request)
             .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+            .map_err(|_: crate::tier_management::TierManagementError| StatusCode::INTERNAL_SERVER_ERROR)
     }
 
     pub async fn deactivate_user(&self, user_id: Uuid) -> Result<(), StatusCode> {
@@ -204,6 +203,7 @@ impl UserProfileService {
             email: None,
             tier: None,
             is_active: Some(false),
+            language: None,
         };
 
         self.user_service.update_user(user_id, update_request)
@@ -219,6 +219,7 @@ impl UserProfileService {
             email: None,
             tier: None,
             is_active: Some(true),
+            language: None,
         };
 
         self.user_service.update_user(user_id, update_request)
@@ -236,7 +237,7 @@ impl UserProfileService {
         Ok(())
     }
 
-    fn calculate_api_key_status(&self, user: &UserResponse) -> ApiKeyStatus {
+    pub fn calculate_api_key_status(user: &UserResponse) -> ApiKeyStatus {
         let now = chrono::Utc::now();
         let is_expired = if let Some(expires_at) = user.api_key_expires_at {
             expires_at < now
@@ -335,39 +336,28 @@ pub async fn delete_user_handler(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mr_darkpromth_db::UserRepository;
+    use mr_darkpromth_db::UserTier;
 
-    use super::*;
-    use crate::test_db_utils::create_test_pool;
-
-    #[tokio::test]
-    async fn test_calculate_api_key_status() {
-        let pool = create_test_pool().await.unwrap();
-        let service = UserProfileService::new(
-            Arc::new(UserService::new(
-                UserRepository::new(pool.clone()),
-                "test_secret".to_string(),
-            )),
-            Arc::new(TierManagementService::new(
-                UserRepository::new(pool)
-            )),
-        );
-
+    #[test]
+    fn test_calculate_api_key_status() {
+        // No DB required for this test now!
         let user = mr_darkpromth_db::User {
             id: Uuid::new_v4(),
             username: "testuser".to_string(),
             email: "test@example.com".to_string(),
             password_hash: "hash".to_string(),
-            tier: mr_darkpromth_db::UserTier::Free,
+            tier: UserTier::Free,
             api_key: "mr_test_key".to_string(),
             api_key_expires_at: Some(chrono::Utc::now() + chrono::Duration::days(30)),
             is_active: true,
+            language: Some("en".to_string()),
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
         };
 
         let user_response: mr_darkpromth_db::UserResponse = user.into();
-        let status = service.calculate_api_key_status(&user_response);
+        let status = UserProfileService::calculate_api_key_status(&user_response);
+
         assert_eq!(status.api_key, "mr_test_key");
         assert!(!status.is_expired);
         assert!(status.days_until_expiry.unwrap() > 0);

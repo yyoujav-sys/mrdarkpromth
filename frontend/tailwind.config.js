@@ -20,34 +20,39 @@ module.exports = {
           900: '#111827',
           950: '#030712',
         },
-        purple: {
-          50: '#faf5ff',
-          100: '#f3e8ff',
-          200: '#e9d5ff',
-          300: '#d8b4fe',
-          400: '#c084fc',
-          500: '#a855f7',
-          600: '#9333ea',
-          700: '#7c3aed',
-          800: '#6b21a8',
-          900: '#581c87',
-          950: '#3b0764',
-        },
+        // Hacker Theme Colors
+        'neon-green': '#00FF00',
+        'neon-red': '#FF0000',
+        'neon-blue': '#00FFFF',
+        'neon-purple': '#A855F7', // Keep for compatibility but favor green
+        'dark-bg': '#000000',
+        'dark-primary': '#050505',
+        'dark-secondary': '#0A0A0A',
+        'dark-accent': '#1A1A1A',
       },
       fontFamily: {
-        mono: ['JetBrains Mono', 'monospace'],
+        mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
+        sans: ['JetBrains Mono', 'Fira Code', 'monospace'], // Force mono everywhere
       },
       animation: {
         'glow': 'glow 2s ease-in-out infinite alternate',
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'glitch': 'glitch 1s linear infinite',
       },
       keyframes: {
         glow: {
-          '0%': { boxShadow: '0 0 20px rgba(139, 92, 246, 0.5)' },
-          '100%': { boxShadow: '0 0 30px rgba(139, 92, 246, 0.8)' },
+          '0%': { boxShadow: '0 0 20px rgba(0, 255, 0, 0.2)' },
+          '100%': { boxShadow: '0 0 30px rgba(0, 255, 0, 0.4)' },
+        },
+        glitch: {
+          '2%, 64%': { transform: 'translate(2px,0) skew(0deg)' },
+          '4%, 60%': { transform: 'translate(-2px,0) skew(0deg)' },
+          '62%': { transform: 'translate(0,0) skew(5deg)' },
         }
       }
     },
   },
-  plugins: [],
+  plugins: [
+    require('@tailwindcss/typography'),
+  ],
 }

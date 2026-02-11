@@ -1,6 +1,7 @@
 // MR.DarkPromth Secure API Key Management and Rotation System
 // Phase 2: Safety and Security Implementation
 
+use log::{info, warn, error};
 use aes_gcm::{
     aead::{Aead, AeadCore, KeyInit, OsRng},
     Aes256Gcm, Key, Nonce,
@@ -35,6 +36,12 @@ pub enum ApiKeyError {
     KeyGenerationFailed(String),
     #[error("Rotation not allowed yet: {0}")]
     RotationNotAllowed(String),
+    #[error("External API validation failed: {0}")]
+    ExternalValidationFailed(String),
+    #[error("AI provider key invalid: {0}")]
+    AiProviderKeyInvalid(String),
+    #[error("Network error during validation: {0}")]
+    ValidationNetworkError(String),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -181,13 +188,12 @@ impl ApiKeyManager {
         }
 
         // Check IP whitelist if required
-        if self.config.require_ip_whitelist && !api_key.ip_whitelist.is_empty() {
-            if !api_key.ip_whitelist.contains(&ip_address.to_string()) {
+        if self.config.require_ip_whitelist && !api_key.ip_whitelist.is_empty()
+            && !api_key.ip_whitelist.contains(&ip_address.to_string()) {
                 return Err(ApiKeyError::KeyNotFound(
                     "IP address not in whitelist".to_string()
                 ));
             }
-        }
 
         // Update usage statistics
         self.update_key_usage(&api_key.id, ip_address);
@@ -286,7 +292,7 @@ impl ApiKeyManager {
         self.keys.values()
             .filter(|key| {
                 key.is_active && 
-                key.rotation_scheduled_at.map_or(false, |scheduled| scheduled <= now)
+                key.rotation_scheduled_at.is_some_and(|scheduled| scheduled <= now)
             })
             .collect()
     }
@@ -415,6 +421,287 @@ pub struct KeyUsageStats {
     pub recent_usage: u64,
     pub last_used: Option<DateTime<Utc>>,
     pub success_rate: f64,
+}
+
+/// AI Provider types supported for validation
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+pub enum AiProvider {
+    Cerebras,
+    OpenRouter,
+}
+
+impl std::fmt::Display for AiProvider {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AiProvider::Cerebras => write!(f, "Cerebras"),
+            AiProvider::OpenRouter => write!(f, "OpenRouter"),
+        }
+    }
+}
+
+/// External AI API Key validation result
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AiKeyValidationResult {
+    pub provider: AiProvider,
+    pub key_preview: String,
+    pub is_valid: bool,
+    pub last_validated: DateTime<Utc>,
+    pub error_message: Option<String>,
+    pub rate_limit_remaining: Option<u32>,
+    pub credits_remaining: Option<f64>,
+}
+
+/// AI Provider API Key Validator
+#[derive(Debug, Clone)]
+pub struct AiKeyValidator {
+    cerebras_base_url: String,
+    openrouter_base_url: String,
+    timeout_seconds: u64,
+}
+
+impl Default for AiKeyValidator {
+    fn default() -> Self {
+        Self {
+            cerebras_base_url: "https://api.cerebras.ai/v1".to_string(),
+            openrouter_base_url: "https://openrouter.ai/api/v1".to_string(),
+            timeout_seconds: 30,
+        }
+    }
+}
+
+impl AiKeyValidator {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_cerebras_url(mut self, url: String) -> Self {
+        self.cerebras_base_url = url;
+        self
+    }
+
+    pub fn with_openrouter_url(mut self, url: String) -> Self {
+        self.openrouter_base_url = url;
+        self
+    }
+
+    /// Validate a single AI provider key
+    pub async fn validate_key(&self, provider: AiProvider, api_key: &str) -> Result<AiKeyValidationResult, ApiKeyError> {
+        match provider {
+            AiProvider::Cerebras => self.validate_cerebras_key(api_key).await,
+            AiProvider::OpenRouter => self.validate_openrouter_key(api_key).await,
+        }
+    }
+
+    /// Validate all AI keys from environment
+    pub async fn validate_all_env_keys(&self) -> Vec<AiKeyValidationResult> {
+        let mut results = Vec::new();
+
+        // Check CEREBRAS_API_KEY
+        if let Ok(key) = std::env::var("CEREBRAS_API_KEY") {
+            if !key.is_empty() {
+                match self.validate_cerebras_key(&key).await {
+                    Ok(result) => results.push(result),
+                    Err(e) => {
+                        results.push(AiKeyValidationResult {
+                            provider: AiProvider::Cerebras,
+                            key_preview: Self::mask_key(&key),
+                            is_valid: false,
+                            last_validated: Utc::now(),
+                            error_message: Some(e.to_string()),
+                            rate_limit_remaining: None,
+                            credits_remaining: None,
+                        });
+                    }
+                }
+            }
+        }
+
+        // Check OPENROUTER_API_KEY
+        if let Ok(key) = std::env::var("OPENROUTER_API_KEY") {
+            if !key.is_empty() {
+                match self.validate_openrouter_key(&key).await {
+                    Ok(result) => results.push(result),
+                    Err(e) => {
+                        results.push(AiKeyValidationResult {
+                            provider: AiProvider::OpenRouter,
+                            key_preview: Self::mask_key(&key),
+                            is_valid: false,
+                            last_validated: Utc::now(),
+                            error_message: Some(e.to_string()),
+                            rate_limit_remaining: None,
+                            credits_remaining: None,
+                        });
+                    }
+                }
+            }
+        }
+
+        results
+    }
+
+    /// Validate Cerebras API key by making a test request
+    async fn validate_cerebras_key(&self, api_key: &str) -> Result<AiKeyValidationResult, ApiKeyError> {
+        use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
+
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(self.timeout_seconds))
+            .build()
+            .map_err(|e| ApiKeyError::ValidationNetworkError(e.to_string()))?;
+
+        let mut headers = HeaderMap::new();
+        let auth_value = HeaderValue::from_str(&format!("Bearer {}", api_key))
+            .map_err(|e| ApiKeyError::InvalidFormat(e.to_string()))?;
+        headers.insert(AUTHORIZATION, auth_value);
+
+        // Try to fetch available models (lightweight validation call)
+        let response = client
+            .get(format!("{}/models", self.cerebras_base_url))
+            .headers(headers)
+            .send()
+            .await
+            .map_err(|e| ApiKeyError::ValidationNetworkError(e.to_string()))?;
+
+        let status = response.status();
+        let is_valid = status.is_success();
+
+        let error_message = if !is_valid {
+            let body = response.text().await.unwrap_or_default();
+            Some(format!("HTTP {}: {}", status.as_u16(), body))
+        } else {
+            None
+        };
+
+        // Extract rate limit info from headers before consuming response
+        let rate_limit_remaining = Some(status.as_u16() as u32);
+
+        Ok(AiKeyValidationResult {
+            provider: AiProvider::Cerebras,
+            key_preview: Self::mask_key(api_key),
+            is_valid,
+            last_validated: Utc::now(),
+            error_message,
+            rate_limit_remaining,
+            credits_remaining: None, // Cerebras doesn't expose credits in models endpoint
+        })
+    }
+
+    /// Validate OpenRouter API key by making a test request
+    async fn validate_openrouter_key(&self, api_key: &str) -> Result<AiKeyValidationResult, ApiKeyError> {
+        use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
+
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(self.timeout_seconds))
+            .build()
+            .map_err(|e| ApiKeyError::ValidationNetworkError(e.to_string()))?;
+
+        let mut headers = HeaderMap::new();
+        let auth_value = HeaderValue::from_str(&format!("Bearer {}", api_key))
+            .map_err(|e| ApiKeyError::InvalidFormat(e.to_string()))?;
+        headers.insert(AUTHORIZATION, auth_value);
+
+        // Fetch user credits info (requires auth, validates key)
+        let response = client
+            .get(format!("{}/credits", self.openrouter_base_url))
+            .headers(headers)
+            .send()
+            .await
+            .map_err(|e| ApiKeyError::ValidationNetworkError(e.to_string()))?;
+
+        let status = response.status();
+        let is_valid = status.is_success();
+
+        let (error_message, credits_remaining) = if is_valid {
+            // Parse credits from response
+            let body: serde_json::Value = response.json().await.unwrap_or_default();
+            let credits = body["data"]["total_credits"].as_f64();
+            (None, credits)
+        } else {
+            let body = response.text().await.unwrap_or_default();
+            (Some(format!("HTTP {}: {}", status.as_u16(), body)), None)
+        };
+
+        Ok(AiKeyValidationResult {
+            provider: AiProvider::OpenRouter,
+            key_preview: Self::mask_key(api_key),
+            is_valid,
+            last_validated: Utc::now(),
+            error_message,
+            rate_limit_remaining: None,
+            credits_remaining,
+        })
+    }
+
+    /// Mask API key for safe logging (show only first 8 and last 4 chars)
+    fn mask_key(key: &str) -> String {
+        if key.len() <= 16 {
+            return "***".to_string();
+        }
+        format!("{}...{}", &key[..8], &key[key.len()-4..])
+    }
+
+    /// Check if all keys are valid and return summary
+    pub fn check_all_keys_valid(results: &[AiKeyValidationResult]) -> (bool, Vec<String>) {
+        let all_valid = results.iter().all(|r| r.is_valid);
+        let issues: Vec<String> = results
+            .iter()
+            .filter(|r| !r.is_valid)
+            .map(|r| format!("{} ({}): {}", 
+                r.provider, 
+                r.key_preview,
+                r.error_message.as_deref().unwrap_or("Unknown error")
+            ))
+            .collect();
+        (all_valid, issues)
+    }
+
+    /// Log validation results
+    pub fn log_validation_results(results: &[AiKeyValidationResult]) {
+        info!("🤖 AI Provider API Key Validation Results:");
+        
+        for result in results {
+            let status = if result.is_valid { "✅ VALID" } else { "❌ INVALID" };
+            info!("   [{}] {} Key: {}", status, result.provider, result.key_preview);
+            
+            if let Some(ref error) = result.error_message {
+                error!("      Error: {}", error);
+            }
+            
+            if let Some(credits) = result.credits_remaining {
+                info!("      Credits: ${:.2}", credits);
+            }
+            
+            if let Some(rate_limit) = result.rate_limit_remaining {
+                info!("      Rate Limit Remaining: {}", rate_limit);
+            }
+        }
+
+        let (all_valid, issues) = Self::check_all_keys_valid(results);
+        
+        if all_valid {
+            info!("🎉 All AI provider API keys are valid and operational!");
+        } else {
+            warn!("⚠️  Some AI provider API keys have issues:");
+            for issue in &issues {
+                warn!("   - {}", issue);
+            }
+        }
+    }
+}
+
+/// Convenience function to validate all AI keys at startup
+pub async fn validate_ai_keys_on_startup() -> Vec<AiKeyValidationResult> {
+    let validator = AiKeyValidator::new();
+    let results = validator.validate_all_env_keys().await;
+    AiKeyValidator::log_validation_results(&results);
+    results
+}
+
+/// Check if AI keys are configured and valid (blocking version for initialization)
+pub fn check_ai_keys_blocking() -> (bool, Vec<AiKeyValidationResult>) {
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let results = rt.block_on(validate_ai_keys_on_startup());
+    let (all_valid, _) = AiKeyValidator::check_all_keys_valid(&results);
+    (all_valid, results)
 }
 
 #[cfg(test)]

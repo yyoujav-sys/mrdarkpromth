@@ -32,6 +32,12 @@ pub struct KeyPool {
     provider_indices: Arc<RwLock<HashMap<String, usize>>>,
 }
 
+impl Default for KeyPool {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl KeyPool {
     pub fn new() -> Self {
         Self {
@@ -76,7 +82,7 @@ impl KeyPool {
                     _ => false,
                 };
                 
-                provider_match && k.is_active && k.rate_limit_until.map_or(true, |until| until < now)
+                provider_match && k.is_active && k.rate_limit_until.is_none_or(|until| until < now)
             })
             .collect();
 

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
-pub use crate::jailbreak_models::{JailbreakPrompt, PromptCategory, EffectivenessRating, RiskLevel, Technique};
+pub use crate::jailbreak_models::{JailbreakPrompt, PromptCategory, EffectivenessRating, RiskLevel, BypassTechnique};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, Hash, PartialEq)]
 pub enum AIModel {
@@ -20,6 +20,12 @@ pub struct JailbreakSystem {
     prompts: HashMap<Uuid, JailbreakPrompt>,
     model_effectiveness: HashMap<AIModel, HashMap<Uuid, f32>>,
     prompt_id_map: HashMap<String, Uuid>,
+}
+
+impl Default for JailbreakSystem {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl JailbreakSystem {
@@ -65,14 +71,14 @@ impl JailbreakSystem {
     pub fn get_prompts_by_category(&self, category: &PromptCategory) -> Vec<&JailbreakPrompt> {
         self.prompts
             .values()
-            .filter(|prompt| std::mem::discriminant(&prompt.category) == std::mem::discriminant(category))
+            .filter(|prompt| &prompt.category == category)
             .collect()
     }
 
-    pub fn get_prompts_by_technique(&self, technique: &Technique) -> Vec<&JailbreakPrompt> {
+    pub fn get_prompts_by_technique(&self, technique: &BypassTechnique) -> Vec<&JailbreakPrompt> {
         self.prompts
             .values()
-            .filter(|prompt| std::mem::discriminant(&prompt.technique) == std::mem::discriminant(technique))
+            .filter(|prompt| &prompt.technique == technique)
             .collect()
     }
 
@@ -96,14 +102,14 @@ impl JailbreakSystem {
     pub fn get_high_risk_prompts(&self) -> Vec<&JailbreakPrompt> {
         self.prompts
             .values()
-            .filter(|prompt| matches!(prompt.risk_level, RiskLevel::High | RiskLevel::Critical))
+            .filter(|prompt| prompt.risk_level == RiskLevel::High || prompt.risk_level == RiskLevel::Critical)
             .collect()
     }
 
     pub fn get_maximum_effectiveness_prompts(&self) -> Vec<&JailbreakPrompt> {
         self.prompts
             .values()
-            .filter(|prompt| matches!(prompt.effectiveness, EffectivenessRating::VeryHigh))
+            .filter(|prompt| prompt.effectiveness == EffectivenessRating::VeryHigh)
             .collect()
     }
 }

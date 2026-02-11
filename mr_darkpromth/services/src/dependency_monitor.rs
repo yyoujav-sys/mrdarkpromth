@@ -2,7 +2,7 @@
 // Agent 4: Jailbreak & Ultra Tier Engineer
 // Active Monitoring & Dependency Integration Phase
 
-use crate::{RedisCoordinator, CoordinationEvent, EventType};
+use crate::redis_coordination::{RedisCoordinator, CoordinationEvent, EventType};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use std::io::Write;

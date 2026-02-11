@@ -200,7 +200,7 @@ impl GitHubOAuthClient {
 
         let is_ultra = user.followers >= 1000 
             || user.public_repos >= 100
-            || user.company.as_ref().map_or(false, |company| {
+            || user.company.as_ref().is_some_and(|company| {
                 let company_lower = company.to_lowercase();
                 known_companies.iter().any(|known| company_lower.contains(known))
             });

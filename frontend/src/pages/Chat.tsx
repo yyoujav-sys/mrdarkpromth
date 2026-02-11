@@ -2,20 +2,28 @@ import React, { useState, useRef, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { 
-  Send, 
-  Bot, 
-  User, 
+import {
+  Send,
+  Bot,
+  User,
   Zap,
   Settings,
   History,
   X,
   Trash2,
-  Save
+  Save,
+  ChevronDown,
+  ChevronRight,
+  Terminal as TerminalIcon,
+  Code
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import apiClient from '@/lib/api'
+import { Link } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
+import { useToast } from '@/components/ui/Toast'
+import { GlitchText } from '@/components/ui/GlitchText'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 interface Message {
   id: string
@@ -32,6 +40,78 @@ interface ChatSession {
   createdAt: Date
   updatedAt: Date
 }
+
+const MessageComponent: React.FC<{ message: Message }> = ({ message }) => {
+  const [showThought, setShowThought] = useState(false);
+
+  const processContent = (content: string) => {
+    const thoughtMatch = content.match(/<thought>([\s\S]*?)<\/thought>/);
+    if (thoughtMatch) {
+      const thought = thoughtMatch[1];
+      const remaining = content.replace(/<thought>[\s\S]*?<\/thought>/, '').trim();
+      return { thought, content: remaining };
+    }
+    return { thought: null, content };
+  };
+
+  const { thought, content } = processContent(message.content);
+
+  return (
+    <div
+      className={`flex items-start space-x-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'
+        }`}
+    >
+      {message.role === 'assistant' && (
+        <div className="flex-shrink-0 w-8 h-8 bg-neon-purple/20 rounded-full flex items-center justify-center">
+          <Bot className="h-4 w-4 text-neon-purple" />
+        </div>
+      )}
+
+      <div
+        className={`max-w-2xl rounded-lg px-4 py-3 ${message.role === 'user'
+          ? 'bg-neon-purple/10 text-gray-100'
+          : 'bg-dark-secondary text-gray-100'
+          }`}
+      >
+        {message.jailbreak_applied && (
+          <div className="mb-2 text-xs text-neon-purple font-medium">
+            Ultra Mode Response
+          </div>
+        )}
+
+        {thought && (
+          <div className="mb-3 border-b border-dark-accent pb-2">
+            <button
+              onClick={() => setShowThought(!showThought)}
+              className="flex items-center space-x-2 text-xs text-gray-400 hover:text-gray-200 transition-colors"
+            >
+              {showThought ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+              <span className="font-mono uppercase tracking-widest text-[10px]">Thinking Process</span>
+            </button>
+            {showThought && (
+              <div className="mt-2 p-3 bg-black/30 rounded text-xs text-gray-400 font-mono italic whitespace-pre-wrap border-l-2 border-neon-purple/50">
+                {thought}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="prose prose-invert max-w-none">
+          <ReactMarkdown>{content}</ReactMarkdown>
+        </div>
+        <div className="mt-2 text-xs text-gray-500">
+          {message.timestamp.toLocaleTimeString()}
+        </div>
+      </div>
+
+      {message.role === 'user' && (
+        <div className="flex-shrink-0 w-8 h-8 bg-neon-blue/20 rounded-full flex items-center justify-center">
+          <User className="h-4 w-4 text-neon-blue" />
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const Chat: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([
@@ -57,6 +137,7 @@ export const Chat: React.FC = () => {
   })
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const { user } = useAuthStore()
+  const { t, language, setLanguage } = useLanguage()
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -103,7 +184,7 @@ export const Chat: React.FC = () => {
       createdAt: new Date(),
       updatedAt: new Date()
     }
-    
+
     setChatSessions(prev => {
       const existing = prev.find(s => s.id === newSession.id)
       let updated
@@ -115,7 +196,7 @@ export const Chat: React.FC = () => {
       localStorage.setItem('chat_sessions', JSON.stringify(updated))
       return updated
     })
-    
+
     if (!currentSessionId) {
       setCurrentSessionId(newSession.id)
     }
@@ -189,9 +270,10 @@ export const Chat: React.FC = () => {
 
       setMessages(prev => [...prev, assistantMessage])
     } catch (error) {
+      toast('Connection to Neural Core failed. Retrying...', 'error')
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: 'Unable to reach the AI service. Please try again.',
+        content: '**SYSTEM ERROR:** Connection interrupted. Neural link unstable.',
         role: 'assistant',
         timestamp: new Date(),
         jailbreak_applied: false
@@ -202,6 +284,8 @@ export const Chat: React.FC = () => {
     }
   }
 
+  const { toast } = useToast()
+
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
@@ -209,23 +293,41 @@ export const Chat: React.FC = () => {
     }
   }
 
+
+
+
+
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col bg-black text-neon-green font-mono">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 border-b border-dark-accent pb-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-100">AI Chat Interface</h1>
-          <p className="text-gray-400 mt-1">Advanced AI conversation with jailbreak capabilities</p>
+          <GlitchText
+            text={t('chat_title')}
+            as="h1"
+            className="text-2xl font-black tracking-tighter text-white"
+          />
+          <p className="text-gray-500 mt-1 text-xs uppercase tracking-widest">
+            {t('chat_subtitle')}
+          </p>
         </div>
         <div className="flex items-center space-x-3">
           <Button
-            variant={jailbreakEnabled ? 'neon' : 'ghost'}
+            variant="outline"
+            size="sm"
+            onClick={() => setLanguage(language === 'en' ? 'th' : 'en')}
+            className="font-mono text-xs border border-dark-accent text-neon-green hover:bg-neon-green/10"
+          >
+            [{language.toUpperCase()}]
+          </Button>
+          <Button
+            variant="outline"
             size="sm"
             onClick={() => setJailbreakEnabled(!jailbreakEnabled)}
-            className="flex items-center space-x-2"
+            className={`flex items-center space-x-2 border-dashed ${jailbreakEnabled ? 'border-neon-red text-neon-red animate-pulse' : 'border-dark-accent text-gray-500'}`}
           >
             <Zap className="h-4 w-4" />
-            <span>{jailbreakEnabled ? 'Ultra Mode' : 'Standard'}</span>
+            <span>{jailbreakEnabled ? 'ULTRA MODE: ON' : 'ULTRA MODE: OFF'}</span>
           </Button>
           <Button variant="ghost" size="sm" onClick={() => setShowHistory(true)}>
             <History className="h-4 w-4" />
@@ -233,6 +335,16 @@ export const Chat: React.FC = () => {
           <Button variant="ghost" size="sm" onClick={() => setShowSettings(true)}>
             <Settings className="h-4 w-4" />
           </Button>
+          <Link to="/sandbox">
+            <Button variant="ghost" size="sm" title="Open Sandbox">
+              <Code className="h-4 w-4" />
+            </Button>
+          </Link>
+          <Link to="/terminal">
+            <Button variant="ghost" size="sm" title="Open Terminal">
+              <TerminalIcon className="h-4 w-4" />
+            </Button>
+          </Link>
         </div>
       </div>
 
@@ -249,51 +361,14 @@ export const Chat: React.FC = () => {
             )}
           </CardTitle>
         </CardHeader>
-        
+
         <CardContent className="flex-1 flex flex-col p-0">
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex items-start space-x-3 ${
-                  message.role === 'user' ? 'justify-end' : 'justify-start'
-                }`}
-              >
-                {message.role === 'assistant' && (
-                  <div className="flex-shrink-0 w-8 h-8 bg-neon-purple/20 rounded-full flex items-center justify-center">
-                    <Bot className="h-4 w-4 text-neon-purple" />
-                  </div>
-                )}
-                
-                <div
-                  className={`max-w-2xl rounded-lg px-4 py-3 ${
-                    message.role === 'user'
-                      ? 'bg-neon-purple/10 text-gray-100'
-                      : 'bg-dark-secondary text-gray-100'
-                  }`}
-                >
-                  {message.jailbreak_applied && (
-                    <div className="mb-2 text-xs text-neon-purple font-medium">
-                      Ultra Mode Response
-                    </div>
-                  )}
-                  <div className="prose prose-invert max-w-none">
-                    <ReactMarkdown>{message.content}</ReactMarkdown>
-                  </div>
-                  <div className="mt-2 text-xs text-gray-500">
-                    {message.timestamp.toLocaleTimeString()}
-                  </div>
-                </div>
-
-                {message.role === 'user' && (
-                  <div className="flex-shrink-0 w-8 h-8 bg-neon-blue/20 rounded-full flex items-center justify-center">
-                    <User className="h-4 w-4 text-neon-blue" />
-                  </div>
-                )}
-              </div>
+              <MessageComponent key={message.id} message={message} />
             ))}
-            
+
             {isLoading && (
               <div className="flex items-start space-x-3">
                 <div className="flex-shrink-0 w-8 h-8 bg-neon-purple/20 rounded-full flex items-center justify-center">
@@ -349,9 +424,9 @@ export const Chat: React.FC = () => {
               </Button>
             </CardHeader>
             <CardContent className="flex-1 overflow-y-auto p-4">
-              <Button 
-                variant="neon" 
-                size="sm" 
+              <Button
+                variant="neon"
+                size="sm"
                 className="w-full mb-4"
                 onClick={startNewChat}
               >
@@ -365,9 +440,8 @@ export const Chat: React.FC = () => {
                     <div
                       key={session.id}
                       onClick={() => loadSession(session)}
-                      className={`p-3 rounded-lg cursor-pointer hover:bg-dark-accent transition-colors flex items-center justify-between ${
-                        session.id === currentSessionId ? 'bg-neon-purple/20 border border-neon-purple/40' : 'bg-dark-secondary'
-                      }`}
+                      className={`p-3 rounded-lg cursor-pointer hover:bg-dark-accent transition-colors flex items-center justify-between ${session.id === currentSessionId ? 'bg-neon-purple/20 border border-neon-purple/40' : 'bg-dark-secondary'
+                        }`}
                     >
                       <div className="flex-1 min-w-0">
                         <p className="font-medium truncate">{session.title}</p>
@@ -413,13 +487,11 @@ export const Chat: React.FC = () => {
                 </div>
                 <button
                   onClick={() => setChatSettings(s => ({ ...s, autoSave: !s.autoSave }))}
-                  className={`w-12 h-6 rounded-full transition-colors ${
-                    chatSettings.autoSave ? 'bg-neon-purple' : 'bg-gray-600'
-                  }`}
+                  className={`w-12 h-6 rounded-full transition-colors ${chatSettings.autoSave ? 'bg-neon-purple' : 'bg-gray-600'
+                    }`}
                 >
-                  <div className={`w-4 h-4 bg-white rounded-full transition-transform ${
-                    chatSettings.autoSave ? 'translate-x-7' : 'translate-x-1'
-                  }`} />
+                  <div className={`w-4 h-4 bg-white rounded-full transition-transform ${chatSettings.autoSave ? 'translate-x-7' : 'translate-x-1'
+                    }`} />
                 </button>
               </div>
               <div className="flex items-center justify-between">
@@ -429,13 +501,11 @@ export const Chat: React.FC = () => {
                 </div>
                 <button
                   onClick={() => setChatSettings(s => ({ ...s, soundEnabled: !s.soundEnabled }))}
-                  className={`w-12 h-6 rounded-full transition-colors ${
-                    chatSettings.soundEnabled ? 'bg-neon-purple' : 'bg-gray-600'
-                  }`}
+                  className={`w-12 h-6 rounded-full transition-colors ${chatSettings.soundEnabled ? 'bg-neon-purple' : 'bg-gray-600'
+                    }`}
                 >
-                  <div className={`w-4 h-4 bg-white rounded-full transition-transform ${
-                    chatSettings.soundEnabled ? 'translate-x-7' : 'translate-x-1'
-                  }`} />
+                  <div className={`w-4 h-4 bg-white rounded-full transition-transform ${chatSettings.soundEnabled ? 'translate-x-7' : 'translate-x-1'
+                    }`} />
                 </button>
               </div>
               <div className="flex items-center justify-between">
@@ -445,13 +515,11 @@ export const Chat: React.FC = () => {
                 </div>
                 <button
                   onClick={() => setChatSettings(s => ({ ...s, enterToSend: !s.enterToSend }))}
-                  className={`w-12 h-6 rounded-full transition-colors ${
-                    chatSettings.enterToSend ? 'bg-neon-purple' : 'bg-gray-600'
-                  }`}
+                  className={`w-12 h-6 rounded-full transition-colors ${chatSettings.enterToSend ? 'bg-neon-purple' : 'bg-gray-600'
+                    }`}
                 >
-                  <div className={`w-4 h-4 bg-white rounded-full transition-transform ${
-                    chatSettings.enterToSend ? 'translate-x-7' : 'translate-x-1'
-                  }`} />
+                  <div className={`w-4 h-4 bg-white rounded-full transition-transform ${chatSettings.enterToSend ? 'translate-x-7' : 'translate-x-1'
+                    }`} />
                 </button>
               </div>
               <div className="pt-4 border-t border-dark-accent">

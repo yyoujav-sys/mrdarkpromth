@@ -25,6 +25,22 @@ pub struct SandboxConfig {
     pub allowed_hosts: Vec<String>,
 }
 
+impl Default for SandboxConfig {
+    fn default() -> Self {
+        Self {
+            max_execution_time: Duration::from_secs(30),
+            max_memory_mb: 512,
+            max_cpu_percent: 50.0,
+            allow_network: false,
+            allow_file_access: false,
+            allowed_directories: Vec::new(),
+            environment_variables: HashMap::new(),
+            blocked_hosts: Vec::new(),
+            allowed_hosts: Vec::new(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutionResult {
     pub success: bool,
@@ -67,7 +83,7 @@ impl Sandbox {
         }
     }
 
-    pub fn default() -> Self {
+    pub fn with_defaults() -> Self {
         let config = SandboxConfig {
             max_execution_time: Duration::from_secs(30),
             max_memory_mb: 512,
@@ -379,11 +395,10 @@ impl Sandbox {
         }
 
         // Check for network connections if not allowed
-        if !self.config.allow_network {
-            if result.stderr.contains("network") || result.stderr.contains("socket") {
+        if !self.config.allow_network
+            && (result.stderr.contains("network") || result.stderr.contains("socket")) {
                 violations.push("Network access attempt detected in restricted environment".to_string());
             }
-        }
 
         // Check execution time
         if result.execution_time > self.config.max_execution_time {
@@ -471,7 +486,7 @@ mod tests {
 
     #[test]
     fn test_sandbox_initialization() {
-        let sandbox = Sandbox::default();
+        let sandbox = Sandbox::with_defaults();
         assert_eq!(sandbox.execution_count, 0);
     }
 
@@ -484,14 +499,14 @@ mod tests {
 
     #[test]
     fn test_execution_stats() {
-        let sandbox = Sandbox::default();
+        let sandbox = Sandbox::with_defaults();
         let stats = sandbox.get_execution_stats();
         assert!(stats.contains_key("total_executions"));
     }
 
     #[test]
     fn test_safe_code_execution() {
-        let mut sandbox = Sandbox::default();
+        let mut sandbox = Sandbox::with_defaults();
         let result = sandbox.execute_code("print('Hello, World!')", Language::Python);
         
         // This test would fail without Python installed, but shows the interface

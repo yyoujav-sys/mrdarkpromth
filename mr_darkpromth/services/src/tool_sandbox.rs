@@ -236,7 +236,7 @@ impl ToolSandbox {
         cmd.arg("alpine:latest");
         cmd.arg("sh");
         cmd.arg("-c");
-        cmd.arg(&format!("echo 'Executing tool {}'", tool.name()));
+        cmd.arg(format!("echo 'Executing tool {}'", tool.name()));
 
         Ok(cmd)
     }
@@ -382,12 +382,34 @@ impl ToolSandbox {
         }
     }
 
-    fn monitor_resource_usage(&self, _result: &ExecutionResult) -> Result<ResourceUsage, ToolError> {
-        // In a real implementation, this would use system calls or external monitoring
-        // For now, return placeholder values
+    fn monitor_resource_usage(&self, result: &ExecutionResult) -> Result<ResourceUsage, ToolError> {
+        // Read memory from /proc/self/status (VmRSS = resident set size)
+        let memory_mb = std::fs::read_to_string("/proc/self/status")
+            .ok()
+            .and_then(|status| {
+                status.lines()
+                    .find(|line| line.starts_with("VmRSS:"))
+                    .and_then(|line| {
+                        line.split_whitespace().nth(1)
+                            .and_then(|kb| kb.parse::<u64>().ok())
+                            .map(|kb| kb / 1024) // Convert KB to MB
+                    })
+            })
+            .unwrap_or(result.memory_used_mb);
+
+        // Estimate CPU percent from execution time vs wall time
+        let cpu_percent = if result.execution_time.as_millis() > 0 {
+            // Simple heuristic: ratio of CPU time to wall time
+            (result.cpu_percent as f32).max(
+                (result.execution_time.as_millis() as f32 / self.config.max_execution_time_ms as f32) * 100.0
+            ).min(100.0)
+        } else {
+            0.0
+        };
+
         Ok(ResourceUsage {
-            memory_mb: 64, // Placeholder
-            cpu_percent: 15.0, // Placeholder
+            memory_mb,
+            cpu_percent,
         })
     }
 

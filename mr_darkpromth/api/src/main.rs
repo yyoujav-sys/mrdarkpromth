@@ -1,24 +1,43 @@
-use dotenvy::dotenv;
+use dotenv::dotenv;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::io::Write;
 use tokio::net::TcpListener;
 
 use mr_darkpromth_api::axum_router::create_router;
-use mr_darkpromth_api::AppState;
+use mr_darkpromth_api::{AppState, DatabaseConfig};
 
 #[tokio::main]
 async fn main() {
     dotenv().ok();
-    env_logger::init();
+
+    // Structured logging: JSON format when LOG_FORMAT=json
+    let log_format = std::env::var("LOG_FORMAT").unwrap_or_default();
+    if log_format == "json" {
+        env_logger::Builder::from_default_env()
+            .format(|buf, record| {
+                writeln!(
+                    buf,
+                    "{{\"timestamp\":\"{}\",\"level\":\"{}\",\"target\":\"{}\",\"message\":\"{}\"}}",
+                    chrono::Utc::now().to_rfc3339(),
+                    record.level(),
+                    record.target(),
+                    record.args().to_string().replace('\"', "\\\"")
+                )
+            })
+            .init();
+    } else {
+        env_logger::init();
+    }
+
     log::info!("🚀 Starting MR.DarkPromth Axum API Gateway");
 
-    let db_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5432/mr_darkpromth".to_string());
-    
-    let pool = sqlx::postgres::PgPoolOptions::new()
-        .max_connections(50)
-        .acquire_timeout(std::time::Duration::from_secs(30))
-        .connect(&db_url).await.expect("DB connect failed");
+    // Use database configuration from environment or defaults
+    let db_config = DatabaseConfig::from_env();
+    let pool = db_config
+        .create_pool()
+        .await
+        .expect("Failed to create database pool");
 
     log::info!("✅ Database connection established");
 

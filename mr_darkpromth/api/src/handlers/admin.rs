@@ -6,6 +6,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
+use bigdecimal::BigDecimal;
 use mr_darkpromth_services::LearningSystem;
 use tokio::sync::MutexGuard;
 
@@ -208,12 +209,28 @@ pub async fn admin_metrics_handler(
     let total_users = state.user_service.count_users().await.unwrap_or(0);
     let active_users = state.user_service.count_active_users().await.unwrap_or(0);
     
+    // Calculate additional metrics
+    let premium_users: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users WHERE tier IN ('premium', 'ultra')")
+        .fetch_one(&state.pool)
+        .await
+        .unwrap_or(0);
+    
+    let total_conversations: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM chat_sessions")
+        .fetch_one(&state.pool)
+        .await
+        .unwrap_or(0);
+        
+    let revenue: BigDecimal = sqlx::query_scalar("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status = 'verified' AND verified_at >= date_trunc('month', now())")
+        .fetch_one(&state.pool)
+        .await
+        .unwrap_or(BigDecimal::from(0));
+    
     ApiSuccess::new(serde_json::json!({
         "total_users": total_users,
         "active_users": active_users,
-        "premium_users": 0,
-        "total_conversations": 0,
-        "revenue_this_month": 0.0,
+        "premium_users": premium_users,
+        "total_conversations": total_conversations,
+        "revenue_this_month": revenue,
     })).into_response()
 }
 

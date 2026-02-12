@@ -130,6 +130,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         // Public routes
         .route("/", get(handlers::root_handler))
         .route("/health", get(handlers::health_handler))
+        .route("/api/health", get(handlers::health_handler))
         // GitHub OAuth public routes
         .route("/api/auth/github/url", get(handlers::github_auth_url_handler))
         .route("/api/auth/github/callback", post(handlers::github_auth_callback_handler))

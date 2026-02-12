@@ -202,6 +202,26 @@ pub async fn chat_handler(
         }
     }
 
+    // 5. Fetch Chat History for Context
+    let history_msgs: Vec<(String, String)> = sqlx::query_as::<_, (String, String)>(
+        "SELECT role, content FROM chat_messages WHERE session_id = $1 ORDER BY created_at ASC LIMIT 10"
+    )
+    .bind(conversation_uuid)
+    .fetch_all(&state.pool)
+    .await
+    .unwrap_or_default();
+
+    let mut context_history = String::new();
+    for (role, content) in history_msgs {
+        context_history.push_str(&format!("{}: {}\n", role, content));
+    }
+
+    let final_message = if !context_history.is_empty() {
+        format!("Conversation History:\n{}\n\nUser: {}", context_history, req.message)
+    } else {
+        req.message.clone()
+    };
+
     // For Ultra Tier users, use the dedicated UltraTierLogic
     if matches!(claims.tier.as_str(), "ultra" | "admin") {
         let ultra_request = UltraTierRequest {
@@ -211,7 +231,7 @@ pub async fn chat_handler(
                 "admin" => UserTier::Admin,
                 _ => UserTier::Ultra,
             },
-            original_prompt: req.message.clone(),
+            original_prompt: final_message.clone(),
             selected_jailbreak_prompt: None,
             ai_model: "llama-3.3-70b".to_string(), // Default provider for now
             timestamp: Utc::now(),
@@ -276,7 +296,7 @@ pub async fn chat_handler(
     // 1. Try Cerebras First
     if let Some(api_key) = state.key_pool.get_best_key(mr_darkpromth_services::key_pool::Provider::Cerebras).await {
          let client = mr_darkpromth_services::CerebrasClient::with_api_key(api_key.key);
-         match client.chat_completion_with_system(system_prompt, &req.message).await {
+         match client.chat_completion_with_system(system_prompt, &final_message).await {
              Ok(resp) => {
                  response_text = resp;
                  success = true;
@@ -293,7 +313,7 @@ pub async fn chat_handler(
         if let Some(api_key) = state.key_pool.get_best_key(mr_darkpromth_services::key_pool::Provider::OpenRouter).await {
              let client = mr_darkpromth_services::OpenRouterClient::new(api_key.key);
              // Use a cheap/fast model for standard tier failover
-             match client.chat_completion(&req.message, Some("openai/gpt-4o-mini")).await {
+             match client.chat_completion(&final_message, Some("openai/gpt-4o-mini")).await {
                  Ok(resp) => {
                      response_text = resp;
                      success = true;
@@ -457,8 +477,19 @@ pub async fn verify_slip_handler(
     };
 
     // 2. Validate reference format and extract payment_id
+    log::info!("Verifying slip for reference: {}", req.reference);
     if !req.reference.starts_with("PAY-") {
+        log::warn!("Invalid payment reference format: {}", req.reference);
         return ApiError::new("INVALID_INPUT", "Invalid payment reference format").into_response();
+    }
+
+    // 3. Validate slip image type (must be image/jpeg, image/png, or application/pdf)
+    if !req.slip_image.starts_with("data:image/jpeg;base64,") && 
+       !req.slip_image.starts_with("data:image/jpg;base64,") && 
+       !req.slip_image.starts_with("data:image/png;base64,") &&
+       !req.slip_image.starts_with("data:application/pdf;base64,") {
+        log::warn!("Invalid slip image type attempt for user {}: content starts with {}", user_id, &req.slip_image[..std::cmp::min(30, req.slip_image.len())]);
+        return ApiError::new("INVALID_FILE_TYPE", "Only JPEG, PNG, and PDF files are allowed").into_response();
     }
 
     // 3. Get pending payment by reference
@@ -469,26 +500,30 @@ pub async fn verify_slip_handler(
                 return ApiError::new("PERMISSION_DENIED", "This payment does not belong to you").into_response();
             }
 
-            // 4. Verify the payment slip
-            match state.billing_service.verify_user_payment_slip(
-                &payment.id.to_string(),
-                payment.amount,
-                &req.reference,
+            // 4. Submit the payment slip for manual verification
+            match state.billing_service.submit_slip_for_verification(
+                payment.id,
+                user_id,
+                &req.slip_image,
             ).await {
-                Ok(result) => {
+                Ok(verification) => {
+                    log::info!("Slip submitted successfully for payment {}. Verification ID: {}", payment.id, verification.id);
                     let response = serde_json::json!({
-                        "verified": result.verified,
-                        "payment_id": result.payment_id.to_string(),
-                        "amount": result.amount,
-                        "reference": result.reference,
-                        "message": if result.verified { "Payment verified successfully! Your tier has been upgraded." } else { "Verification failed" }
+                        "id": verification.id.to_string(),
+                        "payment_id": verification.payment_id.to_string(),
+                        "status": verification.status,
+                        "reference": req.reference,
+                        "message": "Payment slip submitted successfully! An admin will verify it shortly."
                     });
                     ApiSuccess::new(response).into_response()
                 }
-                Err(e) => ApiError::new(
-                    "VERIFICATION_ERROR",
-                    format!("Verification failed: {}", e),
-                ).into_response(),
+                Err(e) => {
+                    log::error!("Failed to submit slip for payment {}: {}", payment.id, e);
+                    ApiError::new(
+                        "SUBMISSION_ERROR",
+                        format!("Failed to submit slip: {}", e),
+                    ).into_response()
+                }
             }
         }
         Ok(None) => ApiError::new("NOT_FOUND", "No payment found with this reference").into_response(),

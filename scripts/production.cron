@@ -2,8 +2,8 @@
 # Run health checks every 5 minutes
 */5 * * * * /opt/mrdarkpromth/scripts/production_monitor.sh >> /var/log/mrdarkpromth/cron.log 2>&1
 
-# Run backup daily at 2 AM
-0 2 * * * /opt/mrdarkpromth/scripts/enhanced_backup.sh >> /var/log/mrdarkpromth/backup.log 2>&1
+# Run database backup every 6 hours
+0 */6 * * * /opt/mrdarkpromth/scripts/backup_db.sh >> /var/log/mrdarkpromth/backup_db.log 2>&1
 
 # Docker log rotation daily at 3 AM
 0 3 * * * /opt/mrdarkpromth/scripts/docker-logrotate.sh >> /var/log/mrdarkpromth/logrotate.log 2>&1

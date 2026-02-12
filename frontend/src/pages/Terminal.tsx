@@ -80,11 +80,11 @@ export const TerminalPage: React.FC = () => {
         prev.map(cmd =>
           cmd.id === commandId
             ? {
-                ...cmd,
-                output: response.data.output || 'Command executed successfully (no output)',
-                status: response.data.status || 'success',
-                executionTime: Math.round(executionTime)
-              }
+              ...cmd,
+              output: response.data.output || 'Command executed successfully (no output)',
+              status: response.data.status || 'success',
+              executionTime: Math.round(executionTime)
+            }
             : cmd
         )
       )
@@ -104,11 +104,11 @@ export const TerminalPage: React.FC = () => {
         prev.map(cmd =>
           cmd.id === commandId
             ? {
-                ...cmd,
-                output: `Error: ${errorMessage}`,
-                status: 'error',
-                executionTime: Math.round(executionTime)
-              }
+              ...cmd,
+              output: `Error: ${errorMessage}`,
+              status: 'error',
+              executionTime: Math.round(executionTime)
+            }
             : cmd
         )
       )
@@ -239,7 +239,7 @@ export const TerminalPage: React.FC = () => {
           {/* Terminal Output */}
           <div
             ref={terminalRef}
-            className="flex-1 overflow-y-auto p-4 font-mono text-sm bg-dark-primary"
+            className="flex-1 overflow-y-auto p-4 font-mono text-sm bg-black"
           >
             {/* Welcome Message */}
             {commands.length === 0 && (
@@ -261,13 +261,12 @@ export const TerminalPage: React.FC = () => {
 
                 {/* Output */}
                 <div
-                  className={`mt-2 pl-4 border-l-2 ${
-                    cmd.status === 'error'
+                  className={`mt-2 pl-4 border-l-2 ${cmd.status === 'error'
                       ? 'border-red-500 text-red-400'
                       : cmd.status === 'running'
                         ? 'border-yellow-500 text-gray-400'
                         : 'border-gray-600 text-gray-300'
-                  }`}
+                    }`}
                 >
                   {cmd.status === 'running' ? (
                     <div className="flex items-center space-x-2">

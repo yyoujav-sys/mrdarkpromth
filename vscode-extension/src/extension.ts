@@ -18,11 +18,11 @@ export function activate(context: vscode.ExtensionContext) {
     console.log('MR.DarkPromth extension is now active!');
 
     const config = vscode.workspace.getConfiguration('mr-darkpromth');
-    const apiEndpoint = config.get<string>('apiEndpoint', 'https://mrdarkpromth.online');
+    const apiEndpoint = config.get<string>('apiEndpoint', 'https://mrdarkpromth.online/api');
 
     // Initialize event bus coordinator for agent coordination
     eventBusCoordinator = new EventBusCoordinator();
-    
+
     apiClient = new ApiClient(apiEndpoint);
     authManager = new AuthManager(context, apiClient);
     statusBarManager = new StatusBarManager(authManager);
@@ -156,7 +156,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 export function deactivate() {
     console.log('MR.DarkPromth extension is now deactivated');
-    
+
     if (eventBusCoordinator) {
         eventBusCoordinator.disconnect().catch(error => {
             console.error('Error disconnecting event bus:', error);

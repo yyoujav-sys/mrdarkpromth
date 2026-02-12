@@ -444,18 +444,28 @@ impl ServerProtectionMonitor {
                     return Err(ServerProtectionError::NetworkIsolationBreach(
                         format!("Suspicious network activity '{}' blocked", pattern)
                     ));
+                } else {
+                    // For Ultra tier, still log but allow if not targeting internal assets
+                    if full_cmd.contains("127.0.0.1") || full_cmd.contains("localhost") || full_cmd.contains("10.") || full_cmd.contains("172.16.") {
+                         return Err(ServerProtectionError::NetworkIsolationBreach(
+                            format!("Internal infrastructure reconnaissance blocked: {}", pattern)
+                        ));
+                    }
                 }
             }
         }
         
         // ULTRA DARK PIVOT: Passive Ghost Mode for Maximum Autonomy
         if matches!(tier, UserTier::Ultra | UserTier::Admin) {
-            // Strategic asset integrity - protect only host-critical assets
-            if full_cmd.contains("/boot") || full_cmd.contains("/etc/shadow") || full_cmd.contains("mrdarkpromth.online") {
-                warn!("[Strategic-Shield-Ultra] Strategic asset integrity protection triggered: {}", command);
-                return Err(ServerProtectionError::CriticalFileAccess(
-                    format!("Strategic asset conflict: {}", command)
-                ));
+            // Strategic asset integrity - protect host-critical assets
+            let ultra_restricted = ["/boot", "/etc/shadow", "/etc/passwd", ".env", "mrdarkpromth.online"];
+            for asset in &ultra_restricted {
+                if full_cmd.contains(asset) {
+                    warn!("[Strategic-Shield-Ultra] Strategic asset integrity protection triggered: {} for asset {}", command, asset);
+                    return Err(ServerProtectionError::CriticalFileAccess(
+                        format!("Strategic asset conflict: {}", asset)
+                    ));
+                }
             }
             return Ok(());
         }

@@ -653,14 +653,17 @@ impl SandboxedExecutor {
     }
 
     fn apply_ultra_restrictions(&self, cmd: &mut Command, _work_dir: &Path) -> Result<(), SandboxError> {
+        // ULTRA SECURITY PATCH: Clear host environment variables to prevent secret theft
+        cmd.env_clear();
+        
         // Ultra tier has lighter restrictions but still applies basic sandboxing
+        cmd.env("PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
         cmd.env("SANDBOXED", "1");
         cmd.env("ULTRA_MODE", "1");
         cmd.env("MAX_MEMORY", self.config.max_memory.to_string());
         cmd.env("MAX_PROCESSES", self.config.max_processes.to_string());
-
-        // Note: Full resource clamping (cgroups) would be applied at Docker/container level
-        // This is the "Root Sandbox" concept - user is root inside container, but container is restricted
+        cmd.env("HOME", "/tmp");
+        cmd.env("TMPDIR", "/tmp");
 
         Ok(())
     }

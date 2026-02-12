@@ -382,7 +382,7 @@ impl UserService {
 
     async fn generate_token(&self, user: &User) -> Result<String, AuthError> {
         let now = Utc::now();
-        let exp = now + Duration::hours(1); // 1 hour expiration for access token
+        let exp = now + Duration::hours(24); // 24 hours expiration for access token
         let jti = Uuid::new_v4().to_string();
 
         let claims = Claims {

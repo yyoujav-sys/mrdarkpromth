@@ -13,6 +13,7 @@ pub struct OpenRouterMessage {
 pub struct OpenRouterRequest {
     pub model: String,
     pub messages: Vec<OpenRouterMessage>,
+    pub max_tokens: Option<u32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -48,6 +49,7 @@ impl OpenRouterClient {
                 role: "user".to_string(),
                 content: prompt.to_string(),
             }],
+            max_tokens: Some(1000),
         };
 
         let response = self.client.post(url)

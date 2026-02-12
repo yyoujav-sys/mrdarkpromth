@@ -27,3 +27,4 @@ mr_darkpromth_core = { path = "../core" }
 mr_darkpromth_services = { path = "../services" }
 mr_darkpromth_db = { path = "../db" }
 urlencoding = "2.1"
+bigdecimal = "0.4"

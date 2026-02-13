@@ -53,7 +53,7 @@ impl ApiError {
         match self.error_code.as_str() {
             "AUTH_FAILED" | "INVALID_CREDENTIALS" | "INVALID_PASSWORD" => StatusCode::UNAUTHORIZED,
             "AUTH_REQUIRED" | "MISSING_TOKEN" | "INVALID_TOKEN" => StatusCode::UNAUTHORIZED,
-            "PERMISSION_DENIED" => StatusCode::FORBIDDEN,
+            "PERMISSION_DENIED" | "PREMIUM_REQUIRED" | "ULTRA_OR_ADMIN_REQUIRED" | "FORBIDDEN" => StatusCode::FORBIDDEN,
             "NOT_FOUND" | "USER_NOT_FOUND" => StatusCode::NOT_FOUND,
             "VALIDATION_ERROR" | "INVALID_INPUT" | "INVALID_UUID" => StatusCode::BAD_REQUEST,
             "REGISTRATION_FAILED" | "VERIFICATION_FAILED" | "WEAK_PASSWORD" => StatusCode::BAD_REQUEST,

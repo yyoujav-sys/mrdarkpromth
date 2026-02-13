@@ -9,6 +9,7 @@ pub mod auth_middleware;
 pub mod middleware;
 pub mod logging;
 pub mod error_handler;
+pub mod event_hub;
 pub mod structured_logging;
 pub mod auth_validators;
 pub mod database_config;

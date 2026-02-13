@@ -58,7 +58,7 @@ class ApiClient {
       email,
       password,
     })
-    return response.data.data
+    return response.data
   }
 
   async register(userData: {
@@ -67,7 +67,7 @@ class ApiClient {
     password: string
   }) {
     const response = await this.client.post('/api/auth/register', userData)
-    return response.data.data
+    return response.data
   }
 
   async logout() {

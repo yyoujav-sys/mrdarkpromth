@@ -7,6 +7,7 @@ pub mod ultra_terminal;
 pub mod ultra_terminal_ws;
 pub mod github;
 pub mod quota_handlers;
+pub mod ws_events;
 
 // Re-export all handler functions
 pub use auth::*;
@@ -18,4 +19,5 @@ pub use ultra_terminal::*;
 pub use ultra_terminal_ws::*;
 pub use github::*;
 pub use quota_handlers::*;
+pub use ws_events::*;
 

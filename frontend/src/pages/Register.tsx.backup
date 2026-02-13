@@ -37,8 +37,8 @@ export const Register: React.FC = () => {
       return
     }
 
-    if (password.length < 12) {
-      setErrorMessage('Password must be at least 12 characters long')
+    if (password.length < 8) {
+      setErrorMessage('Password must be at least 8 characters long')
       return
     }
 
@@ -151,7 +151,7 @@ export const Register: React.FC = () => {
                   </button>
                 </div>
                 <p className="text-xs text-gray-500 mt-1">
-                  Must be at least 12 characters long
+                  Must be at least 8 characters long
                 </p>
               </div>
 

@@ -147,7 +147,7 @@ export const HackerDashboard: React.FC = () => {
                         <div className="bg-gray-800 p-3 rounded-lg border border-gray-700 shadow-lg shadow-purple-600/5">
                             <div className="text-[10px] text-gray-500 uppercase tracking-widest">{t.status}</div>
                             <div className={`text-sm font-bold mt-1 ${systemHealth === 'NOMINAL' ? 'text-green-400' : 'text-pink-400'}`}>
-                                NOMINAL
+                                {systemHealth}
                             </div>
                         </div>
                         <div className="bg-gray-800 p-3 rounded-lg border border-gray-700 shadow-lg shadow-blue-600/5">

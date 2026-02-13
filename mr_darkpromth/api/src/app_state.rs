@@ -11,6 +11,7 @@ use mr_darkpromth_services::LearningSystem;
 use mr_darkpromth_services::AuditLogger;
 use mr_darkpromth_services::DatabaseAuditService;
 use mr_darkpromth_db::UserRepository;
+use crate::event_hub::EventHub;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -30,6 +31,7 @@ pub struct AppState {
     pub learning_system: Arc<Mutex<LearningSystem>>,
     pub metrics: Arc<Metrics>,
     pub key_pool: Arc<mr_darkpromth_services::KeyPool>,
+    pub event_hub: Arc<EventHub>,
     pub pool: sqlx::PgPool,
 }
 
@@ -218,6 +220,7 @@ impl AppState {
             learning_system,
             metrics,
             key_pool,
+            event_hub: Arc::new(EventHub::new()),
             pool,
         }
     }

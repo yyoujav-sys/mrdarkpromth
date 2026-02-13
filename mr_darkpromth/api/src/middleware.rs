@@ -18,24 +18,19 @@ pub struct AuthenticatedUser {
 }
 
 
+use crate::handlers::auth::extract_token;
+
 pub async fn auth_middleware(
     State(state): State<Arc<AppState>>,
     mut req: Request,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    let token = req
-        .headers()
-        .get(header::AUTHORIZATION)
-        .and_then(|header| header.to_str().ok())
-        .and_then(|header| header.strip_prefix("Bearer "));
-
-    let token = if let Some(token) = token {
-        token
-    } else {
-        return Err(StatusCode::UNAUTHORIZED);
+    let token = match extract_token(req.headers()) {
+        Some(token) => token,
+        None => return Err(StatusCode::UNAUTHORIZED),
     };
 
-    match state.user_service.validate_token(token).await {
+    match state.user_service.validate_token(&token).await {
         Ok(claims) => {
             if let Some(redis_coordinator) = &state.redis_coordinator {
                 let coordinator: MutexGuard<'_, RedisCoordinator> = redis_coordinator.lock().await;

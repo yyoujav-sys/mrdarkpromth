@@ -99,10 +99,41 @@ pub struct ChatResponse {
 // ==================== Helper Functions ====================
 
 pub fn extract_token(headers: &axum::http::HeaderMap) -> Option<String> {
-    headers.get("authorization")
+    // Check Authorization header first
+    if let Some(token) = headers.get("authorization")
         .and_then(|h| h.to_str().ok())
-        .and_then(|s| s.strip_prefix("Bearer "))
-        .map(|s| s.to_string())
+        .and_then(|s| s.strip_prefix("Bearer ")) {
+        return Some(token.to_string());
+    }
+
+    // Check Sec-WebSocket-Protocol header
+    // Client sends: new WebSocket(url, ["access_token", token])
+    // Header value: "access_token, <token>"
+    if let Some(proto) = headers.get("sec-websocket-protocol").and_then(|h| h.to_str().ok()) {
+        let parts: Vec<&str> = proto.split(',').map(|s| s.trim()).collect();
+        // Look for the token
+        for part in &parts {
+            if *part != "access_token" && part.len() > 20 {
+                return Some(part.to_string());
+            }
+        }
+        log::warn!("Sec-WebSocket-Protocol present but no valid token found in parts: {:?}", parts);
+    } else {
+        // Log missing header if this was a WS upgrade attempt (check connection/upgrade headers)
+        if let Some(upgrade) = headers.get("upgrade").and_then(|h| h.to_str().ok()) {
+            if upgrade.eq_ignore_ascii_case("websocket") {
+                log::warn!("WebSocket upgrade attempt without Sec-WebSocket-Protocol or Authorization header");
+                // Log all headers for debugging
+                for (name, value) in headers {
+                    if let Ok(v) = value.to_str() {
+                        log::debug!("Header: {}: {}", name, v);
+                    }
+                }
+            }
+        }
+    }
+
+    None
 }
 
 // ==================== Basic Handlers ====================
@@ -161,6 +192,7 @@ pub async fn register_handler(
 
 pub async fn login_handler(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     Json(req): Json<LoginRequest>,
 ) -> impl IntoResponse {
     log::info!("Login attempt received");
@@ -169,14 +201,42 @@ pub async fn login_handler(
         password: req.password,
     };
 
+    // Extract client type from header (default: website)
+    let client_type = headers.get("x-client-type")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("website")
+        .to_string();
+
     match state.user_service.login(login_req).await {
         Ok(auth_response) => {
+            let user_id = auth_response.user.id;
+            
+            // Create active session record
+            let repo = mr_darkpromth_db::UserRepository::new(state.pool.clone());
+            let _ = repo.upsert_active_session(
+                user_id,
+                &client_type,
+                None,
+                None,
+            ).await;
+            
+            // Update user online status
+            let _ = repo.update_user_online_status(user_id, true, Some(&client_type)).await;
+
+            // Emit real-time event to connected WS clients
+            state.event_hub.send_to_user(user_id, crate::event_hub::WsEvent::UserStatusChanged {
+                user_id: user_id.to_string(),
+                username: auth_response.user.username.clone(),
+                is_online: true,
+                client_type: client_type.clone(),
+            });
+
             let response = AuthResponse {
                 token: auth_response.token,
                 refresh_token: auth_response.refresh_token,
-                user_id: auth_response.user.id.to_string(),
+                user_id: user_id.to_string(),
                 user: UserResponse {
-                    id: auth_response.user.id.to_string(),
+                    id: user_id.to_string(),
                     email: auth_response.user.email,
                     username: auth_response.user.username,
                     tier: auth_response.user.tier.to_string(),
@@ -226,11 +286,32 @@ pub async fn logout_handler(
     };
 
     if let Ok(claims) = state.user_service.validate_token(&token).await {
+        // Invalidate JWT in Redis
         if let Some(redis_coordinator) = &state.redis_coordinator {
             let coordinator: MutexGuard<'_, RedisCoordinator> = redis_coordinator.lock().await;
             let key = format!("jti:{}", claims.jti);
             let _ = coordinator.del(&key);
             drop(coordinator);
+        }
+        
+        // Clean up active sessions for this user
+        if let Ok(user_id) = Uuid::parse_str(&claims.sub) {
+            let repo = mr_darkpromth_db::UserRepository::new(state.pool.clone());
+            let _ = repo.delete_all_user_active_sessions(user_id).await;
+            
+            // Check if user has any remaining sessions
+            let remaining = repo.count_user_active_sessions(user_id).await.unwrap_or(0);
+            if remaining == 0 {
+                let _ = repo.update_user_online_status(user_id, false, None).await;
+            }
+
+            // Emit real-time event to connected WS clients
+            state.event_hub.send_to_user(user_id, crate::event_hub::WsEvent::UserStatusChanged {
+                user_id: user_id.to_string(),
+                username: claims.username.clone(),
+                is_online: remaining > 0,
+                client_type: "logout".to_string(),
+            });
         }
     }
 
@@ -790,4 +871,57 @@ pub async fn get_api_key_status_handler(
         }
         Err(e) => ApiError::new("DATABASE_ERROR", e.to_string()).into_response(),
     }
+}
+
+// ==================== Active Session Heartbeat ====================
+
+pub async fn active_session_heartbeat_handler(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+) -> impl IntoResponse {
+    let token = match extract_token(&headers) {
+        Some(t) => t,
+        None => {
+            return ApiError::new("MISSING_TOKEN", "Authorization header required").into_response();
+        }
+    };
+
+    let claims = match state.user_service.validate_token(&token).await {
+        Ok(c) => c,
+        Err(_) => {
+            return ApiError::new("INVALID_TOKEN", "Invalid or expired token").into_response();
+        }
+    };
+
+    let user_id = match Uuid::parse_str(&claims.sub) {
+        Ok(id) => id,
+        Err(_) => {
+            return ApiError::new("INVALID_USER_ID", "Invalid user ID in token").into_response();
+        }
+    };
+
+    let client_type = headers.get("x-client-type")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("website");
+
+    let repo = mr_darkpromth_db::UserRepository::new(state.pool.clone());
+    
+    // Try to heartbeat existing session, or create new one
+    match repo.heartbeat_active_session(user_id, client_type).await {
+        Ok(true) => {
+            // Session refreshed
+        }
+        _ => {
+            // No existing session for this client type, create one
+            let _ = repo.upsert_active_session(user_id, client_type, None, None).await;
+        }
+    }
+    
+    // Ensure user is marked as online
+    let _ = repo.update_user_online_status(user_id, true, Some(client_type)).await;
+
+    ApiSuccess::new(serde_json::json!({ 
+        "status": "ok",
+        "client_type": client_type 
+    })).into_response()
 }

@@ -149,11 +149,17 @@ pub async fn chat_handler(
         .is_some();
 
     if !session_exists {
-        // Create new session
-        if let Err(e) = sqlx::query("INSERT INTO chat_sessions (id, user_id, title, created_at, updated_at) VALUES ($1, $2, $3, NOW(), NOW())")
+        // Extract origin from X-Client-Type header
+        let origin = headers.get("x-client-type")
+            .and_then(|h| h.to_str().ok())
+            .unwrap_or("website");
+        
+        // Create new session with origin
+        if let Err(e) = sqlx::query("INSERT INTO chat_sessions (id, user_id, title, origin, created_at, updated_at) VALUES ($1, $2, $3, $4, NOW(), NOW())")
             .bind(conversation_uuid)
             .bind(user_uuid)
             .bind("New Conversation")
+            .bind(origin)
             .execute(&state.pool)
             .await {
             warn!("DB_ERROR: Failed to create chat session: {}", e);
@@ -274,9 +280,17 @@ pub async fn chat_handler(
                     .await;
 
                 let chat_response = ChatResponse {
-                    response: resp.ai_response,
+                    response: resp.ai_response.clone(),
                     conversation_id: conversation_uuid.to_string(),
                 };
+
+                // Emit real-time chat notification
+                state.event_hub.send_to_user(user_uuid, crate::event_hub::WsEvent::ChatNotification {
+                    session_id: conversation_uuid.to_string(),
+                    message_preview: resp.ai_response.chars().take(100).collect(),
+                    role: "assistant".to_string(),
+                });
+
                 return ApiSuccess::new(chat_response).into_response();
             }
             Err(e) => {
@@ -368,9 +382,17 @@ pub async fn chat_handler(
         }
 
         let chat_response = ChatResponse {
-            response: response_text,
+            response: response_text.clone(),
             conversation_id: conversation_uuid.to_string(),
         };
+
+        // Emit real-time chat notification
+        state.event_hub.send_to_user(user_uuid, crate::event_hub::WsEvent::ChatNotification {
+            session_id: conversation_uuid.to_string(),
+            message_preview: response_text.chars().take(100).collect(),
+            role: "assistant".to_string(),
+        });
+
         ApiSuccess::new(chat_response).into_response()
     } else {
         ApiError::new(

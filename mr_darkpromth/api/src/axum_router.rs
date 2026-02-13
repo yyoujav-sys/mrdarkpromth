@@ -78,6 +78,10 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/auth/github/link", post(handlers::github_link_handler))
         .route("/api/auth/github/unlink", delete(handlers::github_unlink_handler))
         .route("/api/auth/github/profile", get(handlers::github_profile_handler))
+        // Active session management
+        .route("/api/user/active-session", post(handlers::active_session_heartbeat_handler))
+        // WebSocket real-time events
+        .route("/api/ws/events", get(handlers::ws_events_handler))
         // Premium routes
         .route("/api/tools", get(handlers::list_tools_handler))
         .route("/api/tools/execute", post(handlers::execute_tool_handler))
@@ -110,6 +114,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/admin/telemetry/history", get(handlers::telemetry_history_handler))
         .route("/api/admin/sandbox/create", post(handlers::admin_create_sandbox_handler))
         .route("/api/admin/dashboard/summary", get(handlers::dashboard_summary_handler))
+        .route("/api/admin/broadcast", post(handlers::admin_broadcast_handler))
         // Learning System routes (Admin)
         .route("/api/learning/insights", get(handlers::get_learning_insights_handler))
         .route("/api/learning/metrics", get(handlers::get_learning_metrics_handler))

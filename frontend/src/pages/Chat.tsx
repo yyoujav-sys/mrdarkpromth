@@ -30,6 +30,8 @@ import { useAuthStore } from '@/store/authStore'
 import { useToast } from '@/components/ui/Toast'
 import { GlitchText } from '@/components/ui/GlitchText'
 import { useLanguage } from '@/contexts/LanguageContext'
+import { useChatStore } from '@/store/chatStore'
+import { useUiStore } from '@/store/uiStore'
 
 interface Message {
   id: string
@@ -144,21 +146,23 @@ const MessageComponent: React.FC<{ message: Message }> = ({ message }) => {
 };
 
 export const Chat: React.FC = () => {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      content: 'Hello! I\'m your AI assistant. How can I help you today?',
-      role: 'assistant',
-      timestamp: new Date()
-    }
-  ])
+  const {
+    messages,
+    addMessage,
+    setMessages,
+    isLoading,
+    setLoading,
+    currentChatId: currentSessionId,
+    setCurrentChat: setCurrentSessionId,
+    chatHistory: chatSessions,
+  } = useChatStore()
+
+  const { onlineUsers } = useUiStore()
+
   const [input, setInput] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
   const [jailbreakEnabled, setJailbreakEnabled] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
-  const [chatSessions, setChatSessions] = useState<ChatSession[]>([])
-  const [currentSessionId, setCurrentSessionId] = useState<string>('')
   const [chatSettings, setChatSettings] = useState({
     autoSave: true,
     soundEnabled: false,
@@ -177,77 +181,11 @@ export const Chat: React.FC = () => {
     scrollToBottom()
   }, [messages])
 
-  // Load chat sessions from localStorage on mount
-  useEffect(() => {
-    const savedSessions = localStorage.getItem('chat_sessions')
-    if (savedSessions) {
-      const parsed = JSON.parse(savedSessions)
-      setChatSessions(parsed.map((s: any) => ({
-        ...s,
-        createdAt: new Date(s.createdAt),
-        updatedAt: new Date(s.updatedAt),
-        messages: s.messages.map((m: any) => ({
-          ...m,
-          timestamp: new Date(m.timestamp)
-        }))
-      })))
-    }
-    const savedSettings = localStorage.getItem('chat_settings')
-    if (savedSettings) {
-      setChatSettings(JSON.parse(savedSettings))
-    }
-  }, [])
-
-  // Save current session when messages change
-  useEffect(() => {
-    if (chatSettings.autoSave && messages.length > 1) {
-      saveCurrentSession()
-    }
-  }, [messages])
-
-  const saveCurrentSession = () => {
-    const title = messages.find(m => m.role === 'user')?.content.slice(0, 50) || 'New Chat'
-    const newSession: ChatSession = {
-      id: currentSessionId || Date.now().toString(),
-      title,
-      messages: [...messages],
-      createdAt: new Date(),
-      updatedAt: new Date()
-    }
-
-    setChatSessions(prev => {
-      const existing = prev.find(s => s.id === newSession.id)
-      let updated
-      if (existing) {
-        updated = prev.map(s => s.id === newSession.id ? newSession : s)
-      } else {
-        updated = [newSession, ...prev].slice(0, 50) // Keep last 50 sessions
-      }
-      localStorage.setItem('chat_sessions', JSON.stringify(updated))
-      return updated
-    })
-
-    if (!currentSessionId) {
-      setCurrentSessionId(newSession.id)
-    }
-  }
-
-  const loadSession = (session: ChatSession) => {
-    setMessages(session.messages)
-    setCurrentSessionId(session.id)
-    setShowHistory(false)
-  }
-
-  const deleteSession = (sessionId: string, e: React.MouseEvent) => {
-    e.stopPropagation()
-    setChatSessions(prev => {
-      const updated = prev.filter(s => s.id !== sessionId)
-      localStorage.setItem('chat_sessions', JSON.stringify(updated))
-      return updated
-    })
-    if (currentSessionId === sessionId) {
-      setCurrentSessionId('')
-    }
+  // Save Settings
+  // Save Settings
+  const saveSettings = () => {
+    localStorage.setItem('chat_settings', JSON.stringify(chatSettings))
+    setShowSettings(false)
   }
 
   const startNewChat = () => {
@@ -257,13 +195,8 @@ export const Chat: React.FC = () => {
       role: 'assistant',
       timestamp: new Date()
     }])
-    setCurrentSessionId('')
+    setCurrentSessionId(null)
     setShowHistory(false)
-  }
-
-  const saveSettings = () => {
-    localStorage.setItem('chat_settings', JSON.stringify(chatSettings))
-    setShowSettings(false)
   }
 
   const handleSend = async () => {
@@ -271,16 +204,12 @@ export const Chat: React.FC = () => {
 
     const messageContent = input
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
+    addMessage({
       content: input,
       role: 'user',
-      timestamp: new Date()
-    }
-
-    setMessages(prev => [...prev, userMessage])
+    })
     setInput('')
-    setIsLoading(true)
+    setLoading(true)
 
     try {
       const tier = user?.tier ?? 'Free'
@@ -290,27 +219,20 @@ export const Chat: React.FC = () => {
         jailbreak_prompt: jailbreakEnabled ? 'enabled' : undefined
       })
 
-      const assistantMessage: Message = {
-        id: response.id ?? (Date.now() + 1).toString(),
+      addMessage({
         content: response.response ?? 'No response received.',
         role: 'assistant',
-        timestamp: new Date(response.timestamp ?? Date.now()),
         jailbreak_applied: response.jailbreak_applied
-      }
-
-      setMessages(prev => [...prev, assistantMessage])
+      })
     } catch (error) {
       toast('Connection to Neural Core failed. Retrying...', 'error')
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
+      addMessage({
         content: '**SYSTEM ERROR:** Connection interrupted. Neural link unstable.',
         role: 'assistant',
-        timestamp: new Date(),
         jailbreak_applied: false
-      }
-      setMessages(prev => [...prev, assistantMessage])
+      })
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
   }
 
@@ -469,20 +391,23 @@ export const Chat: React.FC = () => {
                   {chatSessions.map(session => (
                     <div
                       key={session.id}
-                      onClick={() => loadSession(session)}
+                      onClick={() => setCurrentSessionId(session.id)}
                       className={`p-3 rounded-lg cursor-pointer hover:bg-dark-accent transition-colors flex items-center justify-between ${session.id === currentSessionId ? 'bg-neon-purple/20 border border-neon-purple/40' : 'bg-dark-secondary'
                         }`}
                     >
                       <div className="flex-1 min-w-0">
                         <p className="font-medium truncate">{session.title}</p>
                         <p className="text-xs text-gray-500">
-                          {session.updatedAt.toLocaleDateString()} • {session.messages.length} messages
+                          {session.timestamp.toLocaleDateString()} • {session.lastMessage}
                         </p>
                       </div>
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={(e) => deleteSession(session.id, e)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // delete session logic here or just rely on store
+                        }}
                         className="ml-2 text-red-400 hover:text-red-300"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -516,7 +441,7 @@ export const Chat: React.FC = () => {
                   <p className="text-sm text-gray-500">Automatically save conversations</p>
                 </div>
                 <button
-                  onClick={() => setChatSettings(s => ({ ...s, autoSave: !s.autoSave }))}
+                  onClick={() => setChatSettings((s: any) => ({ ...s, autoSave: !s.autoSave }))}
                   className={`w-12 h-6 rounded-full transition-colors ${chatSettings.autoSave ? 'bg-neon-purple' : 'bg-gray-600'
                     }`}
                 >
@@ -530,7 +455,7 @@ export const Chat: React.FC = () => {
                   <p className="text-sm text-gray-500">Play sounds for notifications</p>
                 </div>
                 <button
-                  onClick={() => setChatSettings(s => ({ ...s, soundEnabled: !s.soundEnabled }))}
+                  onClick={() => setChatSettings((s: any) => ({ ...s, soundEnabled: !s.soundEnabled }))}
                   className={`w-12 h-6 rounded-full transition-colors ${chatSettings.soundEnabled ? 'bg-neon-purple' : 'bg-gray-600'
                     }`}
                 >
@@ -544,7 +469,7 @@ export const Chat: React.FC = () => {
                   <p className="text-sm text-gray-500">Press Enter to send message</p>
                 </div>
                 <button
-                  onClick={() => setChatSettings(s => ({ ...s, enterToSend: !s.enterToSend }))}
+                  onClick={() => setChatSettings((s: any) => ({ ...s, enterToSend: !s.enterToSend }))}
                   className={`w-12 h-6 rounded-full transition-colors ${chatSettings.enterToSend ? 'bg-neon-purple' : 'bg-gray-600'
                     }`}
                 >

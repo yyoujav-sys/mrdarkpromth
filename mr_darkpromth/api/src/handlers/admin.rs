@@ -725,3 +725,53 @@ pub async fn admin_update_user_tier_handler(
         Err(e) => { log::error!("Failed to update tier: {}", e); ApiError::new("UPDATE_ERROR", "Failed to update tier").into_response() }
     }
 }
+
+// ==================== System Broadcast ====================
+
+#[derive(Debug, Deserialize)]
+pub struct SystemBroadcastRequest {
+    pub event_type: String,
+    pub payload: serde_json::Value,
+    pub persist: Option<bool>,
+}
+
+/// Admin endpoint to broadcast a system event to all connected WebSocket clients
+pub async fn admin_broadcast_handler(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+    Json(req): Json<SystemBroadcastRequest>,
+) -> impl IntoResponse {
+    let token = match extract_token(&headers) {
+        Some(t) => t,
+        None => return ApiError::new("MISSING_TOKEN", "Authorization required").into_response(),
+    };
+    let claims = match state.user_service.validate_token(&token).await {
+        Ok(c) => c,
+        Err(_) => return ApiError::new("INVALID_TOKEN", "Invalid token").into_response(),
+    };
+    if claims.tier != "admin" {
+        return ApiError::new("ADMIN_REQUIRED", "Admin required").into_response();
+    }
+
+    // Optionally persist to system_broadcast_events table
+    if req.persist.unwrap_or(true) {
+        let _ = sqlx::query(
+            "INSERT INTO system_broadcast_events (event_type, payload) VALUES ($1, $2)"
+        )
+        .bind(&req.event_type)
+        .bind(&req.payload)
+        .execute(&state.pool)
+        .await;
+    }
+
+    // Broadcast to all connected WS clients
+    state.event_hub.send_system_event(&req.event_type, req.payload.clone());
+
+    log::info!("Admin {} broadcast system event: {}", claims.username, req.event_type);
+
+    ApiSuccess::new(serde_json::json!({
+        "message": "Broadcast sent",
+        "event_type": req.event_type,
+        "recipients": "all_connected"
+    })).into_response()
+}

@@ -90,6 +90,20 @@ pub async fn execute_ultra_terminal_handler(
     let session_id = req.session_id.unwrap_or_else(|| format!("ultra-terminal-{}", user_id));
     let timeout = req.timeout_seconds.unwrap_or(300); // 5 min default for Ultra
 
+    // Extract client type
+    let client_type = headers.get("x-client-type")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("website");
+
+    // Track terminal session in database
+    let repo = mr_darkpromth_db::UserRepository::new(state.pool.clone());
+    let _ = repo.create_terminal_session(
+        user_id,
+        &session_id,
+        client_type,
+        Some(&req.command),
+    ).await;
+
     // Create audit log entry
     let audit_id = Uuid::new_v4().to_string();
     
@@ -119,6 +133,9 @@ pub async fn execute_ultra_terminal_handler(
 
     match result {
         Ok(exec_result) => {
+            // Close terminal session with exit code
+            let _ = repo.close_terminal_session(&session_id, Some(exec_result.exit_code)).await;
+            
             ApiSuccess::new(serde_json::json!({
                 "stdout": exec_result.stdout,
                 "stderr": exec_result.stderr,
@@ -139,6 +156,9 @@ pub async fn execute_ultra_terminal_handler(
             })).into_response()
         }
         Err(e) => {
+            // Close terminal session on error
+            let _ = repo.close_terminal_session(&session_id, Some(-1)).await;
+            
             let error_msg = format!("{}: {}", get_message(&lang_pref, "execution_failed"), e);
             ApiError::new("EXECUTION_ERROR", &error_msg).into_response()
         }
@@ -186,6 +206,17 @@ async fn handle_ultra_terminal_socket(
 
     let (sender, mut receiver) = socket.split();
     let sender = Arc::new(Mutex::new(sender));
+
+    // Track terminal session in database
+    let ws_session_id = format!("ultra-ws-{}", user_id);
+    let user_id_uuid = Uuid::parse_str(&user_id).unwrap_or_default();
+    let repo = mr_darkpromth_db::UserRepository::new(state.pool.clone());
+    let _ = repo.create_terminal_session(
+        user_id_uuid,
+        &ws_session_id,
+        "website", // WS sessions are typically from website
+        None,
+    ).await;
 
     // Send welcome message
     let welcome = serde_json::json!({
@@ -273,6 +304,9 @@ async fn handle_ultra_terminal_socket(
             _ => {}
         }
     }
+
+    // Close terminal session when WebSocket disconnects
+    let _ = repo.close_terminal_session(&ws_session_id, None).await;
 }
 
 /// Handler to get Ultra Terminal session status

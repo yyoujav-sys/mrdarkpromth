@@ -14,7 +14,7 @@ interface ChatState {
   jailbreakEnabled: boolean
   currentChatId: string | null
   chatHistory: Array<{ id: string; title: string; lastMessage: string; timestamp: Date }>
-  
+
   // Actions
   addMessage: (message: Omit<Message, 'id' | 'timestamp'>) => void
   setMessages: (messages: Message[]) => void
@@ -24,6 +24,7 @@ interface ChatState {
   setCurrentChat: (chatId: string | null) => void
   createNewChat: () => string
   deleteChat: (chatId: string) => void
+  handleNotification: (payload: { session_id: string; message_preview: string; role: string }) => void
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -53,11 +54,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
       id: Date.now().toString(),
       timestamp: new Date()
     }
-    
+
     set((state) => ({
       messages: [...state.messages, newMessage]
     }))
-    
+
     // Update chat history
     const state = get()
     const currentChat = state.chatHistory.find(chat => chat.id === state.currentChatId)
@@ -66,10 +67,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         chatHistory: prevState.chatHistory.map(chat =>
           chat.id === state.currentChatId
             ? {
-                ...chat,
-                lastMessage: message.content.substring(0, 50) + (message.content.length > 50 ? '...' : ''),
-                timestamp: new Date()
-              }
+              ...chat,
+              lastMessage: message.content.substring(0, 50) + (message.content.length > 50 ? '...' : ''),
+              timestamp: new Date()
+            }
             : chat
         )
       }))
@@ -102,20 +103,39 @@ export const useChatStore = create<ChatState>((set, get) => ({
       lastMessage: 'No messages yet',
       timestamp: new Date()
     }
-    
+
     set((state) => ({
       chatHistory: [newChat, ...state.chatHistory],
       currentChatId: chatId,
       messages: []
     }))
-    
+
     return chatId
   },
 
-  deleteChat: (chatId) => {
+  deleteChat: (chatId: string) => {
     set((state) => ({
       chatHistory: state.chatHistory.filter(chat => chat.id !== chatId),
       currentChatId: state.currentChatId === chatId ? 'default' : state.currentChatId
     }))
+  },
+
+  handleNotification: (payload) => {
+    const { session_id, message_preview, role } = payload
+    const state = get()
+
+    // If it's for the current chat, we might want to add it
+    // Note: In a real app, we'd check if message already exists via ID
+    // For now, if role is assistant and last message isn't this preview, add it
+    if (state.currentChatId === session_id && role === 'assistant') {
+      const lastMsg = state.messages[state.messages.length - 1]
+      if (lastMsg?.content !== message_preview) {
+        state.addMessage({
+          content: message_preview,
+          role: 'assistant',
+          jailbreak_applied: false
+        })
+      }
+    }
   }
 }))

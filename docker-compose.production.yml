@@ -110,8 +110,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '2.0'
-          memory: 2G
+          cpus: '1.5'
+          memory: 1G
         reservations:
           memory: 512M
     logging:
@@ -232,9 +232,9 @@ services:
       resources:
         limits:
           cpus: '0.5'
-          memory: 512M
+          memory: 256M
         reservations:
-          memory: 128M
+          memory: 64M
 
   # Grafana - Dashboards
   grafana:
@@ -292,50 +292,40 @@ services:
           cpus: '0.25'
           memory: 128M
 
-  # Redis Exporter
-  redis-exporter:
-    image: oliver006/redis_exporter:latest
-    container_name: mr_darkpromth_redis_exporter
-    restart: always
-    environment:
-      REDIS_ADDR: redis://redis:6379
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
-    depends_on:
-      redis:
-        condition: service_healthy
-    networks:
-      - mr_darkpromth_network
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-    deploy:
-      resources:
-        limits:
-          cpus: '0.25'
-          memory: 64M
+  # Redis Exporter — DISABLED (save RAM, Redis health checked via redis-cli)
+  # redis-exporter:
+  #   image: oliver006/redis_exporter:latest
+  #   container_name: mr_darkpromth_redis_exporter
+  #   restart: always
+  #   environment:
+  #     REDIS_ADDR: redis://redis:6379
+  #     REDIS_PASSWORD: ${REDIS_PASSWORD}
+  #   depends_on:
+  #     redis:
+  #       condition: service_healthy
+  #   networks:
+  #     - mr_darkpromth_network
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: '0.25'
+  #         memory: 64M
 
-  # Nginx Exporter
-  nginx-exporter:
-    image: nginx/nginx-prometheus-exporter:latest
-    container_name: mr_darkpromth_nginx_exporter
-    restart: always
-    command: -nginx.scrape-uri http://nginx:80/stub_status
-    depends_on:
-      - nginx
-    networks:
-      - mr_darkpromth_network
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-    deploy:
-      resources:
-        limits:
-          cpus: '0.1'
-          memory: 64M
+  # Nginx Exporter — DISABLED (save RAM, stub_status still available internally)
+  # nginx-exporter:
+  #   image: nginx/nginx-prometheus-exporter:latest
+  #   container_name: mr_darkpromth_nginx_exporter
+  #   restart: always
+  #   command: -nginx.scrape-uri http://nginx:80/stub_status
+  #   depends_on:
+  #     - nginx
+  #   networks:
+  #     - mr_darkpromth_network
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: '0.1'
+  #         memory: 64M
 
   # Alertmanager
   alertmanager:
@@ -359,29 +349,23 @@ services:
         limits:
           cpus: '0.2'
           memory: 128M
-
-  # Jaeger Tracing
-  jaeger:
-    image: jaegertracing/all-in-one:latest
-    container_name: mr_darkpromth_jaeger
-    restart: always
-    ports:
-      - "127.0.0.1:16686:16686" # UI
-      - "127.0.0.1:14268:14268" # Collector
-    environment:
-      - COLLECTOR_ZIPKIN_HOST_PORT=:9411
-    networks:
-      - mr_darkpromth_network
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
+  # Jaeger Tracing — DISABLED (save ~512MB RAM, not critical for production)
+  # jaeger:
+  #   image: jaegertracing/all-in-one:latest
+  #   container_name: mr_darkpromth_jaeger
+  #   restart: always
+  #   ports:
+  #     - "127.0.0.1:16686:16686"
+  #     - "127.0.0.1:14268:14268"
+  #   environment:
+  #     - COLLECTOR_ZIPKIN_HOST_PORT=:9411
+  #   networks:
+  #     - mr_darkpromth_network
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: '0.5'
+  #         memory: 512M
 
 volumes:
   postgres_data:

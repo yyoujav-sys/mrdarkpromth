@@ -114,7 +114,15 @@ pub async fn admin_delete_user_handler(
     }
 
     match state.user_service.delete_user(user_id).await {
-        Ok(_) => StatusCode::NO_CONTENT.into_response(),
+        Ok(_) => {
+            // Slack: DM admin about user deletion
+            let slack = state.slack_service.clone();
+            let target_id = user_id.to_string();
+            tokio::spawn(async move {
+                let _ = slack.dm_admin(&format!("⚡ Admin action: deleted user {}", target_id)).await;
+            });
+            StatusCode::NO_CONTENT.into_response()
+        }
         Err(e) => {
             log::error!("Failed to delete user: {}", e);
             ApiError::new("DELETE_ERROR", "Failed to delete user").into_response()
@@ -633,6 +641,14 @@ pub async fn admin_verify_slip_handler(
     };
     match state.billing_service.verify_payment_slip(verification_uuid, admin_id, req.approved, req.notes.as_deref()).await {
         Ok(result) => {
+            // Slack: notify tier upgrade on approval
+            if req.approved {
+                let slack = state.slack_service.clone();
+                let reference = result.reference.clone();
+                tokio::spawn(async move {
+                    let _ = slack.notify_tier_upgrade(&reference, "ultra").await;
+                });
+            }
             let message = if req.approved { "Payment slip approved and user tier upgraded" } else { "Payment slip rejected" };
             ApiSuccess::new(serde_json::json!({"message": message, "verified": result.verified, "payment_id": result.payment_id.to_string(), "amount": result.amount, "reference": result.reference})).into_response()
         }
@@ -721,7 +737,16 @@ pub async fn admin_update_user_tier_handler(
         return ApiError::new("INVALID_TIER", "Tier must be free, premium, or ultra").into_response();
     }
     match state.billing_service.update_user_tier(user_uuid, &req.tier).await {
-        Ok(_) => ApiSuccess::new(serde_json::json!({"message": "User tier updated", "tier": req.tier})).into_response(),
+        Ok(_) => {
+            // Slack: notify tier change
+            let slack = state.slack_service.clone();
+            let tier = req.tier.clone();
+            let uid = user_uuid.to_string();
+            tokio::spawn(async move {
+                let _ = slack.notify_tier_upgrade(&uid, &tier).await;
+            });
+            ApiSuccess::new(serde_json::json!({"message": "User tier updated", "tier": req.tier})).into_response()
+        }
         Err(e) => { log::error!("Failed to update tier: {}", e); ApiError::new("UPDATE_ERROR", "Failed to update tier").into_response() }
     }
 }

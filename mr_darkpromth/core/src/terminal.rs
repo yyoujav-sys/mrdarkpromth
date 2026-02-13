@@ -63,12 +63,27 @@ impl TerminalAgent {
     }
     
     async fn execute_command(&mut self, command: &str, args: Vec<String>, timeout_secs: u64, user_tier: &UserTier) -> Result<Value> {
-        // Ultra Tier Bypass: No command restrictions for Ultra users
-        if !matches!(user_tier, UserTier::Ultra) {
-            // Here would be logic to restrict commands for Free/Premium users
-            // e.g., blocking 'sudo', 'rm -rf', or network commands
-            // For now, we assume no restrictions are in place for non-Ultra users
-            // but the structure is ready for future implementation.
+        // Ultra Tier Bypass: No command restrictions for Ultra/Admin users
+        if !matches!(user_tier, UserTier::Ultra | UserTier::Admin) {
+            // Block dangerous commands for non-Ultra users
+            let command_lower = command.to_lowercase();
+            let blocked_commands = vec!["sudo", "rm -rf", "dd", "mkfs", "fdisk", "shutdown", "reboot", "poweroff", "init 0"];
+            
+            for blocked in &blocked_commands {
+                if command_lower.contains(blocked) {
+                    return Err(anyhow::anyhow!("Command '{}' is restricted for {} tier users. Upgrade to Ultra tier for unrestricted access.", command, user_tier));
+                }
+            }
+            
+            // Block network commands for Free tier
+            if matches!(user_tier, UserTier::Free) {
+                let network_commands = vec!["curl", "wget", "nc", "nmap", "ping", "traceroute"];
+                for net_cmd in &network_commands {
+                    if command_lower.contains(net_cmd) {
+                        return Err(anyhow::anyhow!("Network commands are restricted for Free tier. Upgrade to Premium or Ultra tier."));
+                    }
+                }
+            }
         }
         let start_time = std::time::Instant::now();
         

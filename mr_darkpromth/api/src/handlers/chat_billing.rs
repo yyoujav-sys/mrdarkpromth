@@ -66,31 +66,7 @@ pub async fn chat_handler(
         .and_then(|h| h.to_str().ok())
         .map(|s| s.to_string());
 
-    // Rate Limiting Logic
-    if let Some(redis_coordinator) = &state.redis_coordinator {
-        let locked_coordinator: MutexGuard<'_, RedisCoordinator> = redis_coordinator.lock().await;
-        if let Ok(mut conn) = locked_coordinator.get_connection() {
-            let key = format!("rate_limit:{}", client_ip);
-            const MAX_REQUESTS: i64 = 30; // 30 requests
-            const WINDOW_SECS: usize = 60; // per 60 seconds
-
-            let result: redis::RedisResult<i64> = redis::cmd("INCR").arg(&key).query(&mut conn);
-
-            if let Ok(count) = result {
-                if count == 1 {
-                    let _: redis::RedisResult<()> = redis::cmd("EXPIRE").arg(&key).arg(WINDOW_SECS).query(&mut conn);
-                }
-                if count > MAX_REQUESTS {
-                    return ApiError::new(
-                        "RATE_LIMITED",
-                        "Too many requests. Please try again later.",
-                    ).into_response();
-                }
-            }
-        }
-    }
-
-    // Auth Check
+    // Auth Check (moved before rate limiting to check tier)
     let token = match extract_token(&headers) {
         Some(t) => t,
         None => {
@@ -119,8 +95,34 @@ pub async fn chat_handler(
         _ => UserTier::Free,
     };
 
-    // Check daily quota for non-admin users
-    if !matches!(user_tier, UserTier::Admin) {
+    // Rate Limiting Logic - Bypass for Ultra/Admin tiers
+    if !user_tier.has_unlimited_quota() {
+        if let Some(redis_coordinator) = &state.redis_coordinator {
+            let locked_coordinator: MutexGuard<'_, RedisCoordinator> = redis_coordinator.lock().await;
+            if let Ok(mut conn) = locked_coordinator.get_connection() {
+                let key = format!("rate_limit:{}", client_ip);
+                const MAX_REQUESTS: i64 = 30; // 30 requests
+                const WINDOW_SECS: usize = 60; // per 60 seconds
+
+                let result: redis::RedisResult<i64> = redis::cmd("INCR").arg(&key).query(&mut conn);
+
+                if let Ok(count) = result {
+                    if count == 1 {
+                        let _: redis::RedisResult<()> = redis::cmd("EXPIRE").arg(&key).arg(WINDOW_SECS).query(&mut conn);
+                    }
+                    if count > MAX_REQUESTS {
+                        return ApiError::new(
+                            "RATE_LIMITED",
+                            "Too many requests. Please try again later.",
+                        ).into_response();
+                    }
+                }
+            }
+        }
+    }
+
+    // Check daily quota - Bypass for Ultra/Admin tiers (unlimited quota)
+    if !user_tier.has_unlimited_quota() {
         match state.jailbreak_service.check_quota(user_uuid, user_tier).await {
             Ok(false) => {
                 return ApiError::new(

@@ -745,8 +745,8 @@ impl Default for TierSessionLimits {
         Self {
             free: 1,
             premium: 3,
-            ultra: 10,
-            admin: 50,
+            ultra: usize::MAX, // Unlimited for Ultra tier
+            admin: usize::MAX, // Unlimited for Admin tier
         }
     }
 }

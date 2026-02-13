@@ -366,13 +366,13 @@ impl JailbreakPromptService {
     }
 
     pub async fn check_quota(&self, user_id: Uuid, tier: UserTier) -> Result<bool> {
-        let max_daily = tier.max_daily_messages();
-        
-        // Admins have unlimited quota (effectively)
-        if matches!(tier, UserTier::Admin) {
+        // Ultra and Admin tiers have unlimited quota
+        if tier.has_unlimited_quota() {
             return Ok(true);
         }
 
+        let max_daily = tier.max_daily_messages();
+        
         let count: i64 = sqlx::query_scalar(
             r#"
             SELECT COUNT(*) 
@@ -384,6 +384,7 @@ impl JailbreakPromptService {
         .fetch_one(&self.db)
         .await?;
 
+        // Use > instead of >= to allow exactly max_daily messages
         Ok(count < max_daily as i64)
     }
 
@@ -404,6 +405,13 @@ impl JailbreakPromptService {
 
     pub async fn get_quota_status(&self, user_id: Uuid, tier: UserTier) -> Result<(i64, i64)> {
         let used = self.get_daily_usage(user_id).await?;
+        
+        // Handle unlimited quota for Ultra/Admin tiers
+        if tier.has_unlimited_quota() {
+            // Return i64::MAX to represent unlimited
+            return Ok((used, i64::MAX));
+        }
+        
         let limit = tier.max_daily_messages() as i64;
         let remaining = limit.saturating_sub(used);
         

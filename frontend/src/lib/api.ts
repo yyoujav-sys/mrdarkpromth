@@ -128,6 +128,17 @@ class ApiClient {
     return response.data
   }
 
+  async uploadFile(file: File) {
+    const formData = new FormData()
+    formData.append('file', file)
+    const response = await this.client.post('/api/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+    return response.data
+  }
+
   // Chat endpoints
   async sendMessage(data: {
     message: string

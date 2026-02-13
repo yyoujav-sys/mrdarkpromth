@@ -171,6 +171,16 @@ pub async fn register_handler(
 
     match state.user_service.register(register_req).await {
         Ok(auth_response) => {
+            // Slack: notify new user registration
+            let slack = state.slack_service.clone();
+            let email_for_slack = auth_response.user.email.clone();
+            tokio::spawn(async move {
+                let _ = slack.send_message(
+                    &slack.alerts_channel,
+                    &format!("🆕 New user registered: {}", email_for_slack),
+                ).await;
+            });
+
             let user_id = auth_response.user.id.to_string();
             let response = AuthResponse {
                 token: auth_response.token,
@@ -210,6 +220,16 @@ pub async fn login_handler(
     match state.user_service.login(login_req).await {
         Ok(auth_response) => {
             let user_id = auth_response.user.id;
+
+            // Slack: notify user login
+            let slack = state.slack_service.clone();
+            let email_for_slack = auth_response.user.email.clone();
+            tokio::spawn(async move {
+                let _ = slack.send_message(
+                    &slack.alerts_channel,
+                    &format!("👤 User logged in: {}", email_for_slack),
+                ).await;
+            });
             
             // Create active session record
             let repo = mr_darkpromth_db::UserRepository::new(state.pool.clone());

@@ -68,7 +68,7 @@ pub struct TerminalExecuteResponse {
     pub execution_time_ms: u64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct JailbreakPromptDto {
     pub id: String,
     pub title: String,
@@ -860,6 +860,21 @@ pub async fn search_prompts_handler(
 pub async fn get_popular_prompts_handler(
     State(state): State<Arc<AppState>>,
 ) -> impl IntoResponse {
+    let namespace_id = std::env::var("CLOUDFLARE_KV_NAMESPACE_ID").ok();
+
+    // Try to get from cache first
+    if let Some(ref ns_id) = namespace_id {
+        if let Ok(cached_json) = state.cloudflare_service.get_kv(ns_id, "popular_prompts").await {
+             if let Ok(cached_dtos) = serde_json::from_str::<Vec<JailbreakPromptDto>>(&cached_json) {
+                 return ApiSuccess::new(serde_json::json!({ 
+                    "prompts": cached_dtos, 
+                    "total": cached_dtos.len(),
+                    "cached": true
+                })).into_response();
+             }
+        }
+    }
+
     match state.jailbreak_service.get_popular_prompts(20).await {
         Ok(prompts) => {
             let prompt_dtos: Vec<JailbreakPromptDto> = prompts.into_iter().map(|p| JailbreakPromptDto {
@@ -878,6 +893,20 @@ pub async fn get_popular_prompts_handler(
                 requires_ultra_tier: p.requires_ultra_tier,
                 created_at: p.created_at.to_rfc3339(),
             }).collect();
+            
+            // Cache the result asynchronously
+            if let Some(ref ns_id) = namespace_id {
+                 if let Ok(json) = serde_json::to_string(&prompt_dtos) {
+                     let cf_service = state.cloudflare_service.clone();
+                     let ns_id_clone = ns_id.clone();
+                     let json_clone = json.clone();
+                     tokio::spawn(async move {
+                         if let Err(e) = cf_service.set_kv(&ns_id_clone, "popular_prompts", &json_clone).await {
+                             log::warn!("Failed to cache popular prompts: {}", e);
+                         }
+                     });
+                 }
+            }
             
             ApiSuccess::new(serde_json::json!({ 
                 "prompts": prompt_dtos, 
@@ -957,16 +986,18 @@ pub async fn record_prompt_usage_handler(
 
     let tier: UserTier = claims.tier.parse().unwrap_or(UserTier::Free);
 
-    // Check quota before recording usage
-    match state.jailbreak_service.check_quota(user_id, tier).await {
-        Ok(true) => {}, // Quota available, continue
-        Ok(false) => {
-            return ApiError::new("QUOTA_EXCEEDED", &format!("Daily quota exceeded. Limit: {} messages", tier.max_daily_messages())
-            ).into_response();
-        },
-        Err(e) => {
-            log::error!("Failed to check quota: {}", e);
-            return ApiError::new("QUOTA_ERROR", "Failed to check quota").into_response();
+    // Check quota before recording usage - Bypass for Ultra/Admin tiers
+    if !tier.has_unlimited_quota() {
+        match state.jailbreak_service.check_quota(user_id, tier).await {
+            Ok(true) => {}, // Quota available, continue
+            Ok(false) => {
+                return ApiError::new("QUOTA_EXCEEDED", &format!("Daily quota exceeded. Limit: {} messages", tier.max_daily_messages())
+                ).into_response();
+            },
+            Err(e) => {
+                log::error!("Failed to check quota: {}", e);
+                return ApiError::new("QUOTA_ERROR", "Failed to check quota").into_response();
+            }
         }
     }
 

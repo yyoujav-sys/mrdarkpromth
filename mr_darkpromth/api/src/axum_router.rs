@@ -56,6 +56,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         .route("/api/users/me/stats", get(handlers::get_user_stats_handler))
         .route("/api/users/me/preferences", get(handlers::get_user_preferences_handler).put(handlers::update_user_preferences_handler))
         .route("/api/users/avatar", post(handlers::upload_avatar_handler))
+        .route("/api/upload", post(handlers::upload_file_handler))
         .route("/api/users/{id}", get(handlers::get_user_info_handler))
         .route("/api/chat", post(handlers::chat_handler).route_layer(middleware::from_fn(chat_rate_limit_middleware)))
         .route("/api/chat/history", get(handlers::get_chat_history_handler))

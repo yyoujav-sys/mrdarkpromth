@@ -33,13 +33,16 @@ pub async fn get_quota_status_handler(
 
     match state.jailbreak_service.get_quota_status(user_id, tier).await {
         Ok((used, remaining)) => {
+            let is_unlimited = tier.has_unlimited_quota();
+            let daily_limit: serde_json::Value = if is_unlimited { serde_json::json!("unlimited") } else { serde_json::json!(tier.max_daily_messages()) };
+            let remaining_val: serde_json::Value = if is_unlimited { serde_json::json!("unlimited") } else { serde_json::json!(remaining) };
             ApiSuccess::new(serde_json::json!({
                 "tier": tier.as_str(),
-                "daily_limit": tier.max_daily_messages(),
+                "daily_limit": daily_limit,
                 "used_today": used,
-                "remaining_today": remaining,
-                "quota_exceeded": remaining <= 0,
-                "reset_time": "tomorrow at midnight UTC" // Simplified
+                "remaining_today": remaining_val,
+                "quota_exceeded": !is_unlimited && remaining <= 0,
+                "reset_time": if is_unlimited { "N/A (unlimited)" } else { "tomorrow at midnight UTC" }
             })).into_response()
         },
         Err(e) => {

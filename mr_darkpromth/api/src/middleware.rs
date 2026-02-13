@@ -82,6 +82,15 @@ pub async fn request_tracking_middleware(
     let latency_ms = start.elapsed().as_millis() as u64;
     let success = response.status().is_success() || response.status().is_redirection();
     
+    // Slack: notify on server errors (5xx)
+    if response.status().is_server_error() {
+        let slack = state.slack_service.clone();
+        let status = response.status().as_u16();
+        tokio::spawn(async move {
+            let _ = slack.notify_error("API", &format!("HTTP {} server error", status)).await;
+        });
+    }
+    
     state.telemetry_service.record_request(latency_ms, success);
     
     response

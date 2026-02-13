@@ -53,8 +53,8 @@ impl UserTier {
         match self {
             UserTier::Free => 10,
             UserTier::Premium => 100,
-            UserTier::Ultra => 1000,
-            UserTier::Admin => 999999,
+            UserTier::Ultra => u32::MAX, // Unlimited for Ultra tier
+            UserTier::Admin => u32::MAX, // Unlimited for Admin tier
         }
     }
 
@@ -62,8 +62,8 @@ impl UserTier {
         match self {
             UserTier::Free => 2000,
             UserTier::Premium => 8000,
-            UserTier::Ultra => 50000,
-            UserTier::Admin => 100000,
+            UserTier::Ultra => usize::MAX, // Unlimited for Ultra tier
+            UserTier::Admin => usize::MAX, // Unlimited for Admin tier
         }
     }
 
@@ -71,9 +71,14 @@ impl UserTier {
         match self {
             UserTier::Free => 3,
             UserTier::Premium => 10,
-            UserTier::Ultra => 50,
-            UserTier::Admin => 100,
+            UserTier::Ultra => u32::MAX, // Unlimited for Ultra tier
+            UserTier::Admin => u32::MAX, // Unlimited for Admin tier
         }
+    }
+
+    /// Check if tier has unlimited quota
+    pub fn has_unlimited_quota(&self) -> bool {
+        matches!(self, UserTier::Ultra | UserTier::Admin)
     }
 
     pub fn has_jailbreak_access(&self) -> bool {

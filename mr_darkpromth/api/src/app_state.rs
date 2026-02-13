@@ -4,7 +4,7 @@ use tokio::sync::{Mutex, RwLock};
 use sqlx::PgPool;
 use mr_darkpromth_services::{
     UserService, CerebrasClient, RedisCoordinator, ToolRegistry, MasterToolExecutor,
-    UltraTierLogic, SandboxManager, SandboxConfig,
+    UltraTierLogic, SandboxManager, SandboxedExecutorConfig,
     JailbreakPromptService, BillingService, EmailService, AuditLogger, DatabaseAuditService,
     AutoDocService, TelemetryService, LearningSystem, KeyPool, SlackService, CloudflareService
 };
@@ -43,9 +43,8 @@ pub struct Metrics {
 impl AppState {
     pub async fn new(pool: PgPool) -> Self {
         let jwt_secret = std::env::var("JWT_SECRET").expect("JWT_SECRET must be set");
-        let user_service = Arc::new(UserService::new(mr_darkpromth_db::UserRepository::new(pool.clone()), jwt_secret.clone(), redis_coordinator));
-        let cerebras_client = Arc::new(CerebrasClient::new());
         
+        // Initialize Redis first (needed by UserService)
         let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
         let redis_coordinator = match RedisCoordinator::new(&redis_url, "api_gateway".to_string()) {
             Ok(c) => Some(Arc::new(Mutex::new(c))),
@@ -54,6 +53,9 @@ impl AppState {
                 None
             }
         };
+        
+        let user_service = Arc::new(UserService::new(mr_darkpromth_db::UserRepository::new(pool.clone()), jwt_secret.clone(), redis_coordinator.clone()));
+        let cerebras_client = Arc::new(CerebrasClient::new());
         
         let jailbreak_service = Arc::new(JailbreakPromptService::new(pool.clone()));
         let billing_service = Arc::new(BillingService::new_with_pool(pool.clone()));
@@ -114,7 +116,7 @@ impl AppState {
             jailbreak_service.clone()
         )));
 
-        let sandbox_manager = Arc::new(SandboxManager::new(SandboxConfig::default()));
+        let sandbox_manager = Arc::new(SandboxManager::new(SandboxedExecutorConfig::default()));
         
         let metrics = Arc::new(Metrics::default());
         {

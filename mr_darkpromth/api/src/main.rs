@@ -3,6 +3,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::io::Write;
 use tokio::net::TcpListener;
+use sqlx::Executor;
 
 use mr_darkpromth_api::axum_router::create_router;
 use mr_darkpromth_api::{AppState, DatabaseConfig};
@@ -42,6 +43,33 @@ async fn main() {
     log::info!("✅ Database connection established");
 
     let state = Arc::new(AppState::new(pool).await);
+
+    // Spawn self-correction engine (Agent 8) — lightweight DB health monitor
+    {
+        let slack = state.slack_service.clone();
+        let health_pool = state.pool.clone();
+        tokio::spawn(async move {
+            log::info!("🤖 Agent 8 (Self-Correction Engine) started — monitoring every 300s");
+            // Send startup notification
+            let _ = slack.notify_deployment(env!("CARGO_PKG_VERSION"), "success").await;
+            
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(300));
+            loop {
+                interval.tick().await;
+                // Check DB connectivity
+                match sqlx::query("SELECT 1").execute(&health_pool).await {
+                    Ok(_) => {
+                        log::debug!("Agent 8: DB health check OK");
+                    }
+                    Err(e) => {
+                        log::error!("Agent 8: DB health check FAILED: {}", e);
+                        let _ = slack.notify_error("Agent8/DB", &format!("DB health check failed: {}", e)).await;
+                    }
+                }
+            }
+        });
+    }
+
     let app = create_router(state);
     
     let port = std::env::var("PORT")

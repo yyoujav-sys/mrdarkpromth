@@ -1,3 +1,5 @@
+pub mod cloudflare_service;
+pub mod slack_service;
 pub mod openrouter_client;
 // MR.DarkPromth Services Library
 // Agent 4: Jailbreak & Ultra Tier Engineer
@@ -120,3 +122,5 @@ pub use auto_docs::{AutoDocService, DocModule, DocFunction, DocStruct, DocEnum};
 pub use telemetry::TelemetryService;
 pub use i18n::{Language as BackendLanguage, Translator};
 pub use learning_system::LearningSystem;
+pub use slack_service::SlackService;
+pub use cloudflare_service::CloudflareService;

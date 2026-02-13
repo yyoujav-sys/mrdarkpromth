@@ -4,7 +4,7 @@ use tokio::sync::{Mutex, RwLock};
 use sqlx::PgPool;
 use mr_darkpromth_services::{
     UserService, CerebrasClient, RedisCoordinator, ToolRegistry, MasterToolExecutor,
-    UltraTierLogic, SandboxManager, SandboxConfig as SandboxedExecutorConfig,
+    UltraTierLogic, SandboxManager, SandboxConfig,
     JailbreakPromptService, BillingService, EmailService, AuditLogger, DatabaseAuditService,
     AutoDocService, TelemetryService, LearningSystem, KeyPool, SlackService, CloudflareService
 };
@@ -42,11 +42,12 @@ pub struct Metrics {
 
 impl AppState {
     pub async fn new(pool: PgPool) -> Self {
-        let user_service = Arc::new(UserService::new(pool.clone()));
-        let cerebras_client = Arc::new(CerebrasClient::new_from_env());
+        let jwt_secret = std::env::var("JWT_SECRET").expect("JWT_SECRET must be set");
+        let user_service = Arc::new(UserService::new(mr_darkpromth_db::UserRepository::new(pool.clone()), jwt_secret.clone(), redis_coordinator));
+        let cerebras_client = Arc::new(CerebrasClient::new());
         
         let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
-        let redis_coordinator = match RedisCoordinator::new(&redis_url).await {
+        let redis_coordinator = match RedisCoordinator::new(&redis_url, "api_gateway".to_string()) {
             Ok(c) => Some(Arc::new(Mutex::new(c))),
             Err(e) => {
                 log::error!("Failed to connect to Redis: {}", e);
@@ -55,7 +56,7 @@ impl AppState {
         };
         
         let jailbreak_service = Arc::new(JailbreakPromptService::new(pool.clone()));
-        let billing_service = Arc::new(BillingService::with_pool(pool.clone()));
+        let billing_service = Arc::new(BillingService::new_with_pool(pool.clone()));
         let email_service = Arc::new(EmailService::new_from_env(pool.clone()).expect("EmailService failed"));
         let audit_logger = Arc::new(AuditLogger::new(Box::new(DatabaseAuditService::new(pool.clone()))));
         
@@ -113,7 +114,7 @@ impl AppState {
             jailbreak_service.clone()
         )));
 
-        let sandbox_manager = Arc::new(SandboxManager::new(SandboxedExecutorConfig::default()));
+        let sandbox_manager = Arc::new(SandboxManager::new(SandboxConfig::default()));
         
         let metrics = Arc::new(Metrics::default());
         {

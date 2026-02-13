@@ -409,4 +409,81 @@ impl JailbreakPromptService {
         
         Ok((used, remaining))
     }
+
+    // ==================== Template Methods ====================
+
+    pub async fn create_template(&self, request: CreateTemplateRequest) -> Result<PromptTemplate> {
+        let template = sqlx::query_as::<_, PromptTemplate>(
+            r#"
+            INSERT INTO jailbreak_templates (
+                id, name, template, variables, description, category, technique, effectiveness, risk_level, created_at, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            RETURNING *
+            "#
+        )
+        .bind(Uuid::new_v4())
+        .bind(request.name)
+        .bind(request.template)
+        .bind(serde_json::to_value(&request.variables)?)
+        .bind(request.description)
+        .bind(serde_json::to_string(&request.category)?.trim_matches('"'))
+        .bind(serde_json::to_string(&request.technique)?.trim_matches('"'))
+        .bind(serde_json::to_string(&request.effectiveness)?.trim_matches('"'))
+        .bind(serde_json::to_string(&request.risk_level)?.trim_matches('"'))
+        .bind(Utc::now())
+        .bind(Utc::now())
+        .fetch_one(&self.db)
+        .await?;
+
+        Ok(template)
+    }
+
+    pub async fn get_template_by_id(&self, id: Uuid) -> Result<Option<PromptTemplate>> {
+        let template = sqlx::query_as::<_, PromptTemplate>(
+            "SELECT * FROM jailbreak_templates WHERE id = $1"
+        )
+        .bind(id)
+        .fetch_optional(&self.db)
+        .await?;
+
+        Ok(template)
+    }
+
+    pub async fn list_templates(&self) -> Result<Vec<PromptTemplate>> {
+        let templates = sqlx::query_as::<_, PromptTemplate>(
+            "SELECT * FROM jailbreak_templates ORDER BY created_at DESC"
+        )
+        .fetch_all(&self.db)
+        .await?;
+
+        Ok(templates)
+    }
+
+    pub async fn generate_prompt_from_template(&self, template_id: Uuid, variables: serde_json::Value) -> Result<TemplateUsageResponse> {
+        let template = self.get_template_by_id(template_id).await?
+            .ok_or_else(|| anyhow::anyhow!("Template not found"))?;
+
+        let mut generated_prompt = template.template.clone();
+        let mut variables_used = Vec::new();
+
+        if let serde_json::Value::Object(map) = variables {
+            for (key, value) in map {
+                let placeholder = format!("{{{{{}}}}}", key); // Matches {{key}}
+                if generated_prompt.contains(&placeholder) {
+                    let replacement = match value {
+                        serde_json::Value::String(s) => s,
+                        _ => value.to_string(),
+                    };
+                    generated_prompt = generated_prompt.replace(&placeholder, &replacement);
+                    variables_used.push(key);
+                }
+            }
+        }
+
+        Ok(TemplateUsageResponse {
+            generated_prompt,
+            template_id,
+            variables_used,
+        })
+    }
 }

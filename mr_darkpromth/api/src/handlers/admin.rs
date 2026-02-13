@@ -108,6 +108,11 @@ pub async fn admin_delete_user_handler(
         }
     };
 
+    // Prevent admin from deleting their own account
+    if user_id.to_string() == claims.sub {
+        return ApiError::new("SELF_DELETE_FORBIDDEN", "Cannot delete your own admin account").into_response();
+    }
+
     match state.user_service.delete_user(user_id).await {
         Ok(_) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => {

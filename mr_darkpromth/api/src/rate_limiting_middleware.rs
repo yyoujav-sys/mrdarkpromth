@@ -43,7 +43,7 @@ impl RateLimitConfig {
     /// Standard rate limit: 100 requests per minute
     pub fn standard() -> Self {
         Self {
-            max_requests: 1000,
+            max_requests: 100,
             window_secs: 60,
             enabled: true,
         }
@@ -198,14 +198,14 @@ pub async fn rate_limit_middleware(
     Ok(next.run(request).await)
 }
 
-/// Strict rate limiting for auth endpoints (5 req/min)
+/// Strict rate limiting for auth endpoints (10 req/min)
 pub async fn auth_rate_limit_middleware(
     request: Request<axum::body::Body>,
     next: Next,
 ) -> Result<Response, impl IntoResponse> {
     static AUTH_LIMITER: std::sync::OnceLock<IpRateLimiter> = std::sync::OnceLock::new();
     let limiter = AUTH_LIMITER.get_or_init(|| IpRateLimiter::new(RateLimitConfig {
-        max_requests: 1000,
+        max_requests: 10,
         window_secs: 60,
         enabled: true,
     }));

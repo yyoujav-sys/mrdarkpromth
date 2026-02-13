@@ -23,15 +23,24 @@ test_item() {
     TOTAL=$((TOTAL + 1))
     echo -n "Testing: $test_name... "
     
-    if eval "$command" > /dev/null 2>&1; then
-        if [ -z "$expected" ] || eval "$expected" > /dev/null 2>&1; then
+    OUTPUT=$(eval "$command" 2>&1)
+    EXIT_CODE=$?
+    
+    if [ $EXIT_CODE -eq 0 ]; then
+        if [ -z "$expected" ]; then
             echo "✅ PASS"
             PASSED=$((PASSED + 1))
             return 0
+        elif echo "$OUTPUT" | eval "$expected" >/dev/null 2>&1; then
+             echo "✅ PASS"
+             PASSED=$((PASSED + 1))
+             return 0
         fi
     fi
     
     echo "❌ FAIL"
+    echo "    Command: $command"
+    echo "    Output: $OUTPUT"
     FAILED=$((FAILED + 1))
     return 1
 }
@@ -42,10 +51,11 @@ echo "1️⃣  CODE COMPILATION"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 test_item "Rust code compiles" \
-    "cd /opt/mrdarkpromth/mr_darkpromth && cargo check 2>&1 | grep -q 'Finished'"
+    "cd /opt/mrdarkpromth/mr_darkpromth && cargo check --verbose" \
+    "grep -q 'Finished'"
 
-test_item "Release build exists" \
-    "test -f /opt/mrdarkpromth/mr_darkpromth/target/release/mr_darkpromth_api"
+test_item "Release build exists (in container)" \
+    "docker exec mr_darkpromth_api test -f /usr/local/bin/mr_darkpromth_api"
 
 test_item "API module compiled" \
     "ls -la /opt/mrdarkpromth/mr_darkpromth/api/src/*.rs | wc -l | grep -q '[0-9]'"
@@ -141,7 +151,7 @@ echo "7️⃣  AUTOMATION SCRIPTS"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 test_item "Backup script exists" \
-    "test -x /opt/mrdarkpromth/scripts/backup.sh"
+    "test -x /opt/mrdarkpromth/scripts/backup_db.sh"
 
 test_item "Backup verify script exists" \
     "test -x /opt/mrdarkpromth/scripts/verify_backup.sh"
@@ -150,7 +160,7 @@ test_item "Cron setup script exists" \
     "test -x /opt/mrdarkpromth/scripts/setup_cron_jobs.sh"
 
 test_item "SSL renewal script exists" \
-    "test -x /opt/mrdarkpromth/scripts/setup_ssl_auto_renewal.sh"
+    "test -x /opt/mrdarkpromth/scripts/ssl-renewal.sh"
 
 test_item "API test script exists" \
     "test -x /opt/mrdarkpromth/scripts/test_api_endpoints.sh"
@@ -166,7 +176,7 @@ test_item "Docker API container running" \
     "docker ps | grep -q 'mr_darkpromth.*api'"
 
 test_item "API health endpoint available" \
-    "curl -s http://localhost:8080/health | grep -q 'healthy'"
+    "curl -s http://localhost/health | grep -q 'healthy'"
 
 test_item "Prometheus metrics available" \
     "curl -s http://localhost:9090/api/v1/targets | grep -q '\"job\":'"

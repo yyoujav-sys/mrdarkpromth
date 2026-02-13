@@ -40,13 +40,23 @@ pub async fn auth_middleware(
             if let Some(redis_coordinator) = &state.redis_coordinator {
                 let coordinator: MutexGuard<'_, RedisCoordinator> = redis_coordinator.lock().await;
                 let key = format!("jti:{}", claims.jti);
-                let is_revoked = coordinator.get(&key).unwrap_or(None).is_none();
-                drop(coordinator);
                 
-                if is_revoked {
-                    // Token jti not found in Redis, so it's considered revoked/invalid
-                    return Err(StatusCode::UNAUTHORIZED);
+                // Check if the JTI exists in Redis. 
+                // FAIL-SAFE: If Redis is down, we log a warning but allow the request if the JWT is otherwise valid.
+                match coordinator.get(&key) {
+                    Ok(Some(_)) => {
+                        // JTI found, valid token
+                    },
+                    Ok(None) => {
+                        // JTI not found, token revoked
+                        return Err(StatusCode::UNAUTHORIZED);
+                    },
+                    Err(e) => {
+                        // Redis is down or error occurred
+                        log::error!("REDIS_ERROR in auth_middleware: {}. Failing safe (trusting signed JWT).", e);
+                    }
                 }
+                drop(coordinator);
             }
 
             let user_id = uuid::Uuid::parse_str(&claims.sub).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;

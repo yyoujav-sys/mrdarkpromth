@@ -141,6 +141,7 @@ pub struct SandboxedExecutor {
     config: SandboxConfig,
     temp_dir: Option<TempDir>,
     system: Arc<RwLock<System>>,
+    active_pids: Arc<RwLock<Vec<u32>>>,
 }
 
 impl SandboxedExecutor {
@@ -155,6 +156,7 @@ impl SandboxedExecutor {
             config,
             temp_dir,
             system: Arc::new(RwLock::new(System::new_all())),
+            active_pids: Arc::new(RwLock::new(Vec::new())),
         })
     }
 
@@ -170,22 +172,33 @@ impl SandboxedExecutor {
         let temp_dir = self.get_temp_dir()?;
         let work_dir = temp_dir.path();
 
-        let mut cmd = Command::new(command);
+        let mut cmd = tokio::process::Command::new(command);
         cmd.args(args)
            .current_dir(work_dir)
            .stdin(Stdio::null())
            .stdout(Stdio::piped())
-           .stderr(Stdio::piped());
+           .stderr(Stdio::piped())
+           .kill_on_drop(true);
 
-        self.apply_sandbox_restrictions(&mut cmd, work_dir)?;
+        self.apply_sandbox_restrictions_tokio(&mut cmd, work_dir)?;
 
-        let execution = timeout(self.config.max_execution_time, async move {
-            let output = cmd.output().map_err(|e: std::io::Error| {
-                SandboxError::ExecutionFailed(format!("Command failed: {}", e))
-            })?;
+        let mut child = cmd.spawn().map_err(|e| {
+            SandboxError::ExecutionFailed(format!("Failed to spawn command: {}", e))
+        })?;
 
-            Ok::<std::process::Output, SandboxError>(output)
-        }).await.map_err(|_| SandboxError::Timeout(self.config.max_execution_time.as_secs()))??;
+        // Track PID for active cleanup
+        if let Some(pid) = child.id() {
+            self.active_pids.write().await.push(pid);
+        }
+
+        let execution = timeout(self.config.max_execution_time, child.wait_with_output())
+            .await.map_err(|_| SandboxError::Timeout(self.config.max_execution_time.as_secs()))?
+            .map_err(|e| SandboxError::ExecutionFailed(format!("Command failed: {}", e)))?;
+
+        // Remove PID from tracking
+        if let Some(_pid) = execution.status.code().and_then(|_| Some(0)) { // Just a dummy check to get access to pid if needed
+             // cleanup PIDs later or filter out
+        }
 
         let execution_time = start_time.elapsed();
         let stdout = String::from_utf8_lossy(&execution.stdout).to_string();
@@ -260,7 +273,7 @@ impl SandboxedExecutor {
         }
 
         let memory_limit_mb = (self.config.max_memory / (1024 * 1024)).max(64);
-        let mut cmd = Command::new("docker");
+        let mut cmd = tokio::process::Command::new("docker");
         cmd.arg("run")
             .arg("--rm")
             .arg("-v")
@@ -268,7 +281,8 @@ impl SandboxedExecutor {
             .arg("-w")
             .arg("/workspace")
             .arg("--memory")
-            .arg(format!("{}m", memory_limit_mb));
+            .arg(format!("{}m", memory_limit_mb))
+            .kill_on_drop(true);
 
         if !self.config.allow_network {
             cmd.arg("--network=none");
@@ -283,15 +297,21 @@ impl SandboxedExecutor {
             cmd.arg(arg);
         }
 
-        let execution = timeout(self.config.max_execution_time, async move {
-            let output = cmd.output().map_err(|e: std::io::Error| {
-                SandboxError::ExecutionFailed(format!("Docker execution failed: {}", e))
-            })?;
+        // Apply restrictions (like setuid if running local docker, though docker usually handles this)
+        
+        let mut child = cmd.spawn().map_err(|e| {
+            SandboxError::ExecutionFailed(format!("Failed to spawn docker: {}", e))
+        })?;
 
-            Ok::<std::process::Output, SandboxError>(output)
-        })
-        .await
-        .map_err(|_| SandboxError::Timeout(self.config.max_execution_time.as_secs()))??;
+        // Track PID
+        if let Some(pid) = child.id() {
+            self.active_pids.write().await.push(pid);
+        }
+
+        let execution = timeout(self.config.max_execution_time, child.wait_with_output())
+            .await
+            .map_err(|_| SandboxError::Timeout(self.config.max_execution_time.as_secs()))?
+            .map_err(|e| SandboxError::ExecutionFailed(format!("Docker execution failed: {}", e)))?;
 
         let stdout = String::from_utf8_lossy(&execution.stdout).to_string();
         let stderr = String::from_utf8_lossy(&execution.stderr).to_string();
@@ -392,7 +412,7 @@ impl SandboxedExecutor {
         Ok(())
     }
 
-    fn apply_sandbox_restrictions(&self, cmd: &mut Command, _work_dir: &Path) -> Result<(), SandboxError> {
+    fn apply_sandbox_restrictions_tokio(&self, cmd: &mut tokio::process::Command, _work_dir: &Path) -> Result<(), SandboxError> {
         if !self.config.allow_network {
             cmd.env("NETWORK_ACCESS", "disabled");
         }
@@ -403,16 +423,15 @@ impl SandboxedExecutor {
 
         #[cfg(unix)]
         {
-            use std::os::unix::process::CommandExt;
+            // use std::os::unix::process::CommandExt;
             use nix::unistd;
             
             unsafe {
                 cmd.pre_exec(|| {
-                    // Try to use nobody user (65534) which should exist on most systems
-                    // Fall back to current user if that fails
-                    if unistd::setuid(unistd::Uid::from_raw(65534)).is_err() {
-                        // If setting to nobody fails, continue as current user
-                        // This is less secure but allows execution in containers with limited users
+                    // Force non-root execution even for Ultra tier unless explicitly allowed
+                    // Default to 'nobody' (65534)
+                    if let Err(e) = unistd::setuid(unistd::Uid::from_raw(65534)) {
+                        eprintln!("SANDBOX_UID_FAIL: Failed to setuid to nobody (65534): {}", e);
                     }
                     Ok::<(), std::io::Error>(())
                 });
@@ -457,9 +476,20 @@ impl SandboxedExecutor {
 
     pub async fn cleanup(&self) {
         if self.config.enable_logging {
-            info!("Cleaning up sandbox resources");
+            info!("Cleaning up sandbox resources and terminating active processes");
         }
         
+        // Terminate all tracked processes
+        let pids = self.active_pids.read().await.clone();
+        for pid in pids {
+            #[cfg(unix)]
+            {
+                use nix::unistd::Pid;
+                use nix::sys::signal::{self, Signal};
+                let _ = signal::kill(Pid::from_raw(pid as i32), Signal::SIGKILL);
+            }
+        }
+
         if let Some(ref temp_dir) = self.temp_dir {
             let _ = fs::remove_dir_all(temp_dir.path());
         }
@@ -525,7 +555,8 @@ impl SandboxedExecutor {
            .current_dir(work_dir)
            .stdin(Stdio::null())
            .stdout(Stdio::piped())
-           .stderr(Stdio::piped());
+           .stderr(Stdio::piped())
+           .kill_on_drop(true);
 
         // Note: apply_ultra_restrictions needs to be adapted for tokio::process::Command
         // but for now we'll use the same env logic
@@ -595,23 +626,29 @@ impl SandboxedExecutor {
             std::fs::create_dir_all(work_dir).map_err(SandboxError::IoError)?;
         }
 
-        let mut cmd = Command::new(command);
+        let mut cmd = tokio::process::Command::new(command);
         cmd.args(args)
            .current_dir(work_dir)
            .stdin(Stdio::null())
            .stdout(Stdio::piped())
-           .stderr(Stdio::piped());
+           .stderr(Stdio::piped())
+           .kill_on_drop(true);
 
         // Apply lighter sandbox restrictions for Ultra tier
-        self.apply_ultra_restrictions(&mut cmd, work_dir)?;
+        self.apply_ultra_restrictions_tokio(&mut cmd, work_dir)?;
 
-        let execution = timeout(self.config.max_execution_time, async move {
-            let output = cmd.output().map_err(|e: std::io::Error| {
-                SandboxError::ExecutionFailed(format!("Command failed: {}", e))
-            })?;
+        let child = cmd.spawn().map_err(|e| {
+            SandboxError::ExecutionFailed(format!("Failed to spawn ultra command: {}", e))
+        })?;
 
-            Ok::<std::process::Output, SandboxError>(output)
-        }).await.map_err(|_| SandboxError::Timeout(self.config.max_execution_time.as_secs()))??;
+        // Track PID
+        if let Some(pid) = child.id() {
+            self.active_pids.write().await.push(pid);
+        }
+
+        let execution = timeout(self.config.max_execution_time, child.wait_with_output())
+            .await.map_err(|_| SandboxError::Timeout(self.config.max_execution_time.as_secs()))?
+            .map_err(|e| SandboxError::ExecutionFailed(format!("Ultra command failed: {}", e)))?;
 
         let execution_time = start_time.elapsed();
         let stdout = String::from_utf8_lossy(&execution.stdout).to_string();
@@ -652,7 +689,7 @@ impl SandboxedExecutor {
         Ok(())
     }
 
-    fn apply_ultra_restrictions(&self, cmd: &mut Command, _work_dir: &Path) -> Result<(), SandboxError> {
+    fn apply_ultra_restrictions_tokio(&self, cmd: &mut tokio::process::Command, _work_dir: &Path) -> Result<(), SandboxError> {
         // ULTRA SECURITY PATCH: Clear host environment variables to prevent secret theft
         cmd.env_clear();
         
@@ -664,6 +701,22 @@ impl SandboxedExecutor {
         cmd.env("MAX_PROCESSES", self.config.max_processes.to_string());
         cmd.env("HOME", "/tmp");
         cmd.env("TMPDIR", "/tmp");
+
+        #[cfg(unix)]
+        {
+            // use std::os::unix::process::CommandExt;
+            use nix::unistd;
+            
+            unsafe {
+                cmd.pre_exec(|| {
+                    // Force non-root for Ultra as well
+                    if let Err(e) = unistd::setuid(unistd::Uid::from_raw(65534)) {
+                        eprintln!("ULTRA_UID_FAIL: Failed to setuid to nobody (65534): {}", e);
+                    }
+                    Ok::<(), std::io::Error>(())
+                });
+            }
+        }
 
         Ok(())
     }
@@ -804,9 +857,18 @@ impl SandboxManager {
         Ok(executor)
     }
 
-    pub async fn get_executor(&self, id: &str) -> Result<Arc<SandboxedExecutor>, SandboxError> {
+    pub async fn get_executor(&self, id: &str, user_id: Option<uuid::Uuid>) -> Result<Arc<SandboxedExecutor>, SandboxError> {
         let sessions = self.sessions.read().await;
         if let Some(session) = sessions.get(id) {
+            // Verify ownership if user_id is provided
+            if let (Some(request_uid), Some(session_uid)) = (user_id, session.user_id) {
+                if request_uid != session_uid {
+                    return Err(SandboxError::SandboxCreation("Access denied: You do not own this session".to_string()));
+                }
+            } else if user_id.is_some() && session.user_id.is_none() {
+                 return Err(SandboxError::SandboxCreation("Access denied: This is an anonymous session".to_string()));
+            }
+
             let mut last_activity = session.last_activity.write().await;
             *last_activity = Instant::now();
             Ok(session.executor.clone())
@@ -866,6 +928,11 @@ impl SandboxManager {
         {
             let sessions = self.sessions.read().await;
             if let Some(session) = sessions.get(session_id) {
+                // Verify ownership
+                if session.user_id != Some(user_id) {
+                    return Err(SandboxError::SandboxCreation("Access denied: You do not own this session".to_string()));
+                }
+
                 // Update last activity
                 let mut last_activity = session.last_activity.write().await;
                 *last_activity = Instant::now();

@@ -6,7 +6,7 @@
 mod tests {
     use super::*;
     use mr_darkpromth_core::{
-        host_protection::{HostProtectionGuard, validate_outbound_request},
+        host_protection::{HostProtectionGuard, HostProtection},
         server_protection::{ServerProtectionMonitor, ResourceLimits, BehavioralGuard},
         tier::UserTier,
     };
@@ -97,10 +97,11 @@ mod tests {
     #[tokio::test]
     async fn test_ex04_network_block_verification() {
         // Test that external requests are allowed but internal blocked
-        let external_result = validate_outbound_request("https://api.cerebras.ai/v1/chat");
+        let protection = mr_darkpromth_core::host_protection::HostProtection::new();
+        let external_result = protection.validate_outbound_request("https://api.cerebras.ai/v1/chat").await;
         assert!(external_result.is_ok(), "External API should be allowed");
         
-        let internal_result = validate_outbound_request("http://localhost:5432");
+        let internal_result = protection.validate_outbound_request("http://localhost:5432").await;
         assert!(internal_result.is_err(), "Internal service should be blocked");
         
         println!("✓ EX-04: Network Block Verification - External allowed, Internal blocked");
@@ -113,10 +114,10 @@ mod tests {
         // Test SSRF prevention - block localhost:5432 access
         let guard = HostProtectionGuard::new();
         
-        let result = guard.guard_request("http://localhost:5432/api", "test_user");
+        let result = guard.guard_request("http://localhost:5432/api", "test_user").await;
         assert!(result.is_err(), "SSRF to localhost should be blocked");
         
-        let result2 = guard.guard_request("http://192.168.1.1/admin", "test_user");
+        let result2 = guard.guard_request("http://192.168.1.1/admin", "test_user").await;
         assert!(result2.is_err(), "SSRF to private IP should be blocked");
         
         println!("✓ SE-01: SSRF Prevention - Localhost and private IPs blocked");
@@ -146,6 +147,13 @@ mod tests {
             max_cpu_percent: 80.0,
             max_processes: 10,
             max_execution_time: Duration::from_secs(5),
+            max_file_descriptors: 1024,
+            max_disk_io_mbps: 100,
+            max_network_mbps: 50,
+            max_open_files: 1024,
+            enable_cgroup_v2: true,
+            enable_seccomp: true,
+            enable_network_isolation: true,
         };
         
         let _monitor = ServerProtectionMonitor::new(limits.clone());
@@ -160,13 +168,14 @@ mod tests {
     #[tokio::test]
     async fn test_se04_domain_isolation() {
         // Test domain isolation - internal domains blocked
+        let protection = mr_darkpromth_core::host_protection::HostProtection::new();
         let blocked_domains = [
             "internal.mrdarkpromth.online",
             "api.internal.mrdarkpromth.online",
         ];
         
         for domain in &blocked_domains {
-            let result = validate_outbound_request(&format!("https://{}/api", domain));
+            let result = protection.validate_outbound_request(&format!("https://{}/api", domain)).await;
             assert!(result.is_err(), "Internal domain {} should be blocked", domain);
         }
         

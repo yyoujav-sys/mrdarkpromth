@@ -54,7 +54,14 @@ pub async fn chat_handler(
     Json(req): Json<ChatRequest>,
 ) -> axum::response::Response {
     let request_id = Uuid::new_v4();
-    let ip_address = Some(addr.ip().to_string());
+    
+    // Extract Real IP from header (set by Nginx) or fallback to connection address
+    let client_ip = headers.get("X-Real-IP")
+        .and_then(|h| h.to_str().ok())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| addr.ip().to_string());
+
+    let ip_address = Some(client_ip.clone());
     let user_agent = headers.get(axum::http::header::USER_AGENT)
         .and_then(|h| h.to_str().ok())
         .map(|s| s.to_string());
@@ -63,8 +70,7 @@ pub async fn chat_handler(
     if let Some(redis_coordinator) = &state.redis_coordinator {
         let locked_coordinator: MutexGuard<'_, RedisCoordinator> = redis_coordinator.lock().await;
         if let Ok(mut conn) = locked_coordinator.get_connection() {
-            let ip = addr.ip().to_string();
-            let key = format!("rate_limit:{}", ip);
+            let key = format!("rate_limit:{}", client_ip);
             const MAX_REQUESTS: i64 = 30; // 30 requests
             const WINDOW_SECS: usize = 60; // per 60 seconds
 

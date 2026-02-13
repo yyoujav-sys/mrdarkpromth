@@ -101,7 +101,8 @@ pub struct ChatResponse {
 pub fn extract_token(headers: &axum::http::HeaderMap) -> Option<String> {
     headers.get("authorization")
         .and_then(|h| h.to_str().ok())
-        .map(|s| s.replace("Bearer ", ""))
+        .and_then(|s| s.strip_prefix("Bearer "))
+        .map(|s| s.to_string())
 }
 
 // ==================== Basic Handlers ====================
@@ -162,7 +163,7 @@ pub async fn login_handler(
     State(state): State<Arc<AppState>>,
     Json(req): Json<LoginRequest>,
 ) -> impl IntoResponse {
-    log::info!("Attempting login for email: {}", req.email);
+    log::info!("Login attempt received");
     let login_req = mr_darkpromth_services::user_service::LoginRequest {
         email: req.email,
         password: req.password,
@@ -740,8 +741,27 @@ pub async fn upload_avatar_handler(
 
 pub async fn get_api_key_status_handler(
     State(state): State<Arc<AppState>>,
-    _headers: axum::http::HeaderMap,
+    headers: axum::http::HeaderMap,
 ) -> impl IntoResponse {
+    // Admin-only: this endpoint exposes all user API keys
+    let token = match extract_token(&headers) {
+        Some(t) => t,
+        None => {
+            return ApiError::new("MISSING_TOKEN", "Authorization header required").into_response();
+        }
+    };
+
+    let claims = match state.user_service.validate_token(&token).await {
+        Ok(c) => c,
+        Err(_) => {
+            return ApiError::new("INVALID_TOKEN", "Invalid or expired token").into_response();
+        }
+    };
+
+    if claims.tier != "admin" {
+        return ApiError::new("ADMIN_REQUIRED", "Admin access required").into_response();
+    }
+
     // Fetch all users
     match state.user_service.list_users(1000, 0).await {
         Ok(users) => {

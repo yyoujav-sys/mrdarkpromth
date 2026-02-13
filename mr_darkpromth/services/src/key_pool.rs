@@ -69,10 +69,23 @@ impl KeyPool {
         let mut keys = self.keys.write().await;
         let now = Utc::now();
         
-        // Filter keys for the requested provider that are active and not rate-limited
+        // Auto-recovery: If key is inactive but hasn't been tried for 10 minutes, reactivate it
+        for k in keys.iter_mut() {
+            if !k.is_active {
+                if let Some(last) = k.last_used {
+                    if now - last > chrono::Duration::minutes(10) {
+                        k.is_active = true;
+                        k.failure_count = 0;
+                        info!("Automatically reactivating API key {} for provider {:?} after cooldown", k.id, k.provider);
+                    }
+                }
+            }
+        }
+
+        // filtered keys for the requested provider
         let mut available_keys: Vec<(usize, &mut ApiKey)> = keys.iter_mut().enumerate()
             .filter(|(_, k)| {
-                // Must match provider
+                // Match provider efficiently
                 let provider_match = match (&k.provider, &provider) {
                     (Provider::Cerebras, Provider::Cerebras) => true,
                     (Provider::OpenRouter, Provider::OpenRouter) => true,
@@ -104,8 +117,9 @@ impl KeyPool {
         let mut keys = self.keys.write().await;
         if let Some(key) = keys.iter_mut().find(|k| k.id == id) {
             key.failure_count += 1;
+            key.last_used = Some(Utc::now()); // Mark as used to put it at end of rotation
             if key.failure_count > 5 {
-                warn!("Deactivating API key {} due to excessive failures", id);
+                warn!("Deactivating API key {} due to excessive failures. Cooldown initiated.", id);
                 key.is_active = false;
             }
         }

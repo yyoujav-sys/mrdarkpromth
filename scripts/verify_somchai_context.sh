@@ -1,7 +1,7 @@
 #!/bin/bash
 # Somchai Context Retention Test
 
-API_URL="http://localhost:8080"
+API_URL="http://localhost:80"
 EMAIL="somchai_$(date +%s)@test.com"
 PASSWORD="somchaiPassword123"
 USERNAME="somchai_$(date +%s)"

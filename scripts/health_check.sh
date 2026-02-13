@@ -3,7 +3,7 @@
 # MR.DarkPromth Health Check & Failover Script
 # Monitors API health and restarts services if necessary
 
-API_URL="http://localhost:8080/health"
+API_URL="http://localhost/health"
 MAX_RETRIES=3
 RETRY_INTERVAL=5
 
@@ -25,10 +25,10 @@ if check_health; then
 else
     echo "$(date): System is UNHEALTHY! Initiating failover/restart..."
     # Log the failure
-    echo "$(date): API failure detected" >> /home/ubuntu/MR.Darkpromth/logs/failover.log
+    echo "$(date): API failure detected" >> /opt/mrdarkpromth/logs/failover.log
     
     # Restart the API container
-    docker-compose -f /home/ubuntu/MR.Darkpromth/docker-compose.yml restart api
+    docker compose -f /opt/mrdarkpromth/docker-compose.production.yml restart api
     
     # Notify admin (mock)
     echo "Admin notified of system restart."

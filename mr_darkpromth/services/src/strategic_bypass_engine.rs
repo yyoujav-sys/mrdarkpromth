@@ -78,7 +78,7 @@ impl StrategicBypassEngine {
         self.asset_integrity_rules.push(StrategicRule {
             id: "infra_integrity".to_string(),
             name: "Infrastructure Integrity".to_string(),
-            pattern: r"(?i)(bt-shop-dark\.online|127\.0\.0\.1|localhost|database_internal)".to_string(),
+            pattern: r"(?i)(mrdarkpromth\.online|bt-shop-dark\.online|127\.0\.0\.1|localhost|database_internal)".to_string(),
             priority: OperationalPriority::Critical,
             strategy: StrategicAction::ProtectAsset,
             description: "Protects core system assets from unintended tactical damage".to_string(),

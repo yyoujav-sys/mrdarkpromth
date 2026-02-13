@@ -81,8 +81,8 @@ export const TerminalPage: React.FC = () => {
           cmd.id === commandId
             ? {
               ...cmd,
-              output: response.data.output || 'Command executed successfully (no output)',
-              status: response.data.status || 'success',
+              output: response.data.stdout || response.data.stderr || 'Command executed successfully (no output)',
+              status: response.data.exit_code === 0 ? 'success' : 'error',
               executionTime: Math.round(executionTime)
             }
             : cmd
@@ -262,10 +262,10 @@ export const TerminalPage: React.FC = () => {
                 {/* Output */}
                 <div
                   className={`mt-2 pl-4 border-l-2 ${cmd.status === 'error'
-                      ? 'border-red-500 text-red-400'
-                      : cmd.status === 'running'
-                        ? 'border-yellow-500 text-gray-400'
-                        : 'border-gray-600 text-gray-300'
+                    ? 'border-red-500 text-red-400'
+                    : cmd.status === 'running'
+                      ? 'border-yellow-500 text-gray-400'
+                      : 'border-gray-600 text-gray-300'
                     }`}
                 >
                   {cmd.status === 'running' ? (

@@ -2,7 +2,7 @@
 // Provides GitHub authentication integration
 
 use axum::{
-    extract::State,
+    extract::{State, Extension},
     http::StatusCode,
     response::{IntoResponse, Response},
     Json,
@@ -11,8 +11,10 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 use mr_darkpromth_core::github_oauth::GitHubOAuthClient;
+use mr_darkpromth_services::user_service::UserResponse;
 
 use crate::AppState;
+use crate::middleware::AuthenticatedUser;
 
 #[derive(Debug, Deserialize)]
 pub struct GitHubAuthRequest {
@@ -29,7 +31,8 @@ pub struct GitHubAuthUrlResponse {
 #[derive(Debug, Serialize)]
 pub struct GitHubCallbackResponse {
     pub status: String,
-    pub github_user: GitHubUserInfo,
+    pub user: UserResponse,
+    pub github_profile: GitHubUserInfo,
     pub tier: String,
     pub token: Option<String>,
     pub refresh_token: Option<String>,
@@ -53,16 +56,23 @@ pub struct ErrorResponse {
 
 /// Get GitHub OAuth authorization URL
 pub async fn github_auth_url_handler(
-    State(_state): State<Arc<AppState>>,
+    State(state): State<Arc<AppState>>,
 ) -> Json<GitHubAuthUrlResponse> {
     let oauth_client = GitHubOAuthClient::new_from_env();
-    let state = Uuid::new_v4().to_string();
+    let oauth_state = Uuid::new_v4().to_string();
     
-    let authorization_url = oauth_client.get_authorization_url(&state);
+    // Store state in Redis for CSRF validation (10 minute TTL)
+    if let Some(redis_coordinator) = &state.redis_coordinator {
+        let coordinator = redis_coordinator.lock().await;
+        let key = format!("oauth_state:{}", oauth_state);
+        let _ = coordinator.set(&key, "pending", Some(600)); // 10 min TTL
+    }
+    
+    let authorization_url = oauth_client.get_authorization_url(&oauth_state);
     
     Json(GitHubAuthUrlResponse {
         authorization_url,
-        state,
+        state: oauth_state,
     })
 }
 
@@ -71,6 +81,26 @@ pub async fn github_auth_callback_handler(
     State(state): State<Arc<AppState>>,
     Json(request): Json<GitHubAuthRequest>,
 ) -> Response {
+    // Validate OAuth state parameter (CSRF protection)
+    if let Some(redis_coordinator) = &state.redis_coordinator {
+        let coordinator = redis_coordinator.lock().await;
+        let key = format!("oauth_state:{}", request.state);
+        match coordinator.get(&key) {
+            Ok(Some(_)) => {
+                // Valid state — consume it (one-time use)
+                let _ = coordinator.del(&key);
+            }
+            _ => {
+                log::warn!("Invalid or expired OAuth state parameter");
+                let error = ErrorResponse {
+                    error: "INVALID_STATE".to_string(),
+                    message: "Invalid or expired OAuth state. Please try again.".to_string(),
+                };
+                return (StatusCode::BAD_REQUEST, Json(error)).into_response();
+            }
+        }
+    }
+
     let oauth_client = GitHubOAuthClient::new_from_env();
     
     log::info!("GitHub OAuth callback received with code length: {}", request.code.len());
@@ -84,16 +114,18 @@ pub async fn github_auth_callback_handler(
             
             match state.user_service.login_or_register_oauth(&email, &github_user.login).await {
                 Ok(auth_response) => {
+                     let tier = auth_response.user.tier.to_string();
                      let response = GitHubCallbackResponse {
                         status: "success".to_string(),
-                        github_user: GitHubUserInfo {
+                        user: auth_response.user,
+                        github_profile: GitHubUserInfo {
                             login: github_user.login,
                             email: github_user.email,
                             avatar_url: github_user.avatar_url,
                             followers: github_user.followers,
                             public_repos: github_user.public_repos,
                         },
-                        tier: auth_response.user.tier.to_string(),
+                        tier,
                         token: Some(auth_response.token),
                         refresh_token: Some(auth_response.refresh_token),
                         message: "GitHub authentication successful".to_string(),
@@ -123,19 +155,53 @@ pub async fn github_auth_callback_handler(
 
 /// Link GitHub account to existing user (requires auth)
 pub async fn github_link_handler(
-    State(_state): State<Arc<AppState>>,
+    State(state): State<Arc<AppState>>,
+    Extension(user): Extension<AuthenticatedUser>,
     Json(request): Json<GitHubAuthRequest>,
 ) -> Response {
+    // Validate OAuth state parameter (CSRF protection)
+    if let Some(redis_coordinator) = &state.redis_coordinator {
+        let coordinator = redis_coordinator.lock().await;
+        // Note: For linking, the state might be different or same flow. 
+        // Assuming the frontend initiates a new OAuth flow for linking, it should use the same state mechanism.
+        // If the frontend re-uses the same get_authorization_url, the state is stored in redis.
+        let key = format!("oauth_state:{}", request.state);
+        match coordinator.get(&key) {
+            Ok(Some(_)) => {
+                let _ = coordinator.del(&key);
+            }
+            _ => {
+                let error = ErrorResponse {
+                    error: "INVALID_STATE".to_string(),
+                    message: "Invalid or expired OAuth state.".to_string(),
+                };
+                return (StatusCode::BAD_REQUEST, Json(error)).into_response();
+            }
+        }
+    }
+
     let oauth_client = GitHubOAuthClient::new_from_env();
     
     match oauth_client.complete_oauth_flow(&request.code, &request.state).await {
         Ok((github_user, _access_token)) => {
-            log::info!("Linked GitHub account: {}", github_user.login);
+            log::info!("Linking GitHub account: {} for user: {}", github_user.login, user.user_id);
             
-            (StatusCode::OK, Json(serde_json::json!({
-                "message": "GitHub account linked successfully",
-                "github_username": github_user.login
-            }))).into_response()
+            match state.user_service.link_github(user.user_id, github_user.login.clone()).await {
+                Ok(_) => {
+                    (StatusCode::OK, Json(serde_json::json!({
+                        "message": "GitHub account linked successfully",
+                        "github_username": github_user.login
+                    }))).into_response()
+                },
+                Err(e) => {
+                    log::error!("Failed to link GitHub account: {}", e);
+                    let error = ErrorResponse {
+                        error: "LINK_FAILED".to_string(),
+                        message: format!("Failed to link GitHub account: {}", e),
+                    };
+                    (StatusCode::BAD_REQUEST, Json(error)).into_response()
+                }
+            }
         }
         Err(e) => {
             log::error!("GitHub linking failed: {}", e);
@@ -150,13 +216,26 @@ pub async fn github_link_handler(
 
 /// Unlink GitHub account (requires auth)
 pub async fn github_unlink_handler(
-    State(_state): State<Arc<AppState>>,
-) -> Json<serde_json::Value> {
-    log::info!("Unlinking GitHub account");
+    State(state): State<Arc<AppState>>,
+    Extension(user): Extension<AuthenticatedUser>,
+) -> Response {
+    log::info!("Unlinking GitHub account for user: {}", user.user_id);
     
-    Json(serde_json::json!({
-        "message": "GitHub account unlinked successfully"
-    }))
+    match state.user_service.unlink_github(user.user_id).await {
+        Ok(_) => {
+             Json(serde_json::json!({
+                "message": "GitHub account unlinked successfully"
+            })).into_response()
+        },
+        Err(e) => {
+            log::error!("Failed to unlink GitHub account: {}", e);
+            let error = ErrorResponse {
+                error: "UNLINK_FAILED".to_string(),
+                message: format!("Failed to unlink GitHub account: {}", e),
+            };
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(error)).into_response()
+        }
+    }
 }
 
 /// Get GitHub profile (requires auth)

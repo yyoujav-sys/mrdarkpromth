@@ -349,6 +349,7 @@ mod tests {
             tier: UserTier::Free,
             api_key: "mr_test_key".to_string(),
             api_key_expires_at: Some(chrono::Utc::now() + chrono::Duration::days(30)),
+            github_id: None,
             is_active: true,
             language: Some("en".to_string()),
             created_at: chrono::Utc::now(),

@@ -195,29 +195,9 @@ impl UserService {
             .await?
             .ok_or(AuthError::InvalidCredentials)?;
 
-        log::info!("Found user. Verifying password with hash: {}", &user.password_hash);
-
         // Verify password
-        let verification_result = self.verify_password(&request.password, &user.password_hash);
-        log::info!("Password verification result: {:?}", verification_result);
-
-        let password_valid = match verification_result {
+        let password_valid = match self.verify_password(&request.password, &user.password_hash) {
             Ok(valid) => valid,
-            Err(AuthError::HashError(_)) => {
-                // Hash parsing failed - check if this is the admin with placeholder hash
-                if user.email == "admin@mrdarkpromth.ai" 
-                    && request.password == "admin123"
-                    && user.password_hash.contains("example_hash_replace_in_app") {
-                    // Auto-update the password hash
-                    let new_hash = self.hash_password(&request.password)?;
-                    // Update the user's password hash in the database
-                    self.repository.update_password_hash(user.id, new_hash).await?;
-                    log::info!("Admin password hash auto-updated from placeholder to valid hash");
-                    true // Allow login after fixing the hash
-                } else {
-                    return Err(AuthError::InvalidCredentials);
-                }
-            }
             Err(_) => return Err(AuthError::InvalidCredentials),
         };
 
@@ -343,7 +323,7 @@ impl UserService {
             return Err(AuthError::InvalidCredentials);
         }
 
-        if request.password.len() < 8 {
+        if request.password.len() < 12 {
             return Err(AuthError::InvalidCredentials);
         }
 
@@ -382,7 +362,7 @@ impl UserService {
 
     async fn generate_token(&self, user: &User) -> Result<String, AuthError> {
         let now = Utc::now();
-        let exp = now + Duration::hours(24); // 24 hours expiration for access token
+        let exp = now + Duration::hours(1); // 1 hour expiration for access token
         let jti = Uuid::new_v4().to_string();
 
         let claims = Claims {
@@ -468,6 +448,18 @@ impl UserService {
             .count_active_users()
             .await
             .map_err(AuthError::from)
+    }
+
+    pub async fn link_github(&self, user_id: Uuid, github_id: String) -> Result<User, AuthError> {
+        let user = self.repository.link_github_account(user_id, github_id).await?
+            .ok_or(AuthError::UserNotFound)?;
+        Ok(user)
+    }
+
+    pub async fn unlink_github(&self, user_id: Uuid) -> Result<User, AuthError> {
+        let user = self.repository.unlink_github_account(user_id).await?
+            .ok_or(AuthError::UserNotFound)?;
+        Ok(user)
     }
 }
 

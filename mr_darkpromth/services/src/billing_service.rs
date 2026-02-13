@@ -165,6 +165,15 @@ pub trait BillingRepository: Send + Sync {
     async fn get_payment_by_reference(&self, reference: &str) -> Result<Option<Payment>>;
     async fn cancel_subscription(&self, id: Uuid) -> Result<()>;
     async fn check_and_increment_quota(&self, user_id: Uuid, tier: &str) -> Result<bool>;
+    async fn verify_payment_and_upgrade_tier(
+        &self,
+        verification_id: Uuid,
+        admin_id: Uuid,
+        approved: bool,
+        notes: Option<String>,
+        tier: &str,
+        duration_days: i32,
+    ) -> Result<Payment>;
 }
 
 pub struct PostgresBillingRepository {
@@ -362,6 +371,88 @@ impl BillingRepository for PostgresBillingRepository {
             .map_err(|e| anyhow::anyhow!(e))?;
         Ok(row.0)
     }
+
+    async fn verify_payment_and_upgrade_tier(
+        &self,
+        verification_id: Uuid,
+        admin_id: Uuid,
+        approved: bool,
+        notes: Option<String>,
+        tier: &str,
+        duration_days: i32,
+    ) -> Result<Payment> {
+        let mut tx = self.pool.begin().await?;
+
+        // 1. Update verification
+        let status = if approved { "approved" } else { "rejected" };
+        let verification: PaymentSlipVerification = sqlx::query_as(
+            r#"
+            UPDATE payment_slip_verifications
+            SET status = $1, reviewed_by = $2, reviewed_at = NOW(), review_notes = $3
+            WHERE id = $4 AND status = 'pending'
+            RETURNING *
+            "#
+        )
+        .bind(status).bind(admin_id).bind(notes).bind(verification_id)
+        .fetch_optional(&mut *tx).await?
+        .ok_or_else(|| anyhow!("Verification not found or already processed"))?;
+
+        // 2. Update payment
+        let payment_status = if approved { "verified" } else { "failed" };
+        let payment: Payment = sqlx::query_as(
+            r#"
+            UPDATE payments
+            SET status = $1, verified_by = $2, verified_at = NOW(), updated_at = NOW()
+            WHERE id = $3
+            RETURNING *
+            "#
+        )
+        .bind(payment_status).bind(Some(admin_id)).bind(verification.payment_id)
+        .fetch_one(&mut *tx).await?;
+
+        if approved {
+            // 3. Update user tier
+            sqlx::query("UPDATE users SET tier = $1::user_tier, updated_at = NOW() WHERE id = $2")
+                .bind(tier).bind(verification.user_id)
+                .execute(&mut *tx).await?;
+
+            // 4. Create or update subscription
+            let now = Utc::now();
+            let end_date = now + Duration::days(duration_days as i64);
+
+            let existing: Option<Subscription> = sqlx::query_as(
+                "SELECT * FROM subscriptions WHERE user_id = $1 AND status = 'active' FOR UPDATE"
+            )
+            .bind(verification.user_id)
+            .fetch_optional(&mut *tx).await?;
+
+            if let Some(sub) = existing {
+                let new_end_date = if sub.end_date > now {
+                    sub.end_date + Duration::days(duration_days as i64)
+                } else {
+                    end_date
+                };
+                sqlx::query(
+                    "UPDATE subscriptions SET plan_id = $1, payment_id = $2, tier = $3::user_tier, end_date = $4, updated_at = NOW() WHERE id = $5"
+                )
+                .bind(payment.plan_id).bind(Some(payment.id)).bind(tier).bind(new_end_date).bind(sub.id)
+                .execute(&mut *tx).await?;
+            } else {
+                sqlx::query(
+                    r#"
+                    INSERT INTO subscriptions (id, user_id, plan_id, payment_id, tier, status, start_date, end_date, auto_renew)
+                    VALUES ($1, $2, $3, $4, $5::user_tier, $6, $7, $8, $9)
+                    "#
+                )
+                .bind(Uuid::new_v4()).bind(verification.user_id).bind(payment.plan_id)
+                .bind(Some(payment.id)).bind(tier).bind("active").bind(now).bind(end_date).bind(false)
+                .execute(&mut *tx).await?;
+            }
+        }
+
+        tx.commit().await?;
+        Ok(payment)
+    }
 }
 
 pub struct BillingService {
@@ -444,22 +535,33 @@ impl BillingService {
     }
 
     pub async fn verify_payment_slip(&self, verification_id: Uuid, admin_id: Uuid, approved: bool, notes: Option<&str>) -> Result<SlipVerificationResult> {
-        let status = if approved { "approved" } else { "rejected" };
-        let verification = self.repository.update_slip_verification(verification_id, status, admin_id, notes.map(|s| s.to_string())).await?;
-
-        let payment = self.repository.get_payment_by_id(verification.payment_id).await?
-            .ok_or_else(|| anyhow!("Payment not found"))?;
-
-        if approved {
-            self.repository.update_payment_status(verification.payment_id, PaymentStatus::Verified.as_str(), Some(admin_id)).await?;
+        let plan_info = if approved {
+            // We need the tier and duration from the plan associated with the payment
+            let verification = self.repository.get_pending_verifications().await?
+                .into_iter().find(|v| v.id == verification_id)
+                .ok_or_else(|| anyhow!("Verification not found"))?;
+            let payment = self.repository.get_payment_by_id(verification.payment_id).await?
+                .ok_or_else(|| anyhow!("Payment not found"))?;
             let plan = self.get_plan(payment.plan_id).await?;
-            self.create_or_update_subscription(verification.user_id, payment.plan_id, verification.payment_id, &plan.tier).await?;
-            self.repository.update_user_tier(verification.user_id, &plan.tier).await?;
-        }
+            Some((plan.tier.clone(), plan.duration_days))
+        } else {
+            None
+        };
+
+        let (tier, duration) = plan_info.unwrap_or_else(|| ("free".to_string(), 0));
+
+        let payment = self.repository.verify_payment_and_upgrade_tier(
+            verification_id,
+            admin_id,
+            approved,
+            notes.map(|s| s.to_string()),
+            &tier,
+            duration,
+        ).await?;
 
         Ok(SlipVerificationResult {
             verified: approved,
-            payment_id: verification.payment_id,
+            payment_id: payment.id,
             amount: payment.amount,
             reference: payment.reference,
             timestamp: Utc::now(),
@@ -598,18 +700,29 @@ mod tests {
     use super::*;
     use std::sync::Mutex;
     use std::sync::Arc;
+    use std::collections::HashMap;
 
     struct MockBillingRepository {
         plans: Vec<Plan>,
+        verifications: Mutex<HashMap<Uuid, PaymentSlipVerification>>,
+        payments: Mutex<HashMap<Uuid, Payment>>
     }
-
+    
     impl MockBillingRepository {
         fn new() -> Self {
-            Self { plans: vec![] }
+            Self { 
+                plans: vec![],
+                verifications: Mutex::new(HashMap::new()),
+                payments: Mutex::new(HashMap::new())
+            }
         }
         
         fn with_plans(plans: Vec<Plan>) -> Self {
-            Self { plans }
+            Self { 
+                plans,
+                verifications: Mutex::new(HashMap::new()),
+                payments: Mutex::new(HashMap::new())
+            }
         }
     }
 
@@ -618,22 +731,87 @@ mod tests {
         async fn get_active_plans(&self) -> Result<Vec<Plan>> {
             Ok(self.plans.clone())
         }
-        async fn get_plan_by_id(&self, _id: Uuid) -> Result<Option<Plan>> { Ok(None) }
-        async fn create_payment(&self, _p: Payment) -> Result<()> { Ok(()) }
-        async fn create_slip_verification(&self, v: PaymentSlipVerification) -> Result<PaymentSlipVerification> { Ok(v) }
-        async fn update_slip_verification(&self, _id: Uuid, _status: &str, _admin_id: Uuid, _notes: Option<String>) -> Result<PaymentSlipVerification> { Err(anyhow!("unimplemented")) }
-        async fn get_payment_by_id(&self, _id: Uuid) -> Result<Option<Payment>> { Ok(None) }
-        async fn update_payment_status(&self, _id: Uuid, _status: &str, _admin_id: Option<Uuid>) -> Result<()> { Ok(()) }
+        async fn get_plan_by_id(&self, id: Uuid) -> Result<Option<Plan>> {
+            Ok(self.plans.iter().find(|p| p.id == id).cloned())
+        }
+        async fn create_payment(&self, p: Payment) -> Result<()> { 
+            self.payments.lock().unwrap().insert(p.id, p);
+            Ok(()) 
+        }
+        async fn create_slip_verification(&self, v: PaymentSlipVerification) -> Result<PaymentSlipVerification> { 
+            let mut v = v;
+            if v.id == Uuid::nil() { // Assign an ID if not present
+                v.id = Uuid::new_v4();
+            }
+            self.verifications.lock().unwrap().insert(v.id, v.clone());
+            Ok(v) 
+        }
+        async fn update_slip_verification(&self, id: Uuid, status: &str, admin_id: Uuid, notes: Option<String>) -> Result<PaymentSlipVerification> { 
+            let mut lock = self.verifications.lock().unwrap();
+            let v_option = lock.get_mut(&id);
+            if let Some(v) = v_option {
+                v.status = status.to_string();
+                v.reviewed_by = Some(admin_id);
+                v.reviewed_at = Some(Utc::now());
+                v.review_notes = notes;
+                Ok(v.clone())
+            } else {
+                Err(anyhow!("Verification not found"))
+            }
+        }
+        async fn get_payment_by_id(&self, id: Uuid) -> Result<Option<Payment>> { 
+            Ok(self.payments.lock().unwrap().get(&id).cloned())
+        }
+        async fn update_payment_status(&self, id: Uuid, status: &str, admin_id: Option<Uuid>) -> Result<()> { 
+            let mut lock = self.payments.lock().unwrap();
+            if let Some(p) = lock.get_mut(&id) {
+                p.status = status.to_string();
+                p.verified_by = admin_id;
+                p.verified_at = Some(Utc::now());
+            }
+            Ok(())
+        }
         async fn update_user_tier(&self, _user_id: Uuid, _tier: &str) -> Result<()> { Ok(()) }
         async fn get_active_subscription(&self, _user_id: Uuid) -> Result<Option<Subscription>> { Ok(None) }
         async fn update_subscription(&self, s: Subscription) -> Result<Subscription> { Ok(s) }
         async fn create_subscription(&self, s: Subscription) -> Result<Subscription> { Ok(s) }
         async fn get_payment_history(&self, _user_id: Uuid) -> Result<Vec<Payment>> { Ok(vec![]) }
-        async fn get_pending_verifications(&self) -> Result<Vec<PaymentSlipVerification>> { Ok(vec![]) }
+        async fn get_pending_verifications(&self) -> Result<Vec<PaymentSlipVerification>> { 
+            Ok(self.verifications.lock().unwrap().values().filter(|v| v.status == "pending").cloned().collect())
+        }
         async fn get_payment_by_id_and_reference(&self, _id: Uuid, _reference: &str) -> Result<Option<Payment>> { Ok(None) }
         async fn get_payment_by_reference(&self, _reference: &str) -> Result<Option<Payment>> { Ok(None) }
         async fn cancel_subscription(&self, _id: Uuid) -> Result<()> { Ok(()) }
         async fn check_and_increment_quota(&self, _user_id: Uuid, _tier: &str) -> Result<bool> { Ok(true) }
+        async fn verify_payment_and_upgrade_tier(
+            &self,
+            verification_id: Uuid,
+            admin_id: Uuid,
+            approved: bool,
+            notes: Option<String>,
+            _tier: &str,
+            _duration_days: i32,
+        ) -> Result<Payment> {
+            let mut verifications_lock = self.verifications.lock().unwrap();
+            let v_option = verifications_lock.get_mut(&verification_id);
+            let verification = v_option.ok_or_else(|| anyhow!("Verification not found"))?;
+            
+            verification.status = if approved { "verified" } else { "rejected" }.to_string();
+            verification.reviewed_by = Some(admin_id);
+            verification.reviewed_at = Some(Utc::now());
+            verification.review_notes = notes;
+            
+            let payment_id = verification.payment_id;
+            let mut payments_lock = self.payments.lock().unwrap();
+            let p_option = payments_lock.get_mut(&payment_id);
+            let payment = p_option.ok_or_else(|| anyhow!("Payment not found"))?;
+            
+            payment.status = if approved { "verified" } else { "failed" }.to_string();
+            payment.verified_by = Some(admin_id);
+            payment.verified_at = Some(Utc::now());
+            
+            Ok(payment.clone())
+        }
     }
 
     #[tokio::test]

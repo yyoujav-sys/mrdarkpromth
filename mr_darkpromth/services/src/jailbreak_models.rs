@@ -64,7 +64,7 @@ pub struct ModelUsageStats {
     pub count: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct PromptTemplate {
     pub id: Uuid,
     pub name: String,
@@ -91,7 +91,7 @@ pub struct CreateTemplateRequest {
     pub risk_level: RiskLevel,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct TemplateResponse {
     pub id: Uuid,
     pub name: String,

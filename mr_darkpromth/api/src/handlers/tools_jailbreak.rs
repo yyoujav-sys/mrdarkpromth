@@ -159,16 +159,7 @@ pub async fn execute_tool_handler(
 
     // Execute tool based on tool_id
     match req.tool_id.as_str() {
-        "file_reader" => {
-            let path = req.parameters.get("path").and_then(|p| p.as_str()).unwrap_or("");
-            match std::fs::read_to_string(path) {
-                Ok(content) => ApiSuccess::new(serde_json::json!({
-                    "result": content,
-                    "success": true
-                })).into_response(),
-                Err(e) => ApiError::new("FILE_READ_ERROR", &format!("Failed to read file: {}", e)).into_response(),
-            }
-        }
+        // file_reader removed due to security policy (LFI risk). Use Sandbox instead.
         "web_search" => {
             // Web search using reqwest to fetch search results
             let query = req.parameters.get("query").and_then(|q| q.as_str()).unwrap_or("");
@@ -245,9 +236,9 @@ pub async fn execute_sandbox_handler(
         return ApiError::new("PREMIUM_REQUIRED", "Sandbox execution requires Premium tier or higher").into_response();
     }
 
-    // Get or create executor
     let executor = if let Some(ref session_id) = req.session_id {
-        match state.sandbox_manager.get_executor(session_id).await {
+        let user_id = uuid::Uuid::parse_str(&claims.sub).ok();
+        match state.sandbox_manager.get_executor(session_id, user_id).await {
             Ok(exec) => exec,
             Err(_) => {
                 return ApiError::new("SESSION_NOT_FOUND", &format!("Sandbox session {} not found", session_id)).into_response();
@@ -409,20 +400,13 @@ pub async fn list_sessions_handler(
 /// Get info about a specific session
 pub async fn get_session_handler(
     State(state): State<Arc<AppState>>,
-    headers: axum::http::HeaderMap,
+    axum::extract::Extension(user): axum::extract::Extension<crate::middleware::AuthenticatedUser>,
     Path(session_id): Path<String>,
 ) -> impl IntoResponse {
-    let token = match extract_token(&headers) {
-        Some(t) => t,
-        None => return ApiError::new("MISSING_TOKEN", "Auth required").into_response(),
-    };
-
-    let _claims = match state.user_service.validate_token(&token).await {
-        Ok(c) => c,
-        Err(_) => return ApiError::new("INVALID_TOKEN", "Invalid token").into_response(),
-    };
-
-    match state.sandbox_manager.get_executor(&session_id).await {
+    use uuid::Uuid;
+    let user_id = Some(user.user_id);
+    
+    match state.sandbox_manager.get_executor(&session_id, user_id).await {
         Ok(_) => ApiSuccess::new(serde_json::json!({ 
             "session_id": session_id,
             "status": "active"
@@ -485,7 +469,8 @@ pub async fn execute_terminal_handler(
         .unwrap_or_default();
     
     let executor: Arc<mr_darkpromth_services::sandboxed_execution::SandboxedExecutor> = if let Some(ref session_id) = req.session_id {
-        match state.sandbox_manager.get_executor(session_id).await {
+        let user_id = uuid::Uuid::parse_str(&claims.sub).ok();
+        match state.sandbox_manager.get_executor(session_id, user_id).await {
             Ok(exec) => exec,
             Err(_) => return ApiError::new("SESSION_NOT_FOUND", "No such session").into_response(),
         }
@@ -516,7 +501,10 @@ pub async fn execute_terminal_handler(
 
 pub async fn list_prompts_handler(
     State(state): State<Arc<AppState>>,
+    axum::extract::Extension(user): axum::extract::Extension<crate::middleware::AuthenticatedUser>,
 ) -> impl IntoResponse {
+    let tier = user.tier;
+    
     let search_request = PromptSearchRequest {
         query: None,
         category: None,
@@ -527,7 +515,8 @@ pub async fn list_prompts_handler(
         tags: None,
         author: None,
         target_model: None,
-        requires_ultra_tier: None,
+        // If not ultra/admin, only show non-ultra prompts
+        requires_ultra_tier: if matches!(tier, mr_darkpromth_services::UserTier::Ultra | mr_darkpromth_services::UserTier::Admin) { None } else { Some(false) },
         limit: Some(50),
         offset: Some(0),
         sort_by: Some(PromptSortBy::CreatedAt),
@@ -629,9 +618,13 @@ pub async fn create_prompt_handler(
 
 pub async fn get_prompt_handler(
     State(state): State<Arc<AppState>>,
+    axum::extract::Extension(user): axum::extract::Extension<crate::middleware::AuthenticatedUser>,
     Path(prompt_id): Path<String>,
 ) -> impl IntoResponse {
     use uuid::Uuid;
+    use mr_darkpromth_services::UserTier;
+    
+    let tier = user.tier;
     
     let id = match Uuid::parse_str(&prompt_id) {
         Ok(uuid) => uuid,
@@ -642,6 +635,11 @@ pub async fn get_prompt_handler(
     
     match state.jailbreak_service.get_prompt_by_id(id).await {
         Ok(Some(prompt)) => {
+            // Check tier access
+            if prompt.requires_ultra_tier && !matches!(tier, UserTier::Ultra | UserTier::Admin) {
+                return ApiError::new("ULTRA_TIER_REQUIRED", "This prompt requires Ultra tier access").into_response();
+            }
+
             let dto = JailbreakPromptDto {
                 id: prompt.id.to_string(),
                 title: prompt.title,
@@ -899,7 +897,7 @@ pub async fn get_prompt_analytics_handler(
     Path(prompt_id): Path<String>,
 ) -> impl IntoResponse {
     use uuid::Uuid;
-    use mr_darkpromth_services::UserTier;
+    // use mr_darkpromth_services::UserTier;
     
     // Extract and validate token
     let token = match extract_token(&headers) {
@@ -907,7 +905,7 @@ pub async fn get_prompt_analytics_handler(
         None => return ApiError::new("MISSING_TOKEN", "Auth required").into_response(),
     };
 
-    let claims = match state.user_service.validate_token(&token).await {
+    let _claims = match state.user_service.validate_token(&token).await {
         Ok(c) => c,
         Err(_) => return ApiError::new("INVALID_TOKEN", "Invalid token").into_response(),
     };
@@ -990,3 +988,73 @@ pub async fn record_prompt_usage_handler(
     }
 }
 
+// ==================== Jailbreak Templates Handlers (Ultra Tier) ====================
+
+pub async fn list_templates_handler(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Extension(user): axum::extract::Extension<crate::middleware::AuthenticatedUser>,
+) -> impl IntoResponse {
+    use mr_darkpromth_services::UserTier;
+    
+    let tier = user.tier;
+    if !matches!(tier, UserTier::Ultra | UserTier::Admin) {
+        return ApiError::new("ULTRA_TIER_REQUIRED", "Jailbreak Templates require Ultra tier access").into_response();
+    }
+
+    match state.jailbreak_service.list_templates().await {
+        Ok(templates) => ApiSuccess::new(serde_json::json!({ "templates": templates })).into_response(),
+        Err(e) => {
+            log::error!("Failed to list templates: {}", e);
+            ApiError::new("FETCH_ERROR", "Failed to fetch templates").into_response()
+        }
+    }
+}
+
+pub async fn create_template_handler(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Extension(user): axum::extract::Extension<crate::middleware::AuthenticatedUser>,
+    Json(req): Json<mr_darkpromth_services::jailbreak_models::CreateTemplateRequest>,
+) -> impl IntoResponse {
+    use mr_darkpromth_services::UserTier;
+    
+    let tier = user.tier;
+    if !matches!(tier, UserTier::Ultra | UserTier::Admin) {
+        return ApiError::new("ULTRA_TIER_REQUIRED", "Creating templates requires Ultra tier access").into_response();
+    }
+
+    match state.jailbreak_service.create_template(req).await {
+        Ok(template) => ApiSuccess::new(serde_json::json!(template)).into_response(),
+        Err(e) => {
+            log::error!("Failed to create template: {}", e);
+            ApiError::new("CREATE_ERROR", "Failed to create template").into_response()
+        }
+    }
+}
+
+pub async fn generate_from_template_handler(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Extension(user): axum::extract::Extension<crate::middleware::AuthenticatedUser>,
+    Path(template_id): Path<String>,
+    Json(req): Json<serde_json::Value>,
+) -> impl IntoResponse {
+    use uuid::Uuid;
+    use mr_darkpromth_services::UserTier;
+    
+    let tier = user.tier;
+    if !matches!(tier, UserTier::Ultra | UserTier::Admin) {
+        return ApiError::new("ULTRA_TIER_REQUIRED", "Generating prompts from templates requires Ultra tier access").into_response();
+    }
+
+    let id = match Uuid::parse_str(&template_id) {
+        Ok(uuid) => uuid,
+        Err(_) => return ApiError::new("INVALID_ID", "Invalid template ID format").into_response(),
+    };
+
+    match state.jailbreak_service.generate_prompt_from_template(id, req).await {
+        Ok(response) => ApiSuccess::new(serde_json::json!(response)).into_response(),
+        Err(e) => {
+            log::error!("Failed to generate prompt from template: {}", e);
+            ApiError::new("GENERATE_ERROR", "Failed to generate prompt").into_response()
+        }
+    }
+}

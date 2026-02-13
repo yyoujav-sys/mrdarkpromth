@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # PostgreSQL Database
   postgres:
@@ -83,9 +81,11 @@ services:
       HEARTBEAT_INTERVAL_SECONDS: "30"
       MEMORY_LOG_ENABLED: "true"
       CEREBRAS_API_KEYS: ${CEREBRAS_API_KEYS}
+      OPENROUTER_API_KEYS: ${OPENROUTER_API_KEYS}
       JWT_SECRET: ${JWT_SECRET}
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET}
+      GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI}
       # Production settings
       ENVIRONMENT: production
       DEBUG: "false"
@@ -93,6 +93,9 @@ services:
       DATABASE_POOL_SIZE: "20"
       DATABASE_MIN_IDLE: "5"
       DATABASE_MAX_LIFETIME: "1800"
+    cap_add:
+      - SETUID
+      - SETGID
     depends_on:
       postgres:
         condition: service_healthy
@@ -159,6 +162,7 @@ services:
       - "443:443"
     volumes:
       - ./nginx/nginx.production.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/cloudflare_ips.conf:/etc/nginx/cloudflare_ips.conf:ro
       - ./certs:/etc/letsencrypt:ro
       - /var/www/certbot:/var/www/certbot:ro
       - ./logs/nginx:/var/log/nginx

@@ -16,6 +16,7 @@ pub struct User {
     pub api_key_expires_at: Option<DateTime<Utc>>,
     pub is_active: bool,
     pub language: Option<String>,
+    pub github_id: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -49,6 +50,7 @@ pub struct UserResponse {
     pub api_key_expires_at: Option<DateTime<Utc>>,
     pub is_active: bool,
     pub language: Option<String>,
+    pub github_id: Option<String>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -63,6 +65,7 @@ impl From<User> for UserResponse {
             api_key_expires_at: user.api_key_expires_at,
             is_active: user.is_active,
             language: user.language,
+            github_id: user.github_id,
             created_at: user.created_at,
         }
     }
@@ -205,6 +208,41 @@ impl UserRepository {
             .await?;
 
         Ok(result.rows_affected() > 0)
+    }
+
+    pub async fn link_github_account(&self, user_id: Uuid, github_id: String) -> anyhow::Result<Option<User>> {
+        let user = sqlx::query_as::<_, User>(
+            r#"
+            UPDATE users 
+            SET github_id = $1,
+                updated_at = NOW()
+            WHERE id = $2
+            RETURNING *
+            "#,
+        )
+        .bind(github_id)
+        .bind(user_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(user)
+    }
+
+    pub async fn unlink_github_account(&self, user_id: Uuid) -> anyhow::Result<Option<User>> {
+        let user = sqlx::query_as::<_, User>(
+            r#"
+            UPDATE users 
+            SET github_id = NULL,
+                updated_at = NOW()
+            WHERE id = $1
+            RETURNING *
+            "#,
+        )
+        .bind(user_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(user)
     }
 
     pub async fn list_users(&self, limit: i64, offset: i64) -> anyhow::Result<Vec<User>> {

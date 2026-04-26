@@ -1,53 +1,51 @@
-# MR.Darkpromth Ultraplan: dLNk AI Gateway Integration & System Restructuring
+# MR.Darkpromth Ultraplan V2: Multi-Dimensional System Optimization
 
-## 1. วิสัยทัศน์ (Vision)
-ยกระดับ **MR.Darkpromth** สู่การเป็น AI Framework ที่ทรงพลังที่สุด โดยใช้ **dLNk AI Gateway** เป็นขุมพลังหลักในการประมวลผล (Core Intelligence) เพื่อความเสถียรสูงสุด การสลับโมเดลอัตโนมัติ (Auto Smart Routing) และรองรับการขยายตัวทั้งในรูปแบบ VS Code Extension และ Public API
-
----
-
-## 2. การปรับเปลี่ยน Provider (Provider Migration)
-
-เปลี่ยนจาก Cerebras/OpenAI เดิม มาใช้ **dLNk AI Gateway** ซึ่งเป็น OpenAI-compatible API:
-
-| Feature | Specification |
-| :--- | :--- |
-| **Base URL** | `https://api.dlnk.online/v1` |
-| **Primary Model** | `auto` (Smart Routing) |
-| **Fallback Models** | `claude-opus-4.5`, `gpt-5.3-codex`, `claude-sonnet-4.5` |
-| **Auth Method** | `X-API-Key` หรือ `Authorization: Bearer` |
+## 1. บทวิเคราะห์สถานะปัจจุบัน (Current State Audit)
+จากการตรวจสอบ Codebase พบปัญหาความซ้ำซ้อนเชิงโครงสร้าง (Structural Redundancy) ดังนี้:
+*   **Logic Duplication**: มีการนิยาม Logic เดียวกันซ้ำใน `core` และ `services` (เช่น Audit, Host Protection, Jailbreak) ทำให้การแก้ไขทำได้ยากและเสี่ยงต่อความไม่สอดคล้อง
+*   **Dependency Fragmentation**: การใช้ทั้ง `axum` และ `actix-web` ใน Workspace เดียวกันเพิ่มขนาด Binary และความซับซ้อนในการจัดการ Middleware
+*   **Interface Inconsistency**: Frontend และ VS Code Extension มีการเขียน API Client แยกกันโดยไม่มี Shared SDK ทำให้ Type Safety ไม่ครอบคลุมทั้งระบบ
 
 ---
 
-## 3. สถาปัตยกรรมระบบใหม่ (Target Architecture)
+## 2. ยุทธศาสตร์การปรับปรุง 4 มิติ (4-Dimensional Strategy)
 
-| Layer | Component | Responsibility |
-| :--- | :--- | :--- |
-| **Interface** | VS Code Extension / Web UI | การปฏิสัมพันธ์กับผู้ใช้ภายใต้แบรนด์ MR.Darkpromth |
-| **Gateway** | Unified API (Axum/Actix) | จัดการ Request, Auth, และเชื่อมต่อ dLNk AI Gateway |
-| **Core Logic** | Agentic Engine (Rust) | **[Core Logic - ห้ามเปลี่ยน]** การประมวลผล AI, State Machine |
-| **Intelligence** | dLNk AI Gateway | การเลือกโมเดลที่ดีที่สุด (Smart Routing) และการประมวลผล LLM |
+### มิติที่ 1: การรวมศูนย์ Logic (Logic Centralization)
+*   **Single Source of Truth**: ย้าย Core Logic ทั้งหมดไปไว้ที่ `mr_darkpromth/core` และให้ `services` ทำหน้าที่เป็นเพียง Wrapper หรือ Implementation เฉพาะทางเท่านั้น
+*   **Unified Error System**: สร้าง Global Error Enum ที่ครอบคลุมทั้งระบบ เพื่อให้การจัดการ Error จาก dLNk AI Gateway เป็นไปในทิศทางเดียวกัน
 
----
+### มิติที่ 2: การเพิ่มประสิทธิภาพเครือข่าย (Network & Intelligence)
+*   **dLNk AI Gateway Native**: ปรับปรุง `api_key_manager.rs` ให้รองรับ dLNk เป็น First-class Citizen พร้อมระบบ Smart Routing `auto`
+*   **Connection Pooling**: ปรับปรุงการเชื่อมต่อ Redis และ PostgreSQL ให้เสถียรขึ้นด้วยระบบ Reconnection อัตโนมัติ
 
-## 4. แผนการดำเนินงาน (Roadmap)
+### มิติที่ 3: การพัฒนา Interface (Unified Interface)
+*   **MR.Darkpromth SDK (TypeScript)**: สร้างโฟลเดอร์ `shared/sdk` เพื่อเก็บ API Client และ Types ที่ใช้ร่วมกันระหว่าง Frontend และ Extension
+*   **Brand Identity Enforcement**: ปรับปรุง UI/UX ให้สะท้อนความเป็น MR.Darkpromth ที่มีความเป็นมืออาชีพและดุดัน (Dark Theme Optimized)
 
-### ระยะที่ 1: dLNk AI Gateway Integration (Immediate)
-*   **Provider Refactoring**: เปลี่ยน `CerebrasClient` และ `OpenAIClient` เดิมให้เรียกใช้ dLNk AI Gateway แทน
-*   **Unified API Key Management**: รองรับการใช้ `DLNK_API_KEY` เป็นกุญแจหลักเพียงดอกเดียว
-*   **Smart Routing Implementation**: ตั้งค่าโมเดลเริ่มต้นเป็น `auto` เพื่อใช้ระบบเลือกโมเดลอัตโนมัติของ dLNk
-
-### ระยะที่ 2: การปรับโครงสร้างเพื่อความเสถียร (Stability & Refactoring)
-*   **Error Handling**: จัดการ Error จาก Gateway (เช่น 429, 503) ให้ระบบสามารถ Retry หรือแจ้งเตือนผู้ใช้ได้อย่างถูกต้อง
-*   **Stream Optimization**: ปรับปรุงระบบ Streaming Response ให้ลื่นไหลทั้งใน Extension และ Web
-*   **Unified Config**: รวมการตั้งค่าทั้งหมดไว้ใน `config/production.toml`
-
-### ระยะที่ 3: การขยายขีดความสามารถ (Extension & API)
-*   **MR.Darkpromth SDK**: สร้าง SDK สำหรับนักพัฒนาภายนอกที่ต้องการใช้ความสามารถของ MR.Darkpromth
-*   **Extension Update**: อัปเดต VS Code Extension ให้รองรับความสามารถใหม่ๆ จาก dLNk AI Gateway
+### มิติที่ 4: ความปลอดภัยและความเสถียร (Security & Stability)
+*   **Enhanced Sandbox**: ปรับปรุง `host_protection.rs` ให้รองรับการตรวจสอบ Domain ของ dLNk AI Gateway โดยเฉพาะ
+*   **Automated Audit**: ระบบบันทึก Log การใช้งาน AI ที่ละเอียดขึ้นเพื่อการตรวจสอบย้อนหลัง (Compliance)
 
 ---
 
-## 5. หลักการรักษา Core Logic (Core Preservation)
-1.  **Logic Integrity**: ห้ามแก้ไขอัลกอริทึมใน `agent.rs` และ `coordinator.rs`
-2.  **Wrapper Approach**: ใช้การสร้าง Wrapper รอบ dLNk API เพื่อให้ Core Logic ยังคงทำงานได้เหมือนเดิมแต่มีประสิทธิภาพสูงขึ้น
-3.  **Brand Identity**: ทุกการตอบกลับจาก AI ต้องคงเอกลักษณ์ของ MR.Darkpromth
+## 3. แผนการดำเนินงาน (Execution Roadmap)
+
+### ระยะที่ 1: การทำความสะอาด (The Great Cleanup - 1-2 สัปดาห์)
+*   ลบโค้ดที่ซ้ำซ้อนใน `services` และเปลี่ยนไปเรียกใช้จาก `core`
+*   รวมระบบ Configuration ให้เป็นหนึ่งเดียว (Unified Config)
+*   อัปเดต `Cargo.toml` เพื่อลด Dependency ที่ไม่จำเป็น
+
+### ระยะที่ 2: การเชื่อมต่ออัจฉริยะ (Smart Integration - 1 สัปดาห์)
+*   Implement dLNk AI Gateway Wrapper พร้อมระบบ Fallback
+*   สร้างระบบ Monitoring เบื้องต้นเพื่อดูสถานะของ Gateway
+
+### ระยะที่ 3: การสร้าง Ecosystem (Ecosystem Building - 2 สัปดาห์)
+*   พัฒนา Shared SDK สำหรับ TypeScript
+*   ปรับปรุง VS Code Extension ให้รองรับฟีเจอร์ใหม่จาก dLNk
+
+---
+
+## 4. มาตรฐานการตรวจสอบ (Audit Standards)
+*   **Zero Duplication**: ห้ามมี Logic ซ้ำซ้อนเกิน 5% ของ Codebase
+*   **Type Coverage**: 100% Type Safety ในส่วนการสื่อสารระหว่าง API และ Client
+*   **Performance**: API Response Time (Time to First Token) ต้องไม่เกิน 500ms เมื่อใช้ dLNk `auto`
